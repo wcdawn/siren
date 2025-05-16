@@ -1,6 +1,6 @@
 #!/bin/sh
 
-EXEC=../../siren/siren.x
+EXEC=../../src/siren.x
 
 cp tworeg.inp tworeg_run.inp
 
