@@ -1,0 +1,157 @@
+module xs
+use kind, only : rk, ik
+implicit none
+private
+
+public :: XSMaterial, XSLibrary, xs_read_library, xs_cleanup
+
+type XSMaterial
+  integer(ik) :: ngroup
+  integer(ik) :: nmoment
+  character(16) :: name
+
+  real(rk), allocatable :: diffusion(:)
+  real(rk), allocatable :: transport(:)
+
+  real(rk), allocatable :: sigma_a(:)
+  real(rk), allocatable :: sigma_t(:)
+
+  logical :: is_fiss
+
+  real(rk), allocatable :: sigma_f(:)
+  real(rk), allocatable :: nusf(:)
+  real(rk), allocatable :: chi(:)
+
+  real(rk), allocatable :: scatter(:,:,:) ! (ngroup, ngroup, nmoment)
+
+endtype XSMaterial
+
+type XSLibrary
+  integer(ik) :: ngroup
+  integer(ik) :: niso
+  integer(ik) :: nmoment
+  type(XSMaterial), allocatable :: mat(:)
+endtype XSLibrary
+
+contains
+
+  subroutine xs_read_library(fname, xslib)
+    use fileio, only : fileio_open_read
+    character(*), intent(in) :: fname
+    type(XSLibrary), intent(out) :: xslib
+
+    integer, parameter :: iounit = 13
+
+    character(2**16) :: line, card
+    integer :: ios
+
+    integer(ik) :: i, pnt, mom
+
+    pnt = 0
+
+    call fileio_open_read(fname, iounit)
+    do
+
+      read(iounit, '(a)', iostat=ios) line
+      if (ios /= 0) then
+        exit
+      endif
+      if (line == '') then
+        cycle
+      endif
+
+      read(line, *) card
+      select case (card)
+        case ('ngroup')
+          read(line, *) card, xslib%ngroup
+        case ('niso')
+          read(line, *) card, xslib%niso
+        case ('nmoment')
+          read(line, *) card, xslib%nmoment
+          xslib%nmoment = xslib%nmoment + 1 ! index begins at 1 in SIREN
+        case ('name')
+          if (pnt == 0) then
+            ! allocate necessary space
+            ! we must have encountered ngroup, nsio, and nmoment before now
+            allocate(xslib%mat(xslib%niso))
+            do i = 1,xslib%niso
+              xslib%mat(i)%ngroup = xslib%ngroup
+              xslib%mat(i)%nmoment = xslib%nmoment
+            enddo
+          endif
+          pnt = pnt + 1
+          read(line, *) card, xslib%mat(pnt)%name
+        case ('diffusion')
+          allocate(xslib%mat(pnt)%diffusion(xslib%ngroup))
+          do i = 1,xslib%ngroup
+            read(iounit, *) xslib%mat(pnt)%diffusion(i)
+          enddo
+          allocate(xslib%mat(pnt)%transport(xslib%ngroup))
+          do i = 1,xslib%ngroup
+            xslib%mat(pnt)%transport(i) = 1d0 / (3d0 * xslib%mat(pnt)%diffusion(i))
+          enddo
+        case ('sigma_a')
+          allocate(xslib%mat(pnt)%sigma_a(xslib%ngroup))
+          do i = 1,xslib%ngroup
+            read(iounit, *) xslib%mat(pnt)%sigma_a(i)
+          enddo
+        case ('sigma_t')
+          allocate(xslib%mat(pnt)%sigma_t(xslib%ngroup))
+          do i = 1,xslib%ngroup
+            read(iounit, *) xslib%mat(pnt)%sigma_t(i)
+          enddo
+        case ('sigma_f')
+          xslib%mat(pnt)%is_fiss = .true.
+          allocate(xslib%mat(pnt)%sigma_f(xslib%ngroup))
+          do i = 1,xslib%ngroup
+            read(iounit, *) xslib%mat(pnt)%sigma_f(i)
+          enddo
+        case ('nusf')
+          xslib%mat(pnt)%is_fiss = .true.
+          allocate(xslib%mat(pnt)%nusf(xslib%ngroup))
+          do i = 1,xslib%ngroup
+            read(iounit, *) xslib%mat(pnt)%nusf(i)
+          enddo
+        case ('chi')
+          xslib%mat(pnt)%is_fiss = .true.
+          allocate(xslib%mat(pnt)%chi(xslib%ngroup))
+          do i = 1,xslib%ngroup
+            read(iounit, *) xslib%mat(pnt)%chi(i)
+          enddo
+        case ('scatter')
+          if (.not. allocated(xslib%mat(pnt)%scatter)) then
+            allocate(xslib%mat(pnt)%scatter(xslib%ngroup, xslib%ngroup, xslib%nmoment))
+          endif
+          read(line, *) card, mom
+          do i = 1,xslib%ngroup
+            ! index begins at 1 in SIREN
+            read(iounit, *) xslib%mat(pnt)%scatter(:,i,mom+1)
+          enddo
+        case default
+          write(*,*) 'Unknown card:', trim(adjustl(card))
+          stop 'error in xs_read_library'
+      endselect
+
+    enddo
+
+    write(*,*) "=== XSLIB ==="
+    write(*,'(a,a)') 'filename: ', trim(adjustl(fname))
+    write(*,'(a,i0)') 'niso = ', xslib%niso
+    write(*,'(a,i0)') 'ngroup = ', xslib%ngroup
+    write(*,'(a,i0)') 'nmoment = ', xslib%nmoment
+    do i = 1,xslib%niso
+      write(*,'(a,a,a,l1)') 'name = "', trim(adjustl(xslib%mat(i)%name)), '" , fiss = ', xslib%mat(i)%is_fiss
+    enddo
+    write(*,*)
+
+    close(iounit)
+  endsubroutine xs_read_library
+
+  subroutine xs_cleanup(xslib)
+    type(XSLibrary), intent(out) :: xslib
+    if (allocated(xslib%mat)) then
+      deallocate(xslib%mat)
+    endif
+  endsubroutine xs_cleanup
+
+endmodule xs
