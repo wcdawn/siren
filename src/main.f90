@@ -50,6 +50,7 @@ write(*,*)
 write(*,*) 'writing flux.csv'
 call output_flux_csv('flux.csv', nx, xs%ngroup, hx, flux)
 
+write(*,*) 'writing power.csv'
 allocate(power(nx))
 call power_calculate(nx, mat_map, xs, flux, power)
 call output_power_csv('power.csv', nx, hx, power)
