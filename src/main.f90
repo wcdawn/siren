@@ -39,6 +39,7 @@ if (refine > 0) then
   write(*,'(a,i0)') 'levels = ', refine
   write(*,'(a,i0)') 'refined nx = ', nx
   write(*,'(a,es13.6)') 'refined hx = ', hx
+  write(*,*)
 endif
 
 allocate(flux(nx, xs%ngroup))
