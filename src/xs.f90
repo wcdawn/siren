@@ -127,7 +127,6 @@ contains
             ! index begins at 1 in SIREN
             read(iounit, *) xslib%mat(pnt)%scatter(:,i,mom+1)
           enddo
-          !xslib%mat(pnt)%scatter(:,:,mom+1) = transpose(xslib%mat(pnt)%scatter(:,:,mom+1)) ! TODO ?
         case default
           write(*,*) 'Unknown card:', trim(adjustl(card))
           stop 'error in xs_read_library'
