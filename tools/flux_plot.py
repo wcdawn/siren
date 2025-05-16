@@ -11,11 +11,13 @@ if __name__ == "__main__":
 
     x = dat[:, 0]
     flux = dat[:, 1:]
+    ngroup = flux.shape[1]
 
     plt.figure()
-    for g in range(flux.shape[1]):
+    for g in range(ngroup):
         plt.plot(x, flux[:, g], label="g={:d}".format(g))
-    plt.legend()
+    if ngroup <= 10:
+        plt.legend()
     plt.xlabel("x [cm]")
     plt.ylabel("Flux (arb. units)")
     plt.title("SIREN Flux")

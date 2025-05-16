@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: output_flux_csv
+public :: output_flux_csv, output_power_csv
 
 contains
 
@@ -37,5 +37,26 @@ contains
 
     close(iounit)
   endsubroutine output_flux_csv
+
+  subroutine output_power_csv(fname, nx, hx, power)
+    use fileio, only : fileio_open_write
+    character(*), intent(in) :: fname
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    real(rk), intent(in) :: power(:) ! (nx)
+
+    integer, parameter :: iounit = 17
+
+    integer(ik) :: i
+
+    call fileio_open_write(fname, iounit)
+
+    write(iounit, '(a)') 'x [cm], power'
+    do i = 1,nx
+      write(iounit, '(es23.16,",",es23.16)') hx*(i-0.5d0), power(i)
+    enddo
+
+    close(iounit)
+  endsubroutine output_power_csv
 
 endmodule output

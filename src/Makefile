@@ -13,6 +13,7 @@ OBJ = \
 	  linalg.o \
 	  main.o \
 	  output.o \
+	  power.o \
 	  xs.o
 
 .PHONY : default all clean
@@ -37,6 +38,7 @@ geometry.o : kind.o
 input.o : kind.o fileio.o
 kind.o :
 linalg.o : kind.o
-main.o : xs.o input.o geometry.o output.o
+main.o : xs.o input.o geometry.o output.o power.o
 output.o : fileio.o kind.o
+power.o : kind.o xs.o
 xs.o : kind.o fileio.o

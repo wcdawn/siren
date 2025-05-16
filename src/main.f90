@@ -6,7 +6,8 @@ use input, only : input_read, input_cleanup, &
   k_tol, phi_tol, max_iter
 use geometry, only : uniform_refinement
 use diffusion, only : diffusion_power_iteration
-use output, only : output_flux_csv
+use output, only : output_flux_csv, output_power_csv
+use power, only : power_calculate
 implicit none
 
 integer(ik) :: i
@@ -15,6 +16,7 @@ type(XSLibrary) :: xs
 
 real(rk) :: keff
 real(rk), allocatable :: flux(:,:)
+real(rk), allocatable :: power(:)
 
 write(*,*) 'begin SIREN'
 
@@ -48,6 +50,11 @@ write(*,*)
 write(*,*) 'writing flux.csv'
 call output_flux_csv('flux.csv', nx, xs%ngroup, hx, flux)
 
+allocate(power(nx))
+call power_calculate(nx, mat_map, xs, flux, power)
+call output_power_csv('power.csv', nx, hx, power)
+
+deallocate(power)
 deallocate(flux)
 
 call xs_cleanup(xs)
