@@ -43,10 +43,10 @@ What SIREN is not:
 
 I know Fortran. So do my coworkers. It allows for better collaboration.
 
-1. Can I add XYX?
+1. Can I add XYZ?
 
 Yep. Make a pull request.
 
-1. Will you add XYX?
+1. Will you add XYZ?
 
 Probably not.
