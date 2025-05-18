@@ -440,6 +440,10 @@ contains
 
           ! SOLVE
           ! need to store copies, trid uses them as scratch space
+          sub_copy(:,g,n) = sub(:,g,n)
+          dia_copy(:,g,n) = dia(:,g,n)
+          sup_copy(:,g,n) = sup(:,g,n)
+          call trid(nx, sub_copy(:,g,n), dia_copy(:,g,n), sup_copy(:,g,n), q, phi(:,g,2*(n-1)+1))
 
         enddo
       enddo

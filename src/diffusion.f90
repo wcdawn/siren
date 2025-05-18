@@ -221,10 +221,7 @@ contains
         sub_copy(:,g) = sub(:,g)
         dia_copy(:,g) = dia(:,g)
         sup_copy(:,g) = sup(:,g)
-        call trid(nx, sup(:,g), dia(:,g), sup(:,g), q, flux(:,g))
-        sub(:,g) = sub_copy(:,g)
-        dia(:,g) = dia_copy(:,g)
-        sup(:,g) = sup_copy(:,g)
+        call trid(nx, sup_copy(:,g), dia_copy(:,g), sup_copy(:,g), q, flux(:,g))
       enddo
 
       fsum = diffusion_fission_summation(nx, mat_map, xslib, flux)
