@@ -218,13 +218,13 @@ contains
         q = fsource(:,g)/keff + upsource(:,g) + downsource
         ! SOLVE
         ! need to store copies, trid uses them as scratch space
-        sub_copy = sub
-        dia_copy = dia
-        sup_copy = sup
+        sub_copy(:,g) = sub(:,g)
+        dia_copy(:,g) = dia(:,g)
+        sup_copy(:,g) = sup(:,g)
         call trid(nx, sup(:,g), dia(:,g), sup(:,g), q, flux(:,g))
-        sub = sub_copy
-        dia = dia_copy
-        sup = sup_copy
+        sub(:,g) = sub_copy(:,g)
+        dia(:,g) = dia_copy(:,g)
+        sup(:,g) = sup_copy(:,g)
       enddo
 
       fsum = diffusion_fission_summation(nx, mat_map, xslib, flux)

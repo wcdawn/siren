@@ -175,7 +175,91 @@ contains
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
 
-  ! NOTE: this is an exact copy of hte diffusion_fission_sumation ...
+  subroutine transport_build_upscatter(nx, hx, mat_map, xslib, phi, idxn, qup)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    integer(ik), intent(in) :: mat_map(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    integer(ik), intent(in) :: idxn
+    real(rk), intent(out) :: qup(:,:) ! (nx, ngroup) 
+
+    if (idxn+1 > xslib%nmoment) then
+      qup = 0d0
+    else
+      ! TODO
+      qup = 1d0
+    endif
+  endsubroutine transport_build_upscatter
+
+  subroutine transport_build_downscatter(nx, hx, mat_map, xslib, phi, idxn, g, qdown)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    integer(ik), intent(in) :: mat_map(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    integer(ik), intent(in) :: idxn
+    integer(ik), intent(in) :: g
+    real(rk), intent(out) :: qdown(:) ! (nx) 
+
+    if (idxn+1 > xslib%nmoment) then
+      qdown = 0d0
+    else
+      ! TODO
+      qdown = 1d0
+    endif
+  endsubroutine transport_build_downscatter
+
+  ! NOTE: this is an exact copy of diffusion_build_fsource ...
+  subroutine transport_build_fsource(nx, hx, mat_map, xslib, phi0, qfiss)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    integer(ik), intent(in) :: mat_map(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: phi0(:,:) ! (nx, ngroup)
+    real(rk), intent(out) :: qfiss(:,:) ! (nx, ngroup)
+
+    integer(ik) :: i
+    integer(ik) :: mthis
+
+    do i = 1,nx
+      mthis = mat_map(i)
+      if (xslib%mat(mthis)%is_fiss) then
+        qfiss(i,:) = xslib%mat(mthis)%chi(:) * sum(xslib%mat(mthis)%nusf(:) * phi0(i,:)) * hx**2
+      else
+        qfiss(i,:) = 0d0
+      endif
+    enddo ! i = 1,nx
+
+  endsubroutine transport_build_fsource
+
+  subroutine transport_build_next_source(nx, hx, mat_map, xslib, sigma_tr, phi, qnext)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    integer(ik), intent(in) :: mat_map(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: qnext(:,:,:) ! (nx, ngroup, neven)
+  endsubroutine transport_build_next_source
+
+  subroutine transport_build_prev_source(nx, hx, mat_map, xslib, sigma_tr, phi, idxn, qprev)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    integer(ik), intent(in) :: mat_map(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    integer(ik), intent(in) :: idxn
+    real(rk), intent(in) :: qprev(:,:) ! (nx, ngroup, neven)
+  endsubroutine transport_build_prev_source
+
+  ! NOTE: this is an exact copy of diffusion_fission_sumation ...
   real(rk) function transport_fission_summation(nx, mat_map, xslib, phi0)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
@@ -228,6 +312,8 @@ contains
     real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- all p0
     real(rk) :: delta_k, delta_phi
 
+    integer(ik) :: n, g
+
     if (mod(pnorder,2) /= 1) then
       stop 'pnorder must be odd'
     endif
@@ -265,6 +351,36 @@ contains
       ! matrix must be rebuilt every time since we update transport xs
       call transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
       ! TODO RHS & solve
+      call transport_build_next_source(nx, hx, mat_map, xslib, sigma_tr, phi, pn_next_source)
+      do n = 1,neven
+
+        if (n == 1) then
+          call transport_build_fsource(nx, hx, mat_map, xslib, phi(:,:,1), fsource)
+        else ! (n > 1)
+          call transport_build_prev_source(nx, hx, mat_map, xslib, sigma_tr, phi, 2*(n-1), pn_prev_source)
+        endif
+        call transport_build_upscatter(nx, hx, mat_map, xslib, phi, 2*(n-1), upsource)
+
+        do g = 1,xslib%ngroup
+
+          call transport_build_downscatter(nx, hx, mat_map, xslib, phi, n, g, downsource)
+          q = upsource(:,g) + downsource
+
+          if (n == 1) then
+            q = q + fsource(:,g)/keff
+          else
+            q = q + pn_prev_source(:,g)
+          endif
+
+          if (n < neven) then
+            q = q + pn_next_source(:,g,n)
+          endif
+
+          ! SOLVE
+          ! need to store copies, trid uses them as scratch space
+
+        enddo
+      enddo
 
       ! odd update
       call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
@@ -287,6 +403,10 @@ contains
 
     enddo ! iter = 1,max_iter
     
+    if (iter > max_iter) then
+      write(*,*) 'WARNING: failed to converge'
+    endif
+
     deallocate(sub, dia, sup)
     deallocate(sub_copy, dia_copy, sup_copy)
     deallocate(fsource, upsource, downsource, q)

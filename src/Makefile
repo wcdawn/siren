@@ -1,8 +1,8 @@
 # Makefile
 
 FC = gfortran
-#FFLAGS = -O3 -Wall -Wextra -std=f2008 -pedantic
-FFLAGS = -O0 -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fcheck=all -Wall -Wextra -std=f2008 -pedantic
+FFLAGS = -O3 -Wall -Wextra -std=f2008 -pedantic
+#FFLAGS = -O0 -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fcheck=all -Wall -Wextra -std=f2008 -pedantic
 
 OBJ = \
 	  diffusion.o \
