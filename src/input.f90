@@ -4,11 +4,14 @@ implicit none
 
 private
 
+! required input
 integer(ik) :: nx
 real(rk) :: hx
 character(1024) :: xslib_fname
 integer(ik), allocatable :: mat_map(:)
+integer(ik) :: pnorder
 
+! optional input (with defaults)
 real(rk) :: k_tol = 1d-6, phi_tol = 1d-5
 integer(ik) :: max_iter = 100
 integer(ik) :: refine = 0
@@ -17,6 +20,7 @@ public :: input_read, input_cleanup
 
 public :: nx, hx, xslib_fname, mat_map
 public :: k_tol, phi_tol, max_iter
+public :: pnorder
 public :: refine
 
 contains
@@ -72,6 +76,8 @@ contains
           read(line, *) card, max_iter
         case ('refine')
           read(line, *) card, refine
+        case ('pnorder')
+          read(line, *) card, pnorder
         case default
           write(*,*) 'card:', trim(adjustl(card))
           stop 'unknown input card'

@@ -2,10 +2,11 @@ program siren
 use kind
 use xs, only : XSLibrary, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
-  xslib_fname, refine, nx, hx, mat_map, &
+  xslib_fname, refine, nx, hx, mat_map, pnorder, &
   k_tol, phi_tol, max_iter
 use geometry, only : uniform_refinement
 use diffusion, only : diffusion_power_iteration
+use transport, only : transport_power_iteration
 use output, only : output_flux_csv, output_power_csv
 use power, only : power_calculate
 implicit none
@@ -15,7 +16,7 @@ character(1024) :: input_fname
 type(XSLibrary) :: xs
 
 real(rk) :: keff
-real(rk), allocatable :: flux(:,:)
+real(rk), allocatable :: phi(:,:,:) ! (nx, ngroup, pnorder)
 real(rk), allocatable :: power(:)
 
 write(*,*) 'begin SIREN'
@@ -42,22 +43,26 @@ if (refine > 0) then
   write(*,*)
 endif
 
-allocate(flux(nx, xs%ngroup))
-call diffusion_power_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, keff, flux)
+allocate(phi(nx, xs%ngroup, pnorder+1))
+if (pnorder == 0) then
+  call diffusion_power_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+else
+  call transport_power_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+endif
 
 write(*,'(a,f22.20)') 'keff = ', keff
 write(*,*)
 
 write(*,*) 'writing flux.csv'
-call output_flux_csv('flux.csv', nx, xs%ngroup, hx, flux)
+call output_flux_csv('flux.csv', nx, xs%ngroup, hx, phi(:,:,1))
 
 write(*,*) 'writing power.csv'
 allocate(power(nx))
-call power_calculate(nx, mat_map, xs, flux, power)
+call power_calculate(nx, mat_map, xs, phi(:,:,1), power)
 call output_power_csv('power.csv', nx, hx, power)
 
 deallocate(power)
-deallocate(flux)
+deallocate(phi)
 
 call xs_cleanup(xs)
 call input_cleanup()
