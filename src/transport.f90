@@ -36,15 +36,15 @@ contains
       xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
       xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
       do g = 1,xslib%ngroup
-        cthis = xmul_next / sigma_tr(1,g,idxn+1)
-        cnext = xmul_next / sigma_tr(2,g,idxn+1)
+        cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
+        cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
         if (idxn > 1) then
-          cthis = cthis + xmul_prev / sigma_tr(1,g,idxn-1)
-          cnext = cnext + xmul_prev / sigma_tr(2,g,idxn-1)
+          cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
+          cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
         endif
         dnext = 2 * cthis*cnext / (cthis + cnext)
         dia(1,g,n) = + dnext &
-          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,n)) * hx**2
+          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,idxn+1)) * hx**2
         sup(1,g,n) = -dnext
       enddo ! = g = 1,xslib%ngroup
     enddo ! n = 1,neven
@@ -61,13 +61,13 @@ contains
           mthis = mat_map(i)
           mnext = mat_map(i+1)
 
-          cprev = xmul_next / sigma_tr(i-1,g,idxn+1)
-          cthis = xmul_next / sigma_tr(i  ,g,idxn+1)
-          cnext = xmul_next / sigma_tr(i+1,g,idxn+1)
-          if (idxn > 1) then
-            cprev = cprev + xmul_prev / sigma_tr(i-1,g,idxn-1)
-            cthis = cthis + xmul_prev / sigma_tr(i  ,g,idxn-1)
-            cnext = cnext + xmul_prev / sigma_tr(i+1,g,idxn-1)
+          cprev = xmul_next / sigma_tr(i-1,g,idxn+1+1)
+          cthis = xmul_next / sigma_tr(i  ,g,idxn+1+1)
+          cnext = xmul_next / sigma_tr(i+1,g,idxn+1+1)
+          if (idxn > 0) then
+            cprev = cprev + xmul_prev / sigma_tr(i-1,g,idxn+1-1)
+            cthis = cthis + xmul_prev / sigma_tr(i  ,g,idxn+1-1)
+            cnext = cnext + xmul_prev / sigma_tr(i+1,g,idxn+1-1)
           endif
 
           dprev = 2 * cthis*cprev / (cthis + cprev)
@@ -75,7 +75,7 @@ contains
 
           sub(i-1,g,n) = -dprev
           dia(i,g,n) = dprev + dnext &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,n)) * hx**2
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,idxn+1)) * hx**2
           sup(i,g,n) = -dnext
 
         enddo ! i = 2,nx-1
@@ -91,16 +91,16 @@ contains
       xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
       xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
       do g = 1,xslib%ngroup
-        cprev = xmul_next / sigma_tr(nx-1,g,idxn+1)
-        cthis = xmul_next / sigma_tr(nx  ,g,idxn+1)
-        if (idxn > 1) then
-          cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn-1)
-          cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn-1)
+        cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
+        cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
+        if (idxn > 0) then
+          cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
+          cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
         endif
         dprev = 2 * cthis*cprev / (cthis + cprev)
         sub(nx-1,g,n) = -dprev
         dia(nx,g,n) = dprev &
-          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,n)) * hx**2
+          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,idxn+1)) * hx**2
       enddo ! g = 1,xslib%ngroup
     enddo ! n = 1,neven
 
@@ -129,11 +129,13 @@ contains
       do g = 1,xslib%ngroup
         do i = 1,nx
           mthis = mat_map(i)
+
           if (n <= xslib%nmoment) then
             xnew = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))
           else
             xnew = xslib%mat(mthis)%sigma_t(g)
           endif
+
           sigma_tr(i,g,n) = sigma_tr(i,g,n) + damping * (xnew - sigma_tr(i,g,n))
         enddo ! i = 1,nx
       enddo ! g = 1,ngroup
@@ -160,17 +162,17 @@ contains
       do g = 1,ng
         do i = 2,nx-1
           if (n < pnorder+1) then
-            phi(i,g,n) = -0.5d0/(sigma_tr(i,g,n)*hx) &
-              * (xmul_prev * (phi(i+1,g,n-1) - 2d0*phi(i,g,n-1) + phi(i-1,g,n-1)) &
-              + xmul_next * (phi(i+1,g,n+1) - 2d0*phi(i,g,n+1) + phi(i-1,g,n+1)))
+            phi(i,g,idxn+1) = -0.5d0/(sigma_tr(i,g,n)*hx) &
+              * (xmul_prev * (phi(i+1,g,idxn+1-1) - 2d0*phi(i,g,idxn+1-1) + phi(i-1,g,idxn+1-1)) &
+              + xmul_next * (phi(i+1,g,idxn+1+1) - 2d0*phi(i,g,idxn+1+1) + phi(i-1,g,idxn+1+1)))
           else
-            phi(i,g,n) = -0.5d0/(sigma_tr(i,g,n)*hx) &
-              * xmul_prev * (phi(i+1,g,n-1) - 2d0*phi(i,g,n-1) + phi(i-1,g,n-1))
+            phi(i,g,idxn+1) = -0.5d0/(sigma_tr(i,g,n)*hx) &
+              * xmul_prev * (phi(i+1,g,idxn+1-1) - 2d0*phi(i,g,idxn+1-1) + phi(i-1,g,idxn+1-1))
           endif
         enddo ! i = 2,nx-1
         ! boundary conditions
-        phi(1,g,n) = phi(2,g,n)/3d0
-        phi(nx,g,n) = phi(nx-1,g,n)/3d0
+        phi(1,g,idxn+1) = phi(2,g,idxn+1)/3d0
+        phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1)/3d0
       enddo ! g = 1,ng
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
@@ -242,11 +244,12 @@ contains
     do i = 1,nx
       mthis = mat_map(i)
       if (xslib%mat(mthis)%is_fiss) then
-        qfiss(i,:) = xslib%mat(mthis)%chi(:) * sum(xslib%mat(mthis)%nusf(:) * phi0(i,:)) * hx**2
+        qfiss(i,:) = xslib%mat(mthis)%chi(:) * sum(xslib%mat(mthis)%nusf(:) * phi0(i,:))
       else
         qfiss(i,:) = 0d0
       endif
     enddo ! i = 1,nx
+    qfiss = qfiss * hx**2
 
   endsubroutine transport_build_fsource
 
@@ -263,7 +266,8 @@ contains
     real(rk) :: kaprev, kathis, kanext
     real(rk) :: daprev, danext
 
-    do n = 1,neven
+    qnext(:,:,neven) = 0d0
+    do n = 1,neven-1
       idxn = 2*(n-1)
       xn = real(idxn, rk)
       xmul = (xn+1d0)*(xn+2d0)/((2d0*xn+1d0)*(2d0*xn+3d0))
@@ -278,7 +282,7 @@ contains
           daprev = 2 * kathis*kaprev / (kathis + kaprev)
           danext = 2 * kathis*kanext / (kathis + kanext)
 
-          qnext(i, g, n) = phi(i-1,g,idxn+1) * daprev - phi(i,g,idxn+1) * (daprev + danext) + phi(i+1,g,idxn+1) * danext
+          qnext(i, g, n) = phi(i-1,g,idxn+1+2) * daprev - phi(i,g,idxn+1+2) * (daprev + danext) + phi(i+1,g,idxn+1+2) * danext
 
         enddo
         qnext(nx,g,n) = 0d0
@@ -314,7 +318,7 @@ contains
         dbprev = 2 * kbthis*kbprev / (kbthis + kbprev)
         dbnext = 2 * kbthis*kbnext / (kbthis + kbnext)
 
-        qprev(i,g) = phi(i-1,g,idxn+1) * dbprev - phi(i,g,idxn+1) * (dbprev + dbnext) + phi(i+1,g,idxn+1) * dbnext
+        qprev(i,g) = phi(i-1,g,idxn+1-2) * dbprev - phi(i,g,idxn+1-2) * (dbprev + dbnext) + phi(i+1,g,idxn+1-2) * dbnext
 
       enddo ! i = 2,nx-1
       qprev(nx,g) = 0d0
@@ -375,7 +379,8 @@ contains
     real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- all p0
     real(rk) :: delta_k, delta_phi
 
-    integer(ik) :: n, g
+    integer(ik) :: n, g, i
+    integer(ik) :: mthis
 
     if (mod(pnorder,2) /= 1) then
       stop 'pnorder must be odd'
@@ -383,9 +388,21 @@ contains
 
     neven = max((pnorder + 1) / 2, 1)
 
-    allocate(sigma_tr(nx,xslib%ngroup,pnorder+1))
     allocate(sub(nx-1,xslib%ngroup,neven), dia(nx,xslib%ngroup,neven), sup(nx-1,xslib%ngroup,neven))
     allocate(sub_copy(nx-1,xslib%ngroup,neven), dia_copy(nx,xslib%ngroup,neven), sup_copy(nx-1,xslib%ngroup,neven))
+
+    allocate(sigma_tr(nx,xslib%ngroup,pnorder+1))
+    ! initialize to total xs
+    ! reasonable? I'm not sure
+    ! but necessary for damping
+    do n = 1,pnorder+1
+      do g = 1,xslib%ngroup
+        do i = 1,nx
+          mthis = mat_map(i)
+          sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
+        enddo ! i = 1,nx
+      enddo ! g = 1,xslib%ngroup
+    enddo ! n = 1,pnorder+1
 
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
@@ -413,7 +430,9 @@ contains
       ! even update
       ! matrix must be rebuilt every time since we update transport xs
       call transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
+
       call transport_build_next_source(nx, xslib%ngroup, sigma_tr, phi, pn_next_source)
+
       do n = 1,neven
 
         if (n == 1) then
@@ -421,11 +440,13 @@ contains
         else ! (n > 1)
           call transport_build_prev_source(nx, xslib%ngroup, sigma_tr, phi, 2*(n-1), pn_prev_source)
         endif
+
         call transport_build_upscatter(nx, hx, mat_map, xslib, phi, 2*(n-1), upsource)
 
         do g = 1,xslib%ngroup
 
-          call transport_build_downscatter(nx, hx, mat_map, xslib, phi, n, g, downsource)
+          call transport_build_downscatter(nx, hx, mat_map, xslib, phi, 2*(n-1), g, downsource)
+
           q = upsource(:,g) + downsource
 
           if (n == 1) then
@@ -445,8 +466,8 @@ contains
           sup_copy(:,g,n) = sup(:,g,n)
           call trid(nx, sub_copy(:,g,n), dia_copy(:,g,n), sup_copy(:,g,n), q, phi(:,g,2*(n-1)+1))
 
-        enddo
-      enddo
+        enddo ! g = 1,ngroup
+      enddo ! n = 1,neven
 
       ! odd update
       call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
@@ -478,6 +499,7 @@ contains
     deallocate(fsource, upsource, downsource, q)
     deallocate(pn_next_source, pn_prev_source)
     deallocate(flux_old)
+    deallocate(sigma_tr) ! consider returning
 
   endsubroutine transport_power_iteration
 
