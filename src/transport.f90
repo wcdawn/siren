@@ -43,8 +43,10 @@ contains
           cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
         endif
         dnext = 2 * cthis*cnext / (cthis + cnext)
-        dia(1,g,n) = + dnext &
-          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,idxn+1)) * hx**2
+        dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * hx**2
+        if (idxn+1 < xslib%nmoment) then
+          dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
+        endif
         sup(1,g,n) = -dnext
       enddo ! = g = 1,xslib%ngroup
     enddo ! n = 1,neven
@@ -74,8 +76,10 @@ contains
           dnext = 2 * cthis*cnext / (cthis + cnext)
 
           sub(i-1,g,n) = -dprev
-          dia(i,g,n) = dprev + dnext &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,idxn+1)) * hx**2
+          dia(i,g,n) = dprev + dnext + xslib%mat(mthis)%sigma_t(g) * hx**2
+          if (idxn+1 < xslib%nmoment) then
+            dia(i,g,n) = dia(i,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
+          endif
           sup(i,g,n) = -dnext
 
         enddo ! i = 2,nx-1
@@ -99,8 +103,10 @@ contains
         endif
         dprev = 2 * cthis*cprev / (cthis + cprev)
         sub(nx-1,g,n) = -dprev
-        dia(nx,g,n) = dprev &
-          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,idxn+1)) * hx**2
+        dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * hx**2
+        if (idxn+1 < xslib%nmoment) then
+          dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
+        endif
       enddo ! g = 1,xslib%ngroup
     enddo ! n = 1,neven
 
@@ -123,7 +129,7 @@ contains
     ! 0d0 < damping < 1d0  -- damped
     ! damping == 1d0 -- undamped
     ! 1d0 < damping < 2d0 -- accelerated
-    real(rk), parameter :: damping = 1d0
+    real(rk), parameter :: damping = 0.8d0
 
     do n = 1,pnorder+1
       do g = 1,xslib%ngroup
@@ -478,6 +484,11 @@ contains
       delta_k = abs(keff - k_old)
       ! only scalar flux, all groups
       delta_phi = maxval(abs(phi(:,:,1) - flux_old)) / maxval(phi(:,:,1))
+
+      if ((keff < 0d0) .or. (keff > 2d0)) then
+        write(*,*) 'keff', keff
+        stop 'invalid keff'
+      endif
 
       write(*,'(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
         'it=', iter, ' dx=', delta_k, ' dphi=', delta_phi, ' keff=', keff
