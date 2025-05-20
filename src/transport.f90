@@ -9,6 +9,14 @@ public :: transport_power_iteration
 integer(ik) :: neven
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 
+! 0d0 < damping < 1d0  -- damped
+! damping == 1d0 -- undamped
+! 1d0 < damping < 2d0 -- accelerated
+
+real(rk), parameter :: damping_transport = 0.5d0
+real(rk), parameter :: damping_odd = 1d0
+integer(ik), parameter :: dead_iter = 5
+
 contains
 
   subroutine transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
@@ -126,11 +134,6 @@ contains
 
     real(rk) :: xnew
 
-    ! 0d0 < damping < 1d0  -- damped
-    ! damping == 1d0 -- undamped
-    ! 1d0 < damping < 2d0 -- accelerated
-    real(rk), parameter :: damping = 0.8d0
-
     do n = 1,pnorder+1
       do g = 1,xslib%ngroup
         do i = 1,nx
@@ -142,7 +145,7 @@ contains
             xnew = xslib%mat(mthis)%sigma_t(g)
           endif
 
-          sigma_tr(i,g,n) = sigma_tr(i,g,n) + damping * (xnew - sigma_tr(i,g,n))
+          sigma_tr(i,g,n) = sigma_tr(i,g,n) + damping_transport * (xnew - sigma_tr(i,g,n))
         enddo ! i = 1,nx
       enddo ! g = 1,ngroup
     enddo ! n = 1,pnorder+1
@@ -159,6 +162,7 @@ contains
     integer(ik) :: n, g, i
     integer(ik) :: idxn
     real(rk) :: xn, xmul_prev, xmul_next
+    real(rk) :: xnew
 
     do n = 2,pnorder+1,2
       idxn = n-1
@@ -168,13 +172,14 @@ contains
       do g = 1,ng
         do i = 2,nx-1
           if (n < pnorder+1) then
-            phi(i,g,idxn+1) = -0.5d0/(sigma_tr(i,g,n)*hx) &
+            xnew = -0.5d0/(sigma_tr(i,g,n)*hx) &
               * (xmul_prev * (phi(i+1,g,idxn+1-1) - 2d0*phi(i,g,idxn+1-1) + phi(i-1,g,idxn+1-1)) &
               + xmul_next * (phi(i+1,g,idxn+1+1) - 2d0*phi(i,g,idxn+1+1) + phi(i-1,g,idxn+1+1)))
           else
-            phi(i,g,idxn+1) = -0.5d0/(sigma_tr(i,g,n)*hx) &
+            xnew = -0.5d0/(sigma_tr(i,g,n)*hx) &
               * xmul_prev * (phi(i+1,g,idxn+1-1) - 2d0*phi(i,g,idxn+1-1) + phi(i-1,g,idxn+1-1))
           endif
+          phi(i, g, idxn+1) = phi(i, g, idxn+1) + damping_odd * (xnew - phi(i, g, idxn+1))
         enddo ! i = 2,nx-1
         ! boundary conditions
         phi(1,g,idxn+1) = phi(2,g,idxn+1)/3d0
@@ -430,8 +435,10 @@ contains
       flux_old = phi(:,:,1)
       fsum_old = fsum
 
-      ! transport xs update
-      call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      if (iter > dead_iter) then
+        ! transport xs update
+        call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      endif
 
       ! even update
       ! matrix must be rebuilt every time since we update transport xs
@@ -493,7 +500,7 @@ contains
       write(*,'(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
         'it=', iter, ' dx=', delta_k, ' dphi=', delta_phi, ' keff=', keff
 
-      if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
+      if ((iter > dead_iter) .and. (delta_k < k_tol) .and. (delta_phi < phi_tol)) then
         write(*,*) 'CONVERGENCE!'
         write(*,*)
         exit

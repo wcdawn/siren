@@ -7,7 +7,7 @@ use input, only : input_read, input_cleanup, &
 use geometry, only : uniform_refinement
 use diffusion, only : diffusion_power_iteration
 use transport, only : transport_power_iteration
-use output, only : output_flux_csv, output_power_csv
+use output, only : output_flux_csv, output_power_csv, output_phi_csv
 use power, only : power_calculate
 implicit none
 
@@ -55,6 +55,9 @@ write(*,*)
 
 write(*,*) 'writing flux.csv'
 call output_flux_csv('flux.csv', nx, xs%ngroup, hx, phi(:,:,1))
+
+write(*,*) 'writing phi.csv'
+call output_phi_csv('phi.csv', nx, xs%ngroup, pnorder, hx, phi)
 
 write(*,*) 'writing power.csv'
 allocate(power(nx))
