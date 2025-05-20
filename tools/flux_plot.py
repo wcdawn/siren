@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     plt.figure()
     for g in range(ngroup):
-        plt.plot(x, flux[:, g], label="g={:d}".format(g))
+        plt.plot(x, flux[:, g], label="g={:d}".format(g + 1))
     if ngroup <= 10:
         plt.legend()
     plt.xlabel("x [cm]")
