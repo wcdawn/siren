@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: transport_power_iteration
+public :: transport_power_iteration, sigma_tr
 
 integer(ik) :: neven
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
@@ -517,7 +517,6 @@ contains
     deallocate(fsource, upsource, downsource, q)
     deallocate(pn_next_source, pn_prev_source)
     deallocate(flux_old)
-    deallocate(sigma_tr) ! consider returning
 
   endsubroutine transport_power_iteration
 

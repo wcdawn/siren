@@ -6,8 +6,8 @@ use input, only : input_read, input_cleanup, &
   k_tol, phi_tol, max_iter
 use geometry, only : uniform_refinement
 use diffusion, only : diffusion_power_iteration
-use transport, only : transport_power_iteration
-use output, only : output_flux_csv, output_power_csv, output_phi_csv
+use transport, only : transport_power_iteration, sigma_tr
+use output, only : output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate
 implicit none
 
@@ -63,6 +63,11 @@ write(*,*) 'writing power.csv'
 allocate(power(nx))
 call power_calculate(nx, mat_map, xs, phi(:,:,1), power)
 call output_power_csv('power.csv', nx, hx, power)
+
+if (allocated(sigma_tr)) then
+  call output_transportxs_csv('sigma_tr.csv', nx, xs%ngroup, pnorder, hx, sigma_tr)
+  deallocate(sigma_tr)
+endif
 
 deallocate(power)
 deallocate(phi)
