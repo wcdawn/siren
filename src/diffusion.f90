@@ -230,7 +230,7 @@ contains
       delta_phi = maxval(abs(flux - flux_old))/maxval(flux)
 
       write(*,'(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
-        'it=', iter, ' dx=', delta_k, ' dphi=', delta_phi, ' keff=', keff
+        'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
 
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
         write(*,*) 'CONVERGENCE!'
