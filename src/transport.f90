@@ -188,8 +188,10 @@ contains
     integer(ik), parameter :: newton_max_iter = 100
     real(rk), parameter :: newton_tol = 1d-8
 
-    integer(ik) :: idxn
+    integer(ik) :: idxn, gprime
     real(rk) :: xn, xmul_next, xmul_prev
+    integer(ik) :: iter
+    real(rk) :: xi, fx, dfdx
 
     do n = 1,pnorder+1
       if (n <= xslib%nmoment) then
@@ -197,20 +199,122 @@ contains
           ! If n is odd, the moment is even... off-by-one.
           ! I don't care much about the even transport xs. They aren't used.
           do i = 1,nx
-            mthis = mat_map(i,g,n)
+            mthis = mat_map(i)
             do g = 1,xslib%ngroup
               sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n) * phi(i,:,n))
             enddo ! g = 1,xslib%ngroup
           enddo ! i = 1,nx
         else
-          ! TODO do it :(
+
           ! this is an odd transport xs with available scattering moments
-          do i = 1,nx
-            mthis = mat_map(i,g,n)
+          idxn = n-1
+          xn = real(idxn, rk)
+          xmul_next = (xn+1d0)/(2d0*xn+1d0)
+          xmul_prev = xn/(2d0*xn+1d0)
+
+          do i = 2,nx-1
+            mthis = mat_map(i)
             do g = 1,xslib%ngroup
-              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n) * phi(i,:,n))
+              xi = xslib%mat(mthis)%sigma_t(g) ! initial guess
+              do iter = 1,newton_max_iter
+
+                ! function evaluation
+                fx = xslib%mat(mthis)%sigma_t(g) - xi &
+                  + xslib%mat(mthis)%scatter(g,g,n)/xi * 0.5d0 / hx &
+                  * (xmul_next * (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1)) &
+                  + xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)))
+                do gprime = 1,xslib%ngroup
+                  if (gprime == g) then
+                    cycle
+                  endif
+                  fx = fx + xslib%mat(mthis)%scatter(gprime,g,n)/sigma_tr(i,gprime,n) * 0.5d0 / hx &
+                    * (xmul_next * (phi(i+1,gprime,idxn+1+1) - phi(i-1,gprime,idxn+1+1)) &
+                    + xmul_prev * (phi(i+1,gprime,idxn+1-1) - phi(i-1,gprime,idxn+1-1)))
+                enddo
+
+                ! function value check
+                if (abs(fx) < newton_tol) then
+                  write(*,*) 'i=', i, 'g=', g, 'idxn=', idxn, 'iter=', iter
+                  exit
+                endif
+
+                ! derivative evaluation
+                dfdx = -1d0 - xslib%mat(mthis)%scatter(g,g,n)/xi**2 * 0.5d0 / hx &
+                  * (xmul_next * (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1)) &
+                  + xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)))
+
+                ! newton update
+                xi = xi - fx/dfdx
+
+              enddo ! iter = 1,newton_iter
+
             enddo ! g = 1,xslib%ngroup
-          enddo ! i = 1,nx
+          enddo ! i = 2,nx-1
+
+          ! i = 1
+          mthis = mat_map(1)
+          do g = 1,xslib%ngroup
+            xi = xslib%mat(mthis)%sigma_t(g) ! initial guess
+            do iter = 1,newton_max_iter
+              ! function evaluation
+              fx = xslib%mat(mthis)%sigma_t(g) - xi &
+                + xslib%mat(mthis)%scatter(g,g,n)/xi / hx &
+                * (xmul_next * (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1)) &
+                + xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)))
+              do gprime = 1,xslib%ngroup
+                if (gprime == g) then
+                  cycle
+                endif
+                fx = fx + xslib%mat(mthis)%scatter(gprime,g,n)/sigma_tr(i,gprime,n) / hx &
+                  * (xmul_next * (phi(2,gprime,idxn+1+1) - phi(1,gprime,idxn+1+1)) &
+                  + xmul_prev * (phi(2,gprime,idxn+1-1) - phi(1,gprime,idxn+1-1)))
+              enddo
+              ! function value check
+              if (abs(fx) < newton_tol) then
+                write(*,*) 'i=', i, 'g=', g, 'idxn=', idxn, 'iter=', iter
+                exit
+              endif
+              ! derivative evaluation
+              dfdx = -1d0 - xslib%mat(mthis)%scatter(g,g,n)/xi**2 / hx &
+                * (xmul_next * (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1)) &
+                + xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)))
+              ! newton update
+              xi = xi - fx/dfdx
+            enddo ! iter = 1,newton_iter
+          enddo ! g = 1,xslib%ngroup
+
+          ! i = nx
+          mthis = mat_map(nx)
+          do g = 1,xslib%ngroup
+            xi = xslib%mat(mthis)%sigma_t(g) ! initial guess
+            do iter = 1,newton_max_iter
+              ! function evaluation
+              fx = xslib%mat(mthis)%sigma_t(g) - xi &
+                + xslib%mat(mthis)%scatter(g,g,n)/xi / hx &
+                * (xmul_next * (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1)) &
+                + xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)))
+              do gprime = 1,xslib%ngroup
+                if (gprime == g) then
+                  cycle
+                endif
+                fx = fx + xslib%mat(mthis)%scatter(gprime,g,n)/sigma_tr(i,gprime,n) / hx &
+                  * (xmul_next * (phi(nx,gprime,idxn+1+1) - phi(nx-1,gprime,idxn+1+1)) &
+                  + xmul_prev * (phi(nx,gprime,idxn+1-1) - phi(nx-1,gprime,idxn+1-1)))
+              enddo
+              ! function value check
+              if (abs(fx) < newton_tol) then
+                write(*,*) 'i=', i, 'g=', g, 'idxn=', idxn, 'iter=', iter
+                exit
+              endif
+              ! derivative evaluation
+              dfdx = -1d0 - xslib%mat(mthis)%scatter(g,g,n)/xi**2 / hx &
+                * (xmul_next * (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1)) &
+                + xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)))
+              ! newton update
+              xi = xi - fx/dfdx
+            enddo ! iter = 1,newton_iter
+          enddo ! g = 1,xslib%ngroup
+
         endif
       else
         do i = 1,nx
@@ -576,8 +680,8 @@ contains
 
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
         do i = 1,100
-          call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
           call transport_build_transportxs_newton(nx, hx, mat_map, xslib, pnorder, phi, sigma_tr)
+          call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
         enddo
         write(*,*) 'CONVERGENCE!'
         write(*,*)
