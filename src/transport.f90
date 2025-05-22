@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: transport_power_iteration, sigma_tr
+public :: sigma_tr, transport_outer_iteration, transport_power_iteration
 
 integer(ik) :: neven
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
@@ -12,10 +12,6 @@ real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 ! 0d0 < damping < 1d0  -- damped
 ! damping == 1d0 -- undamped
 ! 1d0 < damping < 2d0 -- accelerated
-
-real(rk), parameter :: damping_transport = 0.5d0
-real(rk), parameter :: damping_odd = 1d0
-integer(ik), parameter :: dead_iter = 5
 
 contains
 
@@ -120,6 +116,31 @@ contains
 
   endsubroutine transport_build_matrix
 
+  subroutine transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
+    use xs, only : XSLibrary
+    integer, intent(in) :: nx
+    integer, intent(in) :: mat_map(:)
+    type(XSLibrary), intent(in) :: xslib
+    integer, intent(in) :: pnorder
+    real(rk), allocatable, intent(out) :: sigma_tr(:,:,:) ! (nx,ngroup,pnorder+1)
+
+    integer(ik) :: i, g, n
+    integer(ik) :: mthis
+
+    allocate(sigma_tr(nx,xslib%ngroup,pnorder+1))
+
+    ! initialize to total xs
+    do n = 1,pnorder+1
+      do g = 1,xslib%ngroup
+        do i = 1,nx
+          mthis = mat_map(i)
+          sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
+        enddo
+      enddo ! g = 1,xslib%ngroup
+    enddo ! n = 1,pnorder+1
+
+  endsubroutine transport_init_transportxs
+
   subroutine transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
@@ -132,24 +153,75 @@ contains
     integer(ik) :: n, g, i
     integer(ik) :: mthis
 
-    real(rk) :: xnew
-
     do n = 1,pnorder+1
-      do g = 1,xslib%ngroup
+      if (n <= xslib%nmoment) then
         do i = 1,nx
           mthis = mat_map(i)
-
-          if (n <= xslib%nmoment) then
-            xnew = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))
-          else
-            xnew = xslib%mat(mthis)%sigma_t(g)
-          endif
-
-          sigma_tr(i,g,n) = sigma_tr(i,g,n) + damping_transport * (xnew - sigma_tr(i,g,n))
+          do g = 1,xslib%ngroup
+            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))
+          enddo ! xslib%ngroup
         enddo ! i = 1,nx
-      enddo ! g = 1,ngroup
+      else
+        do i = 1,nx
+          mthis = mat_map(i)
+          do g = 1,xslib%ngroup
+            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
+          enddo ! g = 1,xslib%ngroup
+        enddo ! n = 1,nx
+      endif
     enddo ! n = 1,pnorder+1
   endsubroutine transport_build_transportxs
+
+  subroutine transport_build_transportxs_newton(nx, hx, mat_map, xslib, pnorder, phi, sigma_tr)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(in) :: phi(:,:,:) ! (nx,ngroup,pnorder+1)
+    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx,ngroup,pnorder+1)
+
+    integer(ik) :: i, g, n
+    integer(ik) :: mthis
+
+    integer(ik), parameter :: newton_max_iter = 100
+    real(rk), parameter :: newton_tol = 1d-8
+
+    integer(ik) :: idxn
+    real(rk) :: xn, xmul_next, xmul_prev
+
+    do n = 1,pnorder+1
+      if (n <= xslib%nmoment) then
+        if (mod(n,2) == 1) then
+          ! If n is odd, the moment is even... off-by-one.
+          ! I don't care much about the even transport xs. They aren't used.
+          do i = 1,nx
+            mthis = mat_map(i,g,n)
+            do g = 1,xslib%ngroup
+              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n) * phi(i,:,n))
+            enddo ! g = 1,xslib%ngroup
+          enddo ! i = 1,nx
+        else
+          ! TODO do it :(
+          ! this is an odd transport xs with available scattering moments
+          do i = 1,nx
+            mthis = mat_map(i,g,n)
+            do g = 1,xslib%ngroup
+              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n) * phi(i,:,n))
+            enddo ! g = 1,xslib%ngroup
+          enddo ! i = 1,nx
+        endif
+      else
+        do i = 1,nx
+          mthis = mat_map(i)
+          do g = 1,xslib%ngroup
+            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
+          enddo ! g = 1,xslib%ngroup
+        enddo ! i = 1,nx
+      endif
+    enddo ! n = 1,pnorder+1
+  endsubroutine transport_build_transportxs_newton
 
   subroutine transport_odd_update(nx, hx, ng, pnorder, sigma_tr, phi)
     integer(ik), intent(in) :: nx
@@ -162,29 +234,48 @@ contains
     integer(ik) :: n, g, i
     integer(ik) :: idxn
     real(rk) :: xn, xmul_prev, xmul_next
-    real(rk) :: xnew
 
     do n = 2,pnorder+1,2
       idxn = n-1
       xn = real(idxn, rk)
       xmul_prev = xn/(2d0*xn+1d0)
-      xmul_next = (xn+1d0)/(2d0*n+1)
-      do g = 1,ng
-        do i = 2,nx-1
-          if (n < pnorder+1) then
-            xnew = -0.5d0/(sigma_tr(i,g,n)*hx) &
-              * (xmul_prev * (phi(i+1,g,idxn+1-1) - 2d0*phi(i,g,idxn+1-1) + phi(i-1,g,idxn+1-1)) &
-              + xmul_next * (phi(i+1,g,idxn+1+1) - 2d0*phi(i,g,idxn+1+1) + phi(i-1,g,idxn+1+1)))
-          else
-            xnew = -0.5d0/(sigma_tr(i,g,n)*hx) &
-              * xmul_prev * (phi(i+1,g,idxn+1-1) - 2d0*phi(i,g,idxn+1-1) + phi(i-1,g,idxn+1-1))
-          endif
-          phi(i, g, idxn+1) = phi(i, g, idxn+1) + damping_odd * (xnew - phi(i, g, idxn+1))
-        enddo ! i = 2,nx-1
-        ! boundary conditions
-        phi(1,g,idxn+1) = phi(2,g,idxn+1)/3d0
-        phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1)/3d0
-      enddo ! g = 1,ng
+      xmul_next = (xn+1d0)/(2d0*xn+1d0)
+      if (n < pnorder+1) then
+        do g = 1,ng
+          do i = 2,nx-1
+            ! central difference for interior
+            phi(i,g,idxn+1) = &
+              - (xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)) &
+              + xmul_next * (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1))) &
+              / (sigma_tr(i,g,idxn+1)*2d0*hx)
+          enddo ! i = 2,nx-1
+          ! forward/backward difference on boundaries
+          phi(1,g,idxn+1) = &
+            - (xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)) &
+            * xmul_next * (phi(2,g,idxn+1+1) - phi(2,g,idxn+1+1))) &
+            / (sigma_tr(1,g,idxn+1)*hx)
+          phi(nx,g,idxn+1) = &
+            - (xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)) &
+            * xmul_next * (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1))) &
+            / (sigma_tr(nx,g,idxn+1)*hx)
+        enddo ! g = 1,ng
+      else
+        do g = 1,ng
+          do i = 2,nx-1
+            ! central difference for interior
+            phi(i,g,idxn+1) = &
+              - xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)) &
+              / (sigma_tr(i,g,idxn+1)*2d0*hx)
+          enddo ! i = 2,nx-1
+          ! forward/backward difference on boundaries
+          phi(1,g,idxn+1) = &
+            - xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)) &
+            / (sigma_tr(1,g,idxn+1)*hx)
+          phi(nx,g,idxn+1) = &
+            - xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)) &
+            / (sigma_tr(nx,g,idxn+1)*hx)
+        enddo ! g = 1,ng
+      endif
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
 
@@ -362,6 +453,7 @@ contains
   subroutine transport_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
+    use output, only : output_phi_csv, output_transportxs_csv
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: hx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -369,8 +461,8 @@ contains
     real(rk), intent(in) :: k_tol, phi_tol 
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
-    real(rk), intent(out) :: keff
-    real(rk), intent(out) :: phi(:,:,:) ! (nx, ngroup, nmoment)
+    real(rk), intent(inout) :: keff
+    real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, nmoment)
 
     ! matrix
     real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
@@ -391,7 +483,6 @@ contains
     real(rk) :: delta_k, delta_phi
 
     integer(ik) :: n, g, i
-    integer(ik) :: mthis
 
     if (mod(pnorder,2) /= 1) then
       stop 'pnorder must be odd'
@@ -402,19 +493,6 @@ contains
     allocate(sub(nx-1,xslib%ngroup,neven), dia(nx,xslib%ngroup,neven), sup(nx-1,xslib%ngroup,neven))
     allocate(sub_copy(nx-1,xslib%ngroup,neven), dia_copy(nx,xslib%ngroup,neven), sup_copy(nx-1,xslib%ngroup,neven))
 
-    allocate(sigma_tr(nx,xslib%ngroup,pnorder+1))
-    ! initialize to total xs
-    ! reasonable? I'm not sure
-    ! but necessary for damping
-    do n = 1,pnorder+1
-      do g = 1,xslib%ngroup
-        do i = 1,nx
-          mthis = mat_map(i)
-          sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
-        enddo ! i = 1,nx
-      enddo ! g = 1,xslib%ngroup
-    enddo ! n = 1,pnorder+1
-
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
     allocate(downsource(nx))
@@ -424,25 +502,22 @@ contains
 
     allocate(flux_old(nx,xslib%ngroup))
 
-    keff = 1d0
-    phi = 1d0
+    !keff = 1d0
+    !phi = 1d0
     fsum = 1d0
 
+    if (.not. allocated(sigma_tr)) then
+      call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
+    endif
+
     write(*,*) "=== PN TRANSPORT POWER ITERATION ==="
+
+    call transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
 
     do iter = 1,max_iter
       k_old = keff
       flux_old = phi(:,:,1)
       fsum_old = fsum
-
-      if (iter > dead_iter) then
-        ! transport xs update
-        call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
-      endif
-
-      ! even update
-      ! matrix must be rebuilt every time since we update transport xs
-      call transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
 
       call transport_build_next_source(nx, xslib%ngroup, sigma_tr, phi, pn_next_source)
 
@@ -482,9 +557,6 @@ contains
         enddo ! g = 1,ngroup
       enddo ! n = 1,neven
 
-      ! odd update
-      call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
-
       ! eigenvalue update
       fsum = transport_fission_summation(nx, mat_map, xslib, phi(:,:,1))
       if (iter > 1) keff = keff * fsum / fsum_old
@@ -494,13 +566,19 @@ contains
 
       if ((keff < 0d0) .or. (keff > 2d0)) then
         write(*,*) 'keff', keff
+        call output_phi_csv('phi.csv', nx, xslib%ngroup, pnorder, hx, phi)
+        call output_transportxs_csv('sigma_tr.csv', nx, xslib%ngroup, pnorder, hx, sigma_tr)
         stop 'invalid keff'
       endif
 
       write(*,'(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
-        'it=', iter, ' dx=', delta_k, ' dphi=', delta_phi, ' keff=', keff
+        'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
 
-      if ((iter > dead_iter) .and. (delta_k < k_tol) .and. (delta_phi < phi_tol)) then
+      if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
+        do i = 1,100
+          call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
+          call transport_build_transportxs_newton(nx, hx, mat_map, xslib, pnorder, phi, sigma_tr)
+        enddo
         write(*,*) 'CONVERGENCE!'
         write(*,*)
         exit
@@ -519,5 +597,77 @@ contains
     deallocate(flux_old)
 
   endsubroutine transport_power_iteration
+
+  subroutine transport_outer_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: hx
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: k_tol, phi_tol 
+    integer(ik), intent(in) :: max_iter
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(out) :: keff
+    real(rk), intent(out) :: phi(:,:,:) ! (nx, ngroup, nmoment)
+
+    ! TODO
+    integer(ik), parameter :: max_outer = 100
+    real(rk), parameter :: damping_phi = 0.1d0
+    real(rk), parameter :: damping_transport = 0.1d0
+
+    integer(ik) :: iter
+
+    real(rk) :: k_old
+    real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- scalar flux
+    real(rk) :: delta_k, delta_phi
+
+    real(rk), allocatable :: sigma_tr_old(:,:,:) , phi_old(:,:,:)
+
+    allocate(sigma_tr_old(nx, xslib%ngroup, pnorder+1))
+    allocate(phi_old(nx, xslib%ngroup, pnorder+1))
+    allocate(flux_old(nx,xslib%ngroup))
+
+    keff = 1d0
+    phi = 1d0
+
+    call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
+
+    do iter = 1,max_outer
+
+      phi_old = phi
+      call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
+      if (iter > 1) then
+        phi = phi_old + damping_phi * (phi - phi_old)
+      endif
+
+      sigma_tr_old = sigma_tr
+      call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      if (iter > 1) then
+        sigma_tr = sigma_tr_old + damping_transport * (sigma_tr - sigma_tr_old)
+      endif
+
+      k_old = keff
+      flux_old = phi(:,:,1)
+
+      call transport_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+
+      delta_k = abs(keff - k_old)
+      delta_phi = maxval(abs(phi(:,:,1) - flux_old)) / maxval(phi(:,:,1))
+
+      write(*,'(a,i0,a,es8.1,a,es8.1,a,f8.6)') &
+        'OUTER=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
+
+      if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
+        write(*,*) 'OUTER CONVERGENCE!'
+        write(*,*)
+        exit
+      endif
+
+    enddo
+
+    deallocate(flux_old)
+    deallocate(sigma_tr_old, phi_old)
+
+  endsubroutine transport_outer_iteration
 
 endmodule transport
