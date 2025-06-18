@@ -83,6 +83,7 @@ contains
           endif
           pnt = pnt + 1
           read(line, *) card, xslib%mat(pnt)%name
+          xslib%mat(pnt)%is_fiss = .false. ! initialize
         case ('diffusion')
           allocate(xslib%mat(pnt)%diffusion(xslib%ngroup))
           do i = 1,xslib%ngroup
