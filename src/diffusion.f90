@@ -167,6 +167,7 @@ contains
   subroutine diffusion_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use linalg, only : trid
+    use output, only : output_write
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: hx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -187,6 +188,8 @@ contains
     real(rk), allocatable :: flux_old(:,:)
     real(rk) :: delta_k, delta_phi
 
+    character(1024) :: line
+
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
     allocate(sub_copy(nx-1,xslib%ngroup), dia_copy(nx,xslib%ngroup), sup_copy(nx-1,xslib%ngroup))
     call diffusion_build_matrix(nx, hx, mat_map, xslib, sub, dia, sup)
@@ -203,7 +206,7 @@ contains
     keff = 1d0
     fsum = 1d0
 
-    write(*,*) "=== DIFFUSION POWER ITERATION ==="
+    call output_write("=== DIFFUSION POWER ITERATION ===")
 
     do iter = 1,max_iter
       k_old = keff
@@ -229,18 +232,19 @@ contains
       delta_k = abs(keff - k_old)
       delta_phi = maxval(abs(flux - flux_old))/maxval(flux)
 
-      write(*,'(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
+      write(line, '(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
         'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
+      call output_write(line)
 
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
-        write(*,*) 'CONVERGENCE!'
-        write(*,*)
+        call output_write('CONVERGENCE!')
+        call output_write('')
         exit
       endif
     enddo
 
     if (iter > max_iter) then
-      write(*,*) 'WARNING: failed to converge'
+      call output_write('WARNING: failed to converge')
     endif
 
     deallocate(flux_old)

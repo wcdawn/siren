@@ -15,6 +15,7 @@ implicit none
 integer(ik) :: i, g
 character(1024) :: input_fname
 character(1024) :: fname_stub, fname_flux, fname_phi, fname_power, fname_transportxs, fname_out
+character(1024) :: line
 type(XSLibrary) :: xs
 
 real(rk) :: keff
@@ -41,7 +42,7 @@ fname_transportxs = trim(adjustl(fname_stub)) // '_transportxs.csv'
 call output_open_file(trim(adjustl(fname_out)))
 
 call output_write('begin SIREN')
-write(*, '(a,a)') 'input file: ', trim(adjustl(input_fname))
+call output_write('input file: ' // trim(adjustl(input_fname)))
 
 call input_read(input_fname)
 call xs_read_library(xslib_fname, xs)
@@ -50,11 +51,14 @@ if (refine > 0) then
   do i = 1,refine
     call uniform_refinement(nx, hx, mat_map)
   enddo
-  write(*,*) '=== REFINEMENT ==='
-  write(*,'(a,i0)') 'levels = ', refine
-  write(*,'(a,i0)') 'refined nx = ', nx
-  write(*,'(a,es13.6)') 'refined hx = ', hx
-  write(*,*)
+  call output_write('=== REFINEMENT ===')
+  write(line, '(a,i0)') 'levels = ', refine
+  call output_write(line)
+  write(line, '(a,i0)') 'refined nx = ', nx
+  call output_write(line)
+  write(line, '(a,es13.6)') 'refined hx = ', hx
+  call output_write(line)
+  call output_write('')
 endif
 
 allocate(phi(nx, xs%ngroup, pnorder+1))
@@ -76,22 +80,23 @@ else
 
 endif
 
-write(*,'(a,f22.20)') 'keff = ', keff
-write(*,*)
+write(line, '(a,f22.20)') 'keff = ', keff
+call output_write(line)
+call output_write('')
 
-write(*,*) 'writing ' // trim(adjustl(fname_flux))
+call output_write('writing ' // trim(adjustl(fname_flux)))
 call output_flux_csv(trim(adjustl(fname_flux)), nx, xs%ngroup, hx, phi(:,:,1))
 
-write(*,*) 'writing ' // trim(adjustl(fname_phi))
+call output_write('writing ' // trim(adjustl(fname_phi)))
 call output_phi_csv(trim(adjustl(fname_phi)), nx, xs%ngroup, pnorder, hx, phi)
 
-write(*,*) 'writing ' // trim(adjustl(fname_power))
+call output_write('writing ' // trim(adjustl(fname_power)))
 allocate(power(nx))
 call power_calculate(nx, mat_map, xs, phi(:,:,1), power)
 call output_power_csv(trim(adjustl(fname_power)), nx, hx, power)
 
 if (allocated(sigma_tr)) then
-  write(*,*) 'writing ' // trim(adjustl(fname_transportxs))
+  call output_write('writing ' // trim(adjustl(fname_transportxs)))
   call output_transportxs_csv(trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, hx, sigma_tr)
   deallocate(sigma_tr)
 endif
