@@ -6,7 +6,7 @@ use input, only : input_read, input_cleanup, &
   k_tol, phi_tol, max_iter
 use geometry, only : uniform_refinement
 use diffusion, only : diffusion_power_iteration
-use transport, only : sigma_tr, transport_outer_iteration, transport_power_iteration
+use transport, only : sigma_tr, transport_power_iteration
 use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate

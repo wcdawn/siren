@@ -33,7 +33,7 @@ clean:
 	$(RM) $(OBJ)
 	$(RM) siren.x
 
-diffusion.o : kind.o linalg.o xs.o output.o
+diffusion.o : kind.o linalg.o output.o xs.o
 fileio.o :
 geometry.o : kind.o
 input.o : kind.o fileio.o

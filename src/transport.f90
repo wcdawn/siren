@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: sigma_tr, transport_outer_iteration, transport_power_iteration
+public :: sigma_tr, transport_power_iteration
 
 integer(ik) :: neven
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
@@ -424,7 +424,7 @@ contains
   subroutine transport_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
-    use output, only : output_phi_csv, output_transportxs_csv
+    use output, only : output_write, output_phi_csv, output_transportxs_csv
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: hx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -455,6 +455,8 @@ contains
 
     integer(ik) :: i, n, g
 
+    character(1024) :: line
+
     if (mod(pnorder,2) /= 1) then
       stop 'pnorder must be odd'
     endif
@@ -481,7 +483,7 @@ contains
       call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
     endif
 
-    write(*,*) "=== PN TRANSPORT POWER ITERATION ==="
+    call output_write('=== PN TRANSPORT POWER ITERATION ===')
 
     do iter = 1,max_iter
       k_old = keff
@@ -544,19 +546,20 @@ contains
         stop 'invalid keff'
       endif
 
-      write(*,'(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
+      write(line, '(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
         'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
+      call output_write(line)
 
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
-        write(*,*) 'CONVERGENCE!'
-        write(*,*)
+        call output_write('CONVERGENCE!')
+        call output_write('')
         exit
       endif
 
     enddo ! iter = 1,max_iter
     
     if (iter > max_iter) then
-      write(*,*) 'WARNING: failed to converge'
+      call output_write('WARNING: failed to converge')
     endif
 
     deallocate(sub, dia, sup)
@@ -566,77 +569,5 @@ contains
     deallocate(flux_old)
 
   endsubroutine transport_power_iteration
-
-  subroutine transport_outer_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
-    use xs, only : XSLibrary
-    integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: hx
-    integer(ik), intent(in) :: mat_map(:) ! (nx)
-    type(XSLibrary), intent(in) :: xslib
-    real(rk), intent(in) :: k_tol, phi_tol 
-    integer(ik), intent(in) :: max_iter
-    integer(ik), intent(in) :: pnorder
-    real(rk), intent(out) :: keff
-    real(rk), intent(out) :: phi(:,:,:) ! (nx, ngroup, nmoment)
-
-    ! TODO
-    integer(ik), parameter :: max_outer = 100
-    real(rk), parameter :: damping_phi = 0.1d0
-    real(rk), parameter :: damping_transport = 0.1d0
-
-    integer(ik) :: iter
-
-    real(rk) :: k_old
-    real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- scalar flux
-    real(rk) :: delta_k, delta_phi
-
-    real(rk), allocatable :: sigma_tr_old(:,:,:) , phi_old(:,:,:)
-
-    allocate(sigma_tr_old(nx, xslib%ngroup, pnorder+1))
-    allocate(phi_old(nx, xslib%ngroup, pnorder+1))
-    allocate(flux_old(nx,xslib%ngroup))
-
-    keff = 1d0
-    phi = 1d0
-
-    call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
-
-    do iter = 1,max_outer
-
-      phi_old = phi
-      call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
-      if (iter > 1) then
-        phi = phi_old + damping_phi * (phi - phi_old)
-      endif
-
-      sigma_tr_old = sigma_tr
-      call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
-      if (iter > 1) then
-        sigma_tr = sigma_tr_old + damping_transport * (sigma_tr - sigma_tr_old)
-      endif
-
-      k_old = keff
-      flux_old = phi(:,:,1)
-
-      call transport_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
-
-      delta_k = abs(keff - k_old)
-      delta_phi = maxval(abs(phi(:,:,1) - flux_old)) / maxval(phi(:,:,1))
-
-      write(*,'(a,i0,a,es8.1,a,es8.1,a,f8.6)') &
-        'OUTER=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
-
-      if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
-        write(*,*) 'OUTER CONVERGENCE!'
-        write(*,*)
-        exit
-      endif
-
-    enddo
-
-    deallocate(flux_old)
-    deallocate(sigma_tr_old, phi_old)
-
-  endsubroutine transport_outer_iteration
 
 endmodule transport
