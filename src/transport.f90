@@ -424,7 +424,7 @@ contains
   subroutine transport_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
-    use output, only : output_write, output_phi_csv, output_transportxs_csv
+    use output, only : output_write
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: hx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -541,8 +541,6 @@ contains
 
       if ((keff < 0d0) .or. (keff > 2d0)) then
         write(*,*) 'keff', keff
-        call output_phi_csv('phi.csv', nx, xslib%ngroup, pnorder, hx, phi)
-        call output_transportxs_csv('sigma_tr.csv', nx, xslib%ngroup, pnorder, hx, sigma_tr)
         stop 'invalid keff'
       endif
 

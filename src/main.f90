@@ -2,9 +2,9 @@ program siren
 use kind
 use xs, only : XSLibrary, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
-  xslib_fname, refine, nx, hx, mat_map, pnorder, &
+  xslib_fname, refine, nx, dx, mat_map, pnorder, &
   k_tol, phi_tol, max_iter
-use geometry, only : uniform_refinement
+use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use transport, only : sigma_tr, transport_power_iteration
 use output, only : output_open_file, output_close_file, output_write, &
@@ -46,38 +46,37 @@ call output_write('input file: ' // trim(adjustl(input_fname)))
 call output_write('')
 
 call input_read(input_fname)
+call output_write('(before refinement)')
+call geometry_summary(nx, dx, mat_map)
+
 call xs_read_library(xslib_fname, xs)
 
 if (refine > 0) then
   do i = 1,refine
-    call uniform_refinement(nx, hx, mat_map)
+    call geometry_uniform_refinement(nx, dx, mat_map)
   enddo
-  call output_write('=== REFINEMENT ===')
-  write(line, '(a,i0)') 'levels = ', refine
-  call output_write(line)
-  write(line, '(a,i0)') 'refined nx = ', nx
-  call output_write(line)
-  write(line, '(a,es13.6)') 'refined hx = ', hx
-  call output_write(line)
-  call output_write('')
+  call output_write('(after refinement)')
+  call geometry_summary(nx, dx, mat_map)
 endif
 
 allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
 
+  ! TODO hacked diffusion coefficient for comparison
   do i = 1,xs%niso
     do g = 1,xs%ngroup
       xs%mat(i)%diffusion(g) = 1d0/(3d0*xs%mat(i)%sigma_t(g))
     enddo
   enddo
 
-  call diffusion_power_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+  ! TODO proper dx
+  call diffusion_power_iteration(nx, dx(1), mat_map, xs, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
-  !call transport_outer_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
 
   phi = 1d0
   keff = 1d0
-  call transport_power_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  ! TODO proper dx
+  call transport_power_iteration(nx, dx(1), mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
 
 endif
 
@@ -86,19 +85,19 @@ call output_write(line)
 call output_write('')
 
 call output_write('writing ' // trim(adjustl(fname_flux)))
-call output_flux_csv(trim(adjustl(fname_flux)), nx, xs%ngroup, hx, phi(:,:,1))
+call output_flux_csv(trim(adjustl(fname_flux)), nx, xs%ngroup, dx, phi(:,:,1))
 
 call output_write('writing ' // trim(adjustl(fname_phi)))
-call output_phi_csv(trim(adjustl(fname_phi)), nx, xs%ngroup, pnorder, hx, phi)
+call output_phi_csv(trim(adjustl(fname_phi)), nx, xs%ngroup, pnorder, dx, phi)
 
 call output_write('writing ' // trim(adjustl(fname_power)))
 allocate(power(nx))
 call power_calculate(nx, mat_map, xs, phi(:,:,1), power)
-call output_power_csv(trim(adjustl(fname_power)), nx, hx, power)
+call output_power_csv(trim(adjustl(fname_power)), nx, dx, power)
 
 if (allocated(sigma_tr)) then
   call output_write('writing ' // trim(adjustl(fname_transportxs)))
-  call output_transportxs_csv(trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, hx, sigma_tr)
+  call output_transportxs_csv(trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, dx, sigma_tr)
   deallocate(sigma_tr)
 endif
 

@@ -6,7 +6,7 @@ private
 
 ! required input
 integer(ik) :: nx
-real(rk) :: hx
+real(rk), allocatable :: dx(:)
 character(1024) :: xslib_fname
 integer(ik), allocatable :: mat_map(:)
 integer(ik) :: pnorder
@@ -21,7 +21,7 @@ character(16) :: boundary_left = 'mirror', boundary_right = 'mirror'
 
 public :: input_read, input_cleanup
 
-public :: nx, hx, xslib_fname, mat_map
+public :: nx, dx, xslib_fname, mat_map
 public :: k_tol, phi_tol, max_iter
 public :: pnorder
 public :: refine
@@ -39,6 +39,7 @@ contains
     integer :: ios
 
     call fileio_open_read(trim(adjustl(fname)), iounit)
+    ! TODO input echo
 
     do
       read(iounit, '(a)', iostat=ios) line
@@ -61,9 +62,10 @@ contains
         case ('nx')
           read(line, *) card, nx
           allocate(mat_map(nx))
+          allocate(dx(nx))
           mat_map = 0
-        case ('hx')
-          read(line, *) card, hx
+        case ('dx')
+          read(line, *) card, dx
         case ('xslib_fname')
           xslib_fname = ''
           read(line, *) card, xslib_fname
@@ -106,36 +108,28 @@ contains
 
   subroutine input_summary()
     use output, only : output_write
-    character(1024) :: line, tmp
-    integer(ik) :: i
+    character(1024) :: line
 
     call output_write('=== INPUT ===')
-    write(line, '(a,i0)') 'nx = ', nx
-    call output_write(line)
-    write(line, '(a,es13.6)') 'hx = ', hx
-    call output_write(line)
     call output_write('xslib_fname = "' // trim(adjustl(xslib_fname)) // '"')
-
-    write(line, '(a)') 'mat_map ='
-    do i = 1,nx
-      write(tmp, '(i0)') mat_map(i)
-      line = trim(adjustl(line)) // ' ' // trim(adjustl(tmp))
-    enddo
-    call output_write(line)
-
     write(line, '(a,i0)') 'refine = ', refine
     call output_write(line)
     write(line, '(a,es13.6)') 'k_tol = ', k_tol
     call output_write(line)
     write(line, '(a,es13.6)') 'phi_tol = ', phi_tol
     call output_write(line)
-    call output_write('')
+    call output_write('boundary_left = *' // trim(adjustl(boundary_left)) // '*')
+    call output_write('boundary_right = *' // trim(adjustl(boundary_right)) // '*')
 
+    call output_write('')
   endsubroutine input_summary
 
   subroutine input_cleanup()
     if (allocated(mat_map)) then
       deallocate(mat_map)
+    endif
+    if (allocated(dx)) then
+      deallocate(dx)
     endif
   endsubroutine input_cleanup
 
