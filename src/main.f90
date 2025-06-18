@@ -7,7 +7,8 @@ use input, only : input_read, input_cleanup, &
 use geometry, only : uniform_refinement
 use diffusion, only : diffusion_power_iteration
 use transport, only : sigma_tr, transport_outer_iteration, transport_power_iteration
-use output, only : output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
+use output, only : output_open_file, output_close_file, output_write, &
+  output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate
 implicit none
 
@@ -20,15 +21,13 @@ real(rk) :: keff
 real(rk), allocatable :: phi(:,:,:) ! (nx, ngroup, pnorder)
 real(rk), allocatable :: power(:)
 
-write(*,*) 'begin SIREN'
-
 if (command_argument_count() == 0) then
   stop 'missing input filename'
 endif
 
+
 input_fname = ''
 call get_command_argument(1, input_fname)
-write(*, '(a,a)') 'input file: ', trim(adjustl(input_fname))
 
 i = index(trim(adjustl(input_fname)), '.', back=.true.)
 i = i - 1
@@ -38,6 +37,11 @@ fname_flux = trim(adjustl(fname_stub)) // '_flux.csv'
 fname_phi = trim(adjustl(fname_stub)) // '_phi.csv'
 fname_power = trim(adjustl(fname_stub)) // '_power.csv'
 fname_transportxs = trim(adjustl(fname_stub)) // '_transportxs.csv'
+
+call output_open_file(trim(adjustl(fname_out)))
+
+call output_write('begin SIREN')
+write(*, '(a,a)') 'input file: ', trim(adjustl(input_fname))
 
 call input_read(input_fname)
 call xs_read_library(xslib_fname, xs)
@@ -98,6 +102,8 @@ deallocate(phi)
 call xs_cleanup(xs)
 call input_cleanup()
 
-write(*,*) 'end SIREN'
+call output_write('end SIREN')
+
+call output_close_file()
 
 endprogram siren
