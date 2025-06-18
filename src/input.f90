@@ -16,6 +16,9 @@ real(rk) :: k_tol = 1d-6, phi_tol = 1d-5
 integer(ik) :: max_iter = 100
 integer(ik) :: refine = 0
 
+! optional
+character(16) :: boundary_left = 'mirror', boundary_right = 'mirror'
+
 public :: input_read, input_cleanup
 
 public :: nx, hx, xslib_fname, mat_map
@@ -34,8 +37,6 @@ contains
 
     character(1024) :: line, card
     integer :: ios
-
-    integer(ik) :: i
 
     call fileio_open_read(trim(adjustl(fname)), iounit)
 
@@ -78,28 +79,59 @@ contains
           read(line, *) card, refine
         case ('pnorder')
           read(line, *) card, pnorder
+        case ('boundary_left')
+          read(line, *) card, boundary_left
+        case ('boundary_right')
+          read(line, *) card, boundary_right
         case default
           write(*,*) 'card:', trim(adjustl(card))
           stop 'unknown input card'
       endselect
     enddo
 
-    write(*,*) '=== INPUT ==='
-    write(*, '(a,i0)') 'nx = ', nx
-    write(*, '(a,es13.6)') 'hx = ', hx
-    write(*, '(a,a,a)') 'xslib_fname = "', trim(adjustl(xslib_fname)), '"'
-    write(*, '(a)', advance='no') 'mat_map ='
-    do i = 1,nx
-      write(*, '(a,i0)', advance='no') ' ', mat_map(i)
-    enddo
-    write(*,*)
-    write(*,'(a,i0)') 'refine = ', refine
-    write(*,'(a,es13.6)') 'k_tol = ', k_tol
-    write(*,'(a,es13.6)') 'phi_tol = ', phi_tol
-    write(*,*)
+    call input_summary()
+
+    call input_check()
 
     close(iounit)
   endsubroutine input_read
+
+  subroutine input_check()
+    if (trim(adjustl(boundary_left)) /= 'mirror') then
+      stop 'boundary_left must be set to mirror (for now)'
+    elseif ((pnorder /= 0) .and. (trim(adjustl(boundary_right)) /= 'mirror')) then
+      stop 'all boundaries must be set to mirror for PN (non-diffusion) calculation'
+    endif
+  endsubroutine input_check
+
+  subroutine input_summary()
+    use output, only : output_write
+    character(1024) :: line, tmp
+    integer(ik) :: i
+
+    call output_write('=== INPUT ===')
+    write(line, '(a,i0)') 'nx = ', nx
+    call output_write(line)
+    write(line, '(a,es13.6)') 'hx = ', hx
+    call output_write(line)
+    call output_write('xslib_fname = "' // trim(adjustl(xslib_fname)) // '"')
+
+    write(line, '(a)') 'mat_map ='
+    do i = 1,nx
+      write(tmp, '(i0)') mat_map(i)
+      line = trim(adjustl(line)) // ' ' // trim(adjustl(tmp))
+    enddo
+    call output_write(line)
+
+    write(line, '(a,i0)') 'refine = ', refine
+    call output_write(line)
+    write(line, '(a,es13.6)') 'k_tol = ', k_tol
+    call output_write(line)
+    write(line, '(a,es13.6)') 'phi_tol = ', phi_tol
+    call output_write(line)
+    call output_write('')
+
+  endsubroutine input_summary
 
   subroutine input_cleanup()
     if (allocated(mat_map)) then

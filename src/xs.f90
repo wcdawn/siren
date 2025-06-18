@@ -27,6 +27,7 @@ type XSMaterial
 endtype XSMaterial
 
 type XSLibrary
+  character(1024) :: filename
   integer(ik) :: ngroup
   integer(ik) :: niso
   integer(ik) :: nmoment
@@ -50,6 +51,7 @@ contains
     pnt = 0
 
     call fileio_open_read(fname, iounit)
+    xslib%filename = fname
     do
 
       read(iounit, '(a)', iostat=ios) line
@@ -131,21 +133,36 @@ contains
           write(*,*) 'Unknown card:', trim(adjustl(card))
           stop 'error in xs_read_library'
       endselect
-
     enddo
 
-    write(*,*) "=== XSLIB ==="
-    write(*,'(a,a)') 'filename: ', trim(adjustl(fname))
-    write(*,'(a,i0)') 'niso = ', xslib%niso
-    write(*,'(a,i0)') 'ngroup = ', xslib%ngroup
-    write(*,'(a,i0)') 'nmoment = ', xslib%nmoment
-    do i = 1,xslib%niso
-      write(*,'(a,a,a,l1)') 'name = "', trim(adjustl(xslib%mat(i)%name)), '" , fiss = ', xslib%mat(i)%is_fiss
-    enddo
-    write(*,*)
+    call xs_summary(xslib)
 
     close(iounit)
   endsubroutine xs_read_library
+
+  subroutine xs_summary(xslib)
+    use output, only : output_write
+    type(XSLibrary), intent(in) :: xslib
+
+    character(1024) :: line
+    integer(ik) :: i
+
+    call output_write("=== XSLIB ===")
+    call output_write('filename: ' // trim(adjustl(xslib%filename)))
+    write(line, '(a,i0)') 'niso = ', xslib%niso
+    call output_write(line)
+    write(line, '(a,i0)') 'ngroup = ', xslib%ngroup
+    call output_write(line)
+    write(line, '(a,i0)') 'nmoment = ', xslib%nmoment
+    call output_write(line)
+    do i = 1,xslib%niso
+      write(line, '(a,a,a,i0,a,l1)') &
+        'name = "', trim(adjustl(xslib%mat(i)%name)), '" , idx = ', i, ' , fiss = ', xslib%mat(i)%is_fiss
+      call output_write(line)
+    enddo
+    call output_write('')
+
+  endsubroutine xs_summary
 
   subroutine xs_cleanup(xslib)
     type(XSLibrary), intent(out) :: xslib

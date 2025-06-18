@@ -43,6 +43,7 @@ call output_open_file(trim(adjustl(fname_out)))
 
 call output_write('begin SIREN')
 call output_write('input file: ' // trim(adjustl(input_fname)))
+call output_write('')
 
 call input_read(input_fname)
 call xs_read_library(xslib_fname, xs)

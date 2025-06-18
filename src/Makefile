@@ -36,11 +36,11 @@ clean:
 diffusion.o : kind.o linalg.o output.o xs.o
 fileio.o :
 geometry.o : kind.o
-input.o : kind.o fileio.o
+input.o : fileio.o kind.o output.o
 kind.o :
 linalg.o : kind.o
 main.o : xs.o input.o geometry.o output.o power.o transport.o
 output.o : fileio.o kind.o
 power.o : kind.o xs.o
 transport.o : kind.o linalg.o xs.o
-xs.o : kind.o fileio.o
+xs.o : fileio.o kind.o output.o
