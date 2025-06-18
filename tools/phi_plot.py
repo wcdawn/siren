@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
 
 if __name__ == "__main__":
 
-    fname = "phi.csv"
+    fname = sys.argv[1]
     extension = "png"
     dpi = 600
 
@@ -33,27 +34,31 @@ if __name__ == "__main__":
     print("pnorder=", pnorder)
 
     dphi = np.zeros_like(phi)
-    hx = x[1]-x[0]
+    hx = x[1] - x[0]
     for i in range(phi.shape[1]):
-        dphi[:,i] = np.gradient(phi[:,i], hx)
+        dphi[:, i] = np.gradient(phi[:, i], hx)
 
     # post-compute the odd moments as well
     # TODO remove this
     dat = np.loadtxt("sigma_tr.csv", delimiter=",", skiprows=1)
-    sigma_tr = dat[:,1:]
+    sigma_tr = dat[:, 1:]
     phi_odd = np.zeros_like(phi)
-    for n in range(1,pnorder,2):
-        print("nodd=", n, "(n-1)=", n-1)
+    for n in range(1, pnorder, 2):
+        print("nodd=", n, "(n-1)=", n - 1)
         for g in range(ngroup):
-            if (n < pnorder-1):
-                phi_odd[:,g + n*ngroup] = - (
-                    (n+1)/(2*n+1) * dphi[:, g + (n+1)*ngroup]
-                    + n/(2*n+1) * dphi[:, g + (n-1)*ngroup]
-                )/sigma_tr[:,g+n*ngroup]
+            if n < pnorder - 1:
+                phi_odd[:, g + n * ngroup] = (
+                    -(
+                        (n + 1) / (2 * n + 1) * dphi[:, g + (n + 1) * ngroup]
+                        + n / (2 * n + 1) * dphi[:, g + (n - 1) * ngroup]
+                    )
+                    / sigma_tr[:, g + n * ngroup]
+                )
             else:
-                phi_odd[:,g+n*ngroup] = -(
-                    n/(2*n+1)*dphi[:,g+(n-1)*ngroup]
-                )/sigma_tr[:,g+n*ngroup]
+                phi_odd[:, g + n * ngroup] = (
+                    -(n / (2 * n + 1) * dphi[:, g + (n - 1) * ngroup])
+                    / sigma_tr[:, g + n * ngroup]
+                )
 
     for n in range(pnorder):
 
@@ -68,7 +73,7 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.savefig("phi_{:d}".format(n) + extension, dpi=dpi)
 
-        if (n%2 == 1):
+        if n % 2 == 1:
             plt.figure()
             for g in range(ngroup):
                 plt.plot(x, phi_odd[:, g + n * ngroup], label="g={:d}".format(g + 1))
@@ -79,6 +84,5 @@ if __name__ == "__main__":
             plt.title("SIREN ODD COMPUTE $\\phi$ {:d}".format(n))
             plt.tight_layout()
             plt.savefig("phi_odd_{:d}".format(n) + extension, dpi=dpi)
-
 
     plt.show()

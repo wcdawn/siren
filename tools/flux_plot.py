@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
 
 if __name__ == "__main__":
 
-    fname = "flux.csv"
+    fname = sys.argv[1]
     extension = "png"
     dpi = 600
 
