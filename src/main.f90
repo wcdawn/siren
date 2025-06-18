@@ -11,8 +11,9 @@ use output, only : output_flux_csv, output_power_csv, output_phi_csv, output_tra
 use power, only : power_calculate
 implicit none
 
-integer(ik) :: i
+integer(ik) :: i, g
 character(1024) :: input_fname
+character(1024) :: fname_stub, fname_flux, fname_phi, fname_power, fname_transportxs, fname_out
 type(XSLibrary) :: xs
 
 real(rk) :: keff
@@ -28,6 +29,15 @@ endif
 input_fname = ''
 call get_command_argument(1, input_fname)
 write(*, '(a,a)') 'input file: ', trim(adjustl(input_fname))
+
+i = index(trim(adjustl(input_fname)), '.', back=.true.)
+i = i - 1
+fname_stub = input_fname(:i)
+fname_out = trim(adjustl(fname_stub)) // '.out'
+fname_flux = trim(adjustl(fname_stub)) // '_flux.csv'
+fname_phi = trim(adjustl(fname_stub)) // '_phi.csv'
+fname_power = trim(adjustl(fname_stub)) // '_power.csv'
+fname_transportxs = trim(adjustl(fname_stub)) // '_transportxs.csv'
 
 call input_read(input_fname)
 call xs_read_library(xslib_fname, xs)
@@ -45,6 +55,13 @@ endif
 
 allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
+
+  do i = 1,xs%niso
+    do g = 1,xs%ngroup
+      xs%mat(i)%diffusion(g) = 1d0/(3d0*xs%mat(i)%sigma_t(g))
+    enddo
+  enddo
+
   call diffusion_power_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
   !call transport_outer_iteration(nx, hx, mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
@@ -58,19 +75,20 @@ endif
 write(*,'(a,f22.20)') 'keff = ', keff
 write(*,*)
 
-write(*,*) 'writing flux.csv'
-call output_flux_csv('flux.csv', nx, xs%ngroup, hx, phi(:,:,1))
+write(*,*) 'writing ' // trim(adjustl(fname_flux))
+call output_flux_csv(trim(adjustl(fname_flux)), nx, xs%ngroup, hx, phi(:,:,1))
 
-write(*,*) 'writing phi.csv'
-call output_phi_csv('phi.csv', nx, xs%ngroup, pnorder, hx, phi)
+write(*,*) 'writing ' // trim(adjustl(fname_phi))
+call output_phi_csv(trim(adjustl(fname_phi)), nx, xs%ngroup, pnorder, hx, phi)
 
-write(*,*) 'writing power.csv'
+write(*,*) 'writing ' // trim(adjustl(fname_power))
 allocate(power(nx))
 call power_calculate(nx, mat_map, xs, phi(:,:,1), power)
-call output_power_csv('power.csv', nx, hx, power)
+call output_power_csv(trim(adjustl(fname_power)), nx, hx, power)
 
 if (allocated(sigma_tr)) then
-  call output_transportxs_csv('sigma_tr.csv', nx, xs%ngroup, pnorder, hx, sigma_tr)
+  write(*,*) 'writing ' // trim(adjustl(fname_transportxs))
+  call output_transportxs_csv(trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, hx, sigma_tr)
   deallocate(sigma_tr)
 endif
 
