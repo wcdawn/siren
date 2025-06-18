@@ -48,7 +48,7 @@ contains
         endif
         dnext = 2 * cthis*cnext / (cthis + cnext)
         dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * hx**2
-        if (idxn+1 < xslib%nmoment) then
+        if (idxn+1 <= xslib%nmoment) then
           dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
         endif
         sup(1,g,n) = -dnext
@@ -81,7 +81,7 @@ contains
 
           sub(i-1,g,n) = -dprev
           dia(i,g,n) = dprev + dnext + xslib%mat(mthis)%sigma_t(g) * hx**2
-          if (idxn+1 < xslib%nmoment) then
+          if (idxn+1 <= xslib%nmoment) then
             dia(i,g,n) = dia(i,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
           endif
           sup(i,g,n) = -dnext
@@ -108,7 +108,7 @@ contains
         dprev = 2 * cthis*cprev / (cthis + cprev)
         sub(nx-1,g,n) = -dprev
         dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * hx**2
-        if (idxn+1 < xslib%nmoment) then
+        if (idxn+1 <= xslib%nmoment) then
           dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
         endif
       enddo ! g = 1,xslib%ngroup
@@ -129,14 +129,22 @@ contains
 
     allocate(sigma_tr(nx,xslib%ngroup,pnorder+1))
 
-    ! initialize to total xs
     do n = 1,pnorder+1
-      do g = 1,xslib%ngroup
-        do i = 1,nx
-          mthis = mat_map(i)
-          sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
-        enddo
-      enddo ! g = 1,xslib%ngroup
+      if (n <= xslib%nmoment) then
+        do g = 1,xslib%ngroup
+          do i = 1,nx
+            mthis = mat_map(i)
+            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,n)
+          enddo ! i = 1,nx
+        enddo ! g = 1,xslib%ngroup
+      else
+        do g = 1,xslib%ngroup
+          do i = 1,nx
+            mthis = mat_map(i)
+            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
+          enddo ! i = 1,nx
+        enddo ! g = 1,xslib%ngroup
+      endif
     enddo ! n = 1,pnorder+1
 
   endsubroutine transport_init_transportxs
@@ -155,12 +163,26 @@ contains
 
     do n = 1,pnorder+1
       if (n <= xslib%nmoment) then
-        do i = 1,nx
-          mthis = mat_map(i)
-          do g = 1,xslib%ngroup
-            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))
-          enddo ! xslib%ngroup
-        enddo ! i = 1,nx
+        if (mod(n,2) == 0) then
+          ! If n is even, idxn (the actual PN order) is odd... off-by-one
+          do i = 1,nx
+            mthis = mat_map(i)
+            do g = 1,xslib%ngroup
+              ! TODO this would be the initial guess
+              !sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,n)
+              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
+            enddo ! g = 1,xslib%ngroup
+          enddo ! i = 1,nx
+        else
+          ! I don't really care about the even transport xs.
+          ! They are not used in the calculations anywhere
+          do i = 1,nx
+            mthis = mat_map(i)
+            do g = 1,xslib%ngroup
+              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
+            enddo ! xslib%ngroup
+          enddo ! i = 1,nx
+        endif
       else
         do i = 1,nx
           mthis = mat_map(i)
@@ -171,161 +193,6 @@ contains
       endif
     enddo ! n = 1,pnorder+1
   endsubroutine transport_build_transportxs
-
-  subroutine transport_build_transportxs_newton(nx, hx, mat_map, xslib, pnorder, phi, sigma_tr)
-    use xs, only : XSLibrary
-    integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: hx
-    integer(ik), intent(in) :: mat_map(:) ! (nx)
-    type(XSLibrary), intent(in) :: xslib
-    integer(ik), intent(in) :: pnorder
-    real(rk), intent(in) :: phi(:,:,:) ! (nx,ngroup,pnorder+1)
-    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx,ngroup,pnorder+1)
-
-    integer(ik) :: i, g, n
-    integer(ik) :: mthis
-
-    integer(ik), parameter :: newton_max_iter = 100
-    real(rk), parameter :: newton_tol = 1d-8
-
-    integer(ik) :: idxn, gprime
-    real(rk) :: xn, xmul_next, xmul_prev
-    integer(ik) :: iter
-    real(rk) :: xi, fx, dfdx
-
-    do n = 1,pnorder+1
-      if (n <= xslib%nmoment) then
-        if (mod(n,2) == 1) then
-          ! If n is odd, the moment is even... off-by-one.
-          ! I don't care much about the even transport xs. They aren't used.
-          do i = 1,nx
-            mthis = mat_map(i)
-            do g = 1,xslib%ngroup
-              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n) * phi(i,:,n))
-            enddo ! g = 1,xslib%ngroup
-          enddo ! i = 1,nx
-        else
-
-          ! this is an odd transport xs with available scattering moments
-          idxn = n-1
-          xn = real(idxn, rk)
-          xmul_next = (xn+1d0)/(2d0*xn+1d0)
-          xmul_prev = xn/(2d0*xn+1d0)
-
-          do i = 2,nx-1
-            mthis = mat_map(i)
-            do g = 1,xslib%ngroup
-              xi = xslib%mat(mthis)%sigma_t(g) ! initial guess
-              do iter = 1,newton_max_iter
-
-                ! function evaluation
-                fx = xslib%mat(mthis)%sigma_t(g) - xi &
-                  + xslib%mat(mthis)%scatter(g,g,n)/xi * 0.5d0 / hx &
-                  * (xmul_next * (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1)) &
-                  + xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)))
-                do gprime = 1,xslib%ngroup
-                  if (gprime == g) then
-                    cycle
-                  endif
-                  fx = fx + xslib%mat(mthis)%scatter(gprime,g,n)/sigma_tr(i,gprime,n) * 0.5d0 / hx &
-                    * (xmul_next * (phi(i+1,gprime,idxn+1+1) - phi(i-1,gprime,idxn+1+1)) &
-                    + xmul_prev * (phi(i+1,gprime,idxn+1-1) - phi(i-1,gprime,idxn+1-1)))
-                enddo
-
-                ! function value check
-                if (abs(fx) < newton_tol) then
-                  write(*,*) 'i=', i, 'g=', g, 'idxn=', idxn, 'iter=', iter
-                  exit
-                endif
-
-                ! derivative evaluation
-                dfdx = -1d0 - xslib%mat(mthis)%scatter(g,g,n)/xi**2 * 0.5d0 / hx &
-                  * (xmul_next * (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1)) &
-                  + xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)))
-
-                ! newton update
-                xi = xi - fx/dfdx
-
-              enddo ! iter = 1,newton_iter
-
-            enddo ! g = 1,xslib%ngroup
-          enddo ! i = 2,nx-1
-
-          ! i = 1
-          mthis = mat_map(1)
-          do g = 1,xslib%ngroup
-            xi = xslib%mat(mthis)%sigma_t(g) ! initial guess
-            do iter = 1,newton_max_iter
-              ! function evaluation
-              fx = xslib%mat(mthis)%sigma_t(g) - xi &
-                + xslib%mat(mthis)%scatter(g,g,n)/xi / hx &
-                * (xmul_next * (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1)) &
-                + xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)))
-              do gprime = 1,xslib%ngroup
-                if (gprime == g) then
-                  cycle
-                endif
-                fx = fx + xslib%mat(mthis)%scatter(gprime,g,n)/sigma_tr(i,gprime,n) / hx &
-                  * (xmul_next * (phi(2,gprime,idxn+1+1) - phi(1,gprime,idxn+1+1)) &
-                  + xmul_prev * (phi(2,gprime,idxn+1-1) - phi(1,gprime,idxn+1-1)))
-              enddo
-              ! function value check
-              if (abs(fx) < newton_tol) then
-                write(*,*) 'i=', i, 'g=', g, 'idxn=', idxn, 'iter=', iter
-                exit
-              endif
-              ! derivative evaluation
-              dfdx = -1d0 - xslib%mat(mthis)%scatter(g,g,n)/xi**2 / hx &
-                * (xmul_next * (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1)) &
-                + xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)))
-              ! newton update
-              xi = xi - fx/dfdx
-            enddo ! iter = 1,newton_iter
-          enddo ! g = 1,xslib%ngroup
-
-          ! i = nx
-          mthis = mat_map(nx)
-          do g = 1,xslib%ngroup
-            xi = xslib%mat(mthis)%sigma_t(g) ! initial guess
-            do iter = 1,newton_max_iter
-              ! function evaluation
-              fx = xslib%mat(mthis)%sigma_t(g) - xi &
-                + xslib%mat(mthis)%scatter(g,g,n)/xi / hx &
-                * (xmul_next * (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1)) &
-                + xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)))
-              do gprime = 1,xslib%ngroup
-                if (gprime == g) then
-                  cycle
-                endif
-                fx = fx + xslib%mat(mthis)%scatter(gprime,g,n)/sigma_tr(i,gprime,n) / hx &
-                  * (xmul_next * (phi(nx,gprime,idxn+1+1) - phi(nx-1,gprime,idxn+1+1)) &
-                  + xmul_prev * (phi(nx,gprime,idxn+1-1) - phi(nx-1,gprime,idxn+1-1)))
-              enddo
-              ! function value check
-              if (abs(fx) < newton_tol) then
-                write(*,*) 'i=', i, 'g=', g, 'idxn=', idxn, 'iter=', iter
-                exit
-              endif
-              ! derivative evaluation
-              dfdx = -1d0 - xslib%mat(mthis)%scatter(g,g,n)/xi**2 / hx &
-                * (xmul_next * (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1)) &
-                + xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)))
-              ! newton update
-              xi = xi - fx/dfdx
-            enddo ! iter = 1,newton_iter
-          enddo ! g = 1,xslib%ngroup
-
-        endif
-      else
-        do i = 1,nx
-          mthis = mat_map(i)
-          do g = 1,xslib%ngroup
-            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
-          enddo ! g = 1,xslib%ngroup
-        enddo ! i = 1,nx
-      endif
-    enddo ! n = 1,pnorder+1
-  endsubroutine transport_build_transportxs_newton
 
   subroutine transport_odd_update(nx, hx, ng, pnorder, sigma_tr, phi)
     integer(ik), intent(in) :: nx
@@ -586,7 +453,7 @@ contains
     real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- all p0
     real(rk) :: delta_k, delta_phi
 
-    integer(ik) :: n, g, i
+    integer(ik) :: i, n, g
 
     if (mod(pnorder,2) /= 1) then
       stop 'pnorder must be odd'
@@ -616,12 +483,14 @@ contains
 
     write(*,*) "=== PN TRANSPORT POWER ITERATION ==="
 
-    call transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
-
     do iter = 1,max_iter
       k_old = keff
       flux_old = phi(:,:,1)
       fsum_old = fsum
+
+      call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
+      call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      call transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
 
       call transport_build_next_source(nx, xslib%ngroup, sigma_tr, phi, pn_next_source)
 
@@ -679,10 +548,6 @@ contains
         'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
 
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
-        do i = 1,100
-          call transport_build_transportxs_newton(nx, hx, mat_map, xslib, pnorder, phi, sigma_tr)
-          call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
-        enddo
         write(*,*) 'CONVERGENCE!'
         write(*,*)
         exit
