@@ -6,16 +6,15 @@ private
 
 public :: diffusion_power_iteration
 
-logical, parameter :: tworeg_benchmark = .false.
-
 contains
 
-  subroutine diffusion_build_matrix(nx, hx, mat_map, xslib, sub, dia, sup)
+  subroutine diffusion_build_matrix(nx, hx, mat_map, xslib, boundary_right, sub, dia, sup)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: hx
     integer(ik), intent(in) :: mat_map(:)
     type(XSLibrary), intent(in) :: xslib
+    character(*), intent(in) :: boundary_right
     real(rk), intent(out) :: sub(:,:) ! (nx,ngroup)
     real(rk), intent(out) :: dia(:,:) ! (nx,ngroup)
     real(rk), intent(out) :: sup(:,:) ! (nx,ngroup)
@@ -54,26 +53,29 @@ contains
     enddo
 
     ! BC at x=L, i=N
-    if (tworeg_benchmark) then
-      mprev = mat_map(nx-1)
-      mthis = mat_map(nx)
-      do g = 1,xslib%ngroup
-        dprev = 2 * xslib%mat(mthis)%diffusion(g) * xslib%mat(mprev)%diffusion(g) / &
-          (xslib%mat(mthis)%diffusion(g) + xslib%mat(mprev)%diffusion(g))
-        sub(nx-1,g) = -dprev
-        dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * hx**2 &
-          + 2 * xslib%mat(mthis)%diffusion(g)
-      enddo
-    else
-      mprev = mat_map(nx-1)
-      mthis = mat_map(nx)
-      do g = 1,xslib%ngroup
-        dprev = 2 * xslib%mat(mthis)%diffusion(g) * xslib%mat(mprev)%diffusion(g) / &
-          (xslib%mat(mthis)%diffusion(g) + xslib%mat(mprev)%diffusion(g))
-        sub(nx-1,g) = -dprev
-        dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * hx**2
-      enddo
-    endif
+    select case(boundary_right)
+      case ('zero')
+        mprev = mat_map(nx-1)
+        mthis = mat_map(nx)
+        do g = 1,xslib%ngroup
+          dprev = 2 * xslib%mat(mthis)%diffusion(g) * xslib%mat(mprev)%diffusion(g) / &
+            (xslib%mat(mthis)%diffusion(g) + xslib%mat(mprev)%diffusion(g))
+          sub(nx-1,g) = -dprev
+          dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * hx**2 &
+            + 2 * xslib%mat(mthis)%diffusion(g)
+        enddo
+      case ('mirror')
+        mprev = mat_map(nx-1)
+        mthis = mat_map(nx)
+        do g = 1,xslib%ngroup
+          dprev = 2 * xslib%mat(mthis)%diffusion(g) * xslib%mat(mprev)%diffusion(g) / &
+            (xslib%mat(mthis)%diffusion(g) + xslib%mat(mprev)%diffusion(g))
+          sub(nx-1,g) = -dprev
+          dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * hx**2
+        enddo
+      case default
+        stop 'unknown boundary_right in diffusion_build_matrix'
+    endselect
 
   endsubroutine diffusion_build_matrix
 
@@ -164,7 +166,7 @@ contains
     
   endfunction diffusion_fission_summation
 
-  subroutine diffusion_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, keff, flux)
+  subroutine diffusion_power_iteration(nx, hx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -172,6 +174,7 @@ contains
     real(rk), intent(in) :: hx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
+    character(*), intent(in) :: boundary_right
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(out) :: keff
@@ -192,7 +195,7 @@ contains
 
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
     allocate(sub_copy(nx-1,xslib%ngroup), dia_copy(nx,xslib%ngroup), sup_copy(nx-1,xslib%ngroup))
-    call diffusion_build_matrix(nx, hx, mat_map, xslib, sub, dia, sup)
+    call diffusion_build_matrix(nx, hx, mat_map, xslib, boundary_right, sub, dia, sup)
 
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))

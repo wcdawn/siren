@@ -16,7 +16,8 @@ real(rk) :: k_tol = 1d-6, phi_tol = 1d-5
 integer(ik) :: max_iter = 100
 integer(ik) :: refine = 0
 
-! optional
+! optional boundary conditions
+! only allowed for very special problems
 character(16) :: boundary_left = 'mirror', boundary_right = 'mirror'
 
 public :: input_read, input_cleanup
@@ -25,6 +26,7 @@ public :: nx, dx, xslib_fname, mat_map
 public :: k_tol, phi_tol, max_iter
 public :: pnorder
 public :: refine
+public :: boundary_left, boundary_right
 
 contains
 

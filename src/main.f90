@@ -2,7 +2,7 @@ program siren
 use kind
 use xs, only : XSLibrary, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
-  xslib_fname, refine, nx, dx, mat_map, pnorder, &
+  xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
   k_tol, phi_tol, max_iter
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
@@ -70,7 +70,7 @@ if (pnorder == 0) then
   enddo
 
   ! TODO proper dx
-  call diffusion_power_iteration(nx, dx(1), mat_map, xs, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+  call diffusion_power_iteration(nx, dx(1), mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
 
   phi = 1d0
