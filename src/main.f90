@@ -70,7 +70,7 @@ if (pnorder == 0) then
   enddo
 
   ! TODO proper dx
-  call diffusion_power_iteration(nx, dx(1), mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+  call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
 
   phi = 1d0
