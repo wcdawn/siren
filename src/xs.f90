@@ -63,6 +63,13 @@ contains
       endif
 
       read(line, *) card
+
+      card = adjustl(card)
+      if (card(1:1) == '#') then
+        ! comment
+        cycle
+      endif
+
       select case (card)
         case ('ngroup')
           read(line, *) card, xslib%ngroup
