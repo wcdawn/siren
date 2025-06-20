@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     # post-compute the odd moments as well
     # TODO remove this
-    dat = np.loadtxt("sigma_tr.csv", delimiter=",", skiprows=1)
+    dat = np.loadtxt(fname.replace("phi", "transportxs"), delimiter=",", skiprows=1)
     sigma_tr = dat[:, 1:]
     phi_odd = np.zeros_like(phi)
     for n in range(1, pnorder, 2):
