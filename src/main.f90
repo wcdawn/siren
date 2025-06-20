@@ -75,8 +75,7 @@ else
 
   phi = 1d0
   keff = 1d0
-  ! TODO proper dx
-  call transport_power_iteration(nx, dx(1), mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  call transport_power_iteration(nx, dx, mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
 
 endif
 

@@ -15,10 +15,10 @@ real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 
 contains
 
-  subroutine transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
+  subroutine transport_build_matrix(nx, dx, mat_map, xslib, neven, sub, dia, sup)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: hx
+    real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     integer, intent(in) :: neven
@@ -46,10 +46,10 @@ contains
           cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
           cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
         endif
-        dnext = 2 * cthis*cnext / (cthis + cnext)
-        dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * hx**2
+        dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
+        dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
         if (idxn+1 <= xslib%nmoment) then
-          dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
+          dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
         endif
         sup(1,g,n) = -dnext
       enddo ! = g = 1,xslib%ngroup
@@ -76,13 +76,13 @@ contains
             cnext = cnext + xmul_prev / sigma_tr(i+1,g,idxn+1-1)
           endif
 
-          dprev = 2 * cthis*cprev / (cthis + cprev)
-          dnext = 2 * cthis*cnext / (cthis + cnext)
+          dprev = 2 * cthis / dx(i) * cprev / dx(i-1) / (cthis / dx(i) + cprev / dx(i-1))
+          dnext = 2 * cthis / dx(i) * cnext / dx(i+1) / (cthis / dx(i) + cnext / dx(i+1))
 
           sub(i-1,g,n) = -dprev
-          dia(i,g,n) = dprev + dnext + xslib%mat(mthis)%sigma_t(g) * hx**2
+          dia(i,g,n) = dprev + dnext + xslib%mat(mthis)%sigma_t(g) * dx(i)
           if (idxn+1 <= xslib%nmoment) then
-            dia(i,g,n) = dia(i,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
+            dia(i,g,n) = dia(i,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(i)
           endif
           sup(i,g,n) = -dnext
 
@@ -105,11 +105,11 @@ contains
           cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
           cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
         endif
-        dprev = 2 * cthis*cprev / (cthis + cprev)
+        dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
         sub(nx-1,g,n) = -dprev
-        dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * hx**2
+        dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
         if (idxn+1 <= xslib%nmoment) then
-          dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * hx**2
+          dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
         endif
       enddo ! g = 1,xslib%ngroup
     enddo ! n = 1,neven
@@ -194,6 +194,7 @@ contains
     enddo ! n = 1,pnorder+1
   endsubroutine transport_build_transportxs
 
+  ! TODO need to check on these formulae with variable dx
   subroutine transport_odd_update(nx, hx, ng, pnorder, sigma_tr, phi)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: hx
@@ -250,11 +251,11 @@ contains
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
 
-  subroutine transport_build_upscatter(nx, hx, mat_map, xslib, phi, idxn, qup)
+  subroutine transport_build_upscatter(nx, dx, mat_map, xslib, phi, idxn, qup)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: hx
-    integer(ik), intent(in) :: mat_map(:)
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     integer(ik), intent(in) :: idxn
@@ -269,18 +270,18 @@ contains
       do i = 1,nx
         mthis = mat_map(i)
         do g = 1,xslib%ngroup
-          qup(i,g) = sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,idxn+1) * phi(i,g+1:xslib%ngroup,idxn+1))
+          qup(i,g) = &
+            sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,idxn+1) * phi(i,g+1:xslib%ngroup,idxn+1)) * dx(i)
         enddo
       enddo ! i = 1,nx
-      qup = qup * hx**2
     endif
   endsubroutine transport_build_upscatter
 
-  subroutine transport_build_downscatter(nx, hx, mat_map, xslib, phi, idxn, g, qdown)
+  subroutine transport_build_downscatter(nx, dx, mat_map, xslib, phi, idxn, g, qdown)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: hx
-    integer(ik), intent(in) :: mat_map(:)
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     integer(ik), intent(in) :: idxn
@@ -295,18 +296,18 @@ contains
     else
       do i = 1,nx
         mthis = mat_map(i)
-        qdown(i) = sum(xslib%mat(mthis)%scatter(1:g-1,g,idxn+1) * phi(i,1:g-1,idxn+1))
+        qdown(i) = &
+          sum(xslib%mat(mthis)%scatter(1:g-1,g,idxn+1) * phi(i,1:g-1,idxn+1)) * dx(i)
       enddo ! i = 1,nx
-      qdown = qdown * hx**2
     endif
   endsubroutine transport_build_downscatter
 
   ! NOTE: this is an exact copy of diffusion_build_fsource ...
-  subroutine transport_build_fsource(nx, hx, mat_map, xslib, phi0, qfiss)
+  subroutine transport_build_fsource(nx, dx, mat_map, xslib, phi0, qfiss)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: hx
-    integer(ik), intent(in) :: mat_map(:)
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: phi0(:,:) ! (nx, ngroup)
     real(rk), intent(out) :: qfiss(:,:) ! (nx, ngroup)
@@ -317,17 +318,17 @@ contains
     do i = 1,nx
       mthis = mat_map(i)
       if (xslib%mat(mthis)%is_fiss) then
-        qfiss(i,:) = xslib%mat(mthis)%chi(:) * sum(xslib%mat(mthis)%nusf(:) * phi0(i,:))
+        qfiss(i,:) = xslib%mat(mthis)%chi(:) * sum(xslib%mat(mthis)%nusf(:) * phi0(i,:)) * dx(i)
       else
         qfiss(i,:) = 0d0
       endif
     enddo ! i = 1,nx
-    qfiss = qfiss * hx**2
 
   endsubroutine transport_build_fsource
 
-  subroutine transport_build_next_source(nx, ngroup, sigma_tr, phi, qnext)
+  subroutine transport_build_next_source(nx, dx, ngroup, sigma_tr, phi, qnext)
     integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
@@ -352,8 +353,8 @@ contains
           kathis = xmul/sigma_tr(i  ,g,idxn+1+1)
           kanext = xmul/sigma_tr(i+1,g,idxn+1+1)
 
-          daprev = 2 * kathis*kaprev / (kathis + kaprev)
-          danext = 2 * kathis*kanext / (kathis + kanext)
+          daprev = 2 * kathis / dx(i) * kaprev / dx(i-1) / (kathis / dx(i) + kaprev / dx(i-1))
+          danext = 2 * kathis / dx(i) * kanext / dx(i+1) / (kathis / dx(i) + kanext / dx(i+1))
 
           qnext(i, g, n) = phi(i-1,g,idxn+1+2) * daprev - phi(i,g,idxn+1+2) * (daprev + danext) + phi(i+1,g,idxn+1+2) * danext
 
@@ -364,8 +365,9 @@ contains
 
   endsubroutine transport_build_next_source
 
-  subroutine transport_build_prev_source(nx, ngroup, sigma_tr, phi, idxn, qprev)
+  subroutine transport_build_prev_source(nx, dx, ngroup, sigma_tr, phi, idxn, qprev)
     integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
@@ -388,8 +390,8 @@ contains
         kbthis = xmul/sigma_tr(i  ,g,idxn+1-1)
         kbnext = xmul/sigma_tr(i+1,g,idxn+1-1)
 
-        dbprev = 2 * kbthis*kbprev / (kbthis + kbprev)
-        dbnext = 2 * kbthis*kbnext / (kbthis + kbnext)
+        dbprev = 2 * kbthis / dx(i) * kbprev / dx(i-1) / (kbthis / dx(i) + kbprev / dx(i-1))
+        dbnext = 2 * kbthis / dx(i) * kbnext / dx(i+1) / (kbthis / dx(i) + kbnext / dx(i+1))
 
         qprev(i,g) = phi(i-1,g,idxn+1-2) * dbprev - phi(i,g,idxn+1-2) * (dbprev + dbnext) + phi(i+1,g,idxn+1-2) * dbnext
 
@@ -400,10 +402,11 @@ contains
   endsubroutine transport_build_prev_source
 
   ! NOTE: this is an exact copy of diffusion_fission_sumation ...
-  real(rk) function transport_fission_summation(nx, mat_map, xslib, phi0)
+  real(rk) function transport_fission_summation(nx, dx, mat_map, xslib, phi0)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
-    integer(ik), intent(in) :: mat_map(:)
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx) type(XSLibrary), intent(in) :: xslib
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: phi0(:,:) ! (nx, ngroup) -- scalar flux
 
@@ -414,19 +417,19 @@ contains
     do i = 1,nx
       mthis = mat_map(i)
       if (xslib%mat(mthis)%is_fiss) then
-        xsum = xsum + sum(xslib%mat(mthis)%nusf(:) * phi0(i,:))
+        xsum = xsum + sum(xslib%mat(mthis)%nusf(:) * phi0(i,:)) * dx(i)
       endif
     enddo ! i = 1,nx
     transport_fission_summation = xsum
 
   endfunction transport_fission_summation
 
-  subroutine transport_power_iteration(nx, hx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  subroutine transport_power_iteration(nx, dx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
     integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: hx
+    real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: k_tol, phi_tol 
@@ -453,7 +456,7 @@ contains
     real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- all p0
     real(rk) :: delta_k, delta_phi
 
-    integer(ik) :: i, n, g
+    integer(ik) :: n, g
 
     character(1024) :: line
 
@@ -490,25 +493,26 @@ contains
       flux_old = phi(:,:,1)
       fsum_old = fsum
 
-      call transport_odd_update(nx, hx, xslib%ngroup, pnorder, sigma_tr, phi)
+      ! TODO dx(1) --> dx
+      call transport_odd_update(nx, dx(1), xslib%ngroup, pnorder, sigma_tr, phi)
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
-      call transport_build_matrix(nx, hx, mat_map, xslib, neven, sub, dia, sup)
+      call transport_build_matrix(nx, dx, mat_map, xslib, neven, sub, dia, sup)
 
-      call transport_build_next_source(nx, xslib%ngroup, sigma_tr, phi, pn_next_source)
+      call transport_build_next_source(nx, dx, xslib%ngroup, sigma_tr, phi, pn_next_source)
 
       do n = 1,neven
 
         if (n == 1) then
-          call transport_build_fsource(nx, hx, mat_map, xslib, phi(:,:,1), fsource)
+          call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
         else ! (n > 1)
-          call transport_build_prev_source(nx, xslib%ngroup, sigma_tr, phi, 2*(n-1), pn_prev_source)
+          call transport_build_prev_source(nx, dx, xslib%ngroup, sigma_tr, phi, 2*(n-1), pn_prev_source)
         endif
 
-        call transport_build_upscatter(nx, hx, mat_map, xslib, phi, 2*(n-1), upsource)
+        call transport_build_upscatter(nx, dx, mat_map, xslib, phi, 2*(n-1), upsource)
 
         do g = 1,xslib%ngroup
 
-          call transport_build_downscatter(nx, hx, mat_map, xslib, phi, 2*(n-1), g, downsource)
+          call transport_build_downscatter(nx, dx, mat_map, xslib, phi, 2*(n-1), g, downsource)
 
           q = upsource(:,g) + downsource
 
@@ -533,7 +537,7 @@ contains
       enddo ! n = 1,neven
 
       ! eigenvalue update
-      fsum = transport_fission_summation(nx, mat_map, xslib, phi(:,:,1))
+      fsum = transport_fission_summation(nx, dx, mat_map, xslib, phi(:,:,1))
       if (iter > 1) keff = keff * fsum / fsum_old
       delta_k = abs(keff - k_old)
       ! only scalar flux, all groups

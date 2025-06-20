@@ -148,9 +148,10 @@ contains
 
   endsubroutine diffusion_build_downscatter
 
-  real(rk) function diffusion_fission_summation(nx, mat_map, xslib, flux)
+  real(rk) function diffusion_fission_summation(nx, dx, mat_map, xslib, flux)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: flux(:,:) ! (nx,ngroup)
@@ -162,7 +163,7 @@ contains
     do i = 1,nx
       mthis = mat_map(i)
       if (xslib%mat(mthis)%is_fiss) then
-        xsum = xsum + sum(xslib%mat(mthis)%nusf(:) * flux(i,:))
+        xsum = xsum + sum(xslib%mat(mthis)%nusf(:) * flux(i,:)) * dx(i)
       endif
     enddo ! i = 1,nx
     diffusion_fission_summation = xsum
@@ -233,7 +234,7 @@ contains
         call trid(nx, sup_copy(:,g), dia_copy(:,g), sup_copy(:,g), q, flux(:,g))
       enddo
 
-      fsum = diffusion_fission_summation(nx, mat_map, xslib, flux)
+      fsum = diffusion_fission_summation(nx, dx, mat_map, xslib, flux)
       if (iter > 1) keff = keff * fsum / fsum_old
       delta_k = abs(keff - k_old)
       delta_phi = maxval(abs(flux - flux_old))/maxval(flux)
