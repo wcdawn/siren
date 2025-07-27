@@ -195,8 +195,9 @@ contains
   endsubroutine transport_build_transportxs
 
   ! TODO need to check on these formulae with variable dx
-  subroutine transport_odd_update(nx, hx, ng, pnorder, sigma_tr, phi)
+  subroutine transport_odd_update(nx, dx, hx, ng, pnorder, sigma_tr, phi)
     integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
     real(rk), intent(in) :: hx
     integer(ik), intent(in) :: ng
     integer(ik), intent(in) :: pnorder
@@ -494,7 +495,7 @@ contains
       fsum_old = fsum
 
       ! TODO dx(1) --> dx
-      call transport_odd_update(nx, dx(1), xslib%ngroup, pnorder, sigma_tr, phi)
+      call transport_odd_update(nx, dx, dx(1), xslib%ngroup, pnorder, sigma_tr, phi)
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
       call transport_build_matrix(nx, dx, mat_map, xslib, neven, sub, dia, sup)
 
@@ -571,5 +572,31 @@ contains
     deallocate(flux_old)
 
   endsubroutine transport_power_iteration
+
+  ! return first derivative using a second-order estimate on non-uniform grid
+  ! derivative is returned at coordinate x2
+  ! this function also works in the case of a non-uniform grid
+  !
+  ! f1    f2    f3
+  ! |-----|-----|
+  ! x1    x2    x3
+  ! h_left|h_right
+  !
+  real(rk) pure function deriv(x1, x2, x3, f1, f2, f3)
+    real(rk), intent(in) :: x1, x2, x3 ! x-coordinate
+    real(rk), intent(in) :: f1, f2, f3 ! function value
+
+    real(rk) :: h_left, h_right
+    real(rk) :: a, b, c
+
+    h_left = x2 - x1
+    h_right = x3 - x2
+
+    a = -h_right**2  / (h_left * h_right * (h_left + h_right))
+    c = h_left**2  / (h_left * h_right * (h_left + h_right))
+    b = -(a+c)
+
+    deriv = a * f1 + b * f2 + c * f3
+  endfunction deriv
 
 endmodule transport
