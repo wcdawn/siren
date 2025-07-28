@@ -168,8 +168,6 @@ contains
           do i = 1,nx
             mthis = mat_map(i)
             do g = 1,xslib%ngroup
-              ! TODO this would be the initial guess
-              !sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,n)
               sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
             enddo ! g = 1,xslib%ngroup
           enddo ! i = 1,nx
@@ -207,6 +205,7 @@ contains
     integer(ik) :: n, g, i
     integer(ik) :: idxn
     real(rk) :: xn, xmul_prev, xmul_next
+    real(rk) :: dphi_prev, dphi_next
 
     do n = 2,pnorder+1,2
       idxn = n-1
@@ -217,36 +216,36 @@ contains
         do g = 1,ng
           do i = 2,nx-1
             ! central difference for interior
+            dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(2d0*hx)
+            dphi_next = (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1))/(2d0*hx)
             phi(i,g,idxn+1) = &
-              - (xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)) &
-              + xmul_next * (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1))) &
-              / (sigma_tr(i,g,idxn+1)*2d0*hx)
+              - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+              / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
           ! forward/backward difference on boundaries
+          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/hx
+          dphi_next = (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1))/hx
           phi(1,g,idxn+1) = &
-            - (xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)) &
-            * xmul_next * (phi(2,g,idxn+1+1) - phi(2,g,idxn+1+1))) &
-            / (sigma_tr(1,g,idxn+1)*hx)
+            - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+            / sigma_tr(1,g,idxn+1)
+          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/hx
+          dphi_next = (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1))/hx
           phi(nx,g,idxn+1) = &
-            - (xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)) &
-            * xmul_next * (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1))) &
-            / (sigma_tr(nx,g,idxn+1)*hx)
+            - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+            / sigma_tr(nx,g,idxn+1)
         enddo ! g = 1,ng
       else
         do g = 1,ng
           do i = 2,nx-1
             ! central difference for interior
-            phi(i,g,idxn+1) = &
-              - xmul_prev * (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1)) &
-              / (sigma_tr(i,g,idxn+1)*2d0*hx)
+            dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(2d0*hx)
+            phi(i,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
           ! forward/backward difference on boundaries
-          phi(1,g,idxn+1) = &
-            - xmul_prev * (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1)) &
-            / (sigma_tr(1,g,idxn+1)*hx)
-          phi(nx,g,idxn+1) = &
-            - xmul_prev * (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1)) &
-            / (sigma_tr(nx,g,idxn+1)*hx)
+          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/hx
+          phi(1,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(1,g,idxn+1)
+          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/hx
+          phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
         enddo ! g = 1,ng
       endif
     enddo ! n = 2,pnorder+1,2
