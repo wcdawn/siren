@@ -34,7 +34,7 @@ What SIREN is:
 - A jumping-off point for investigating neutron scattering in hydrogeneous media.
 
 What SIREN is not:
-- A general transport method. It works for one-dimensional, fixed meshes with constant spacing.
+- A general transport method. It works for one-dimensional problems with reflective boundary conditions.
 - Multiphysics. I've done it enough times, I don't want to.
 
 # FAQ
@@ -43,10 +43,10 @@ What SIREN is not:
 
 I know Fortran. So do my coworkers. It allows for better collaboration.
 
-1. Can I add XYZ?
+1. Can I add feature XYZ?
 
 Yep. Make a pull request.
 
-1. Will you add XYZ?
+1. Will you add feature XYZ?
 
 Probably not.
