@@ -1,0 +1,9 @@
+xslib_fname benchmark2g.xs
+nx 2
+dx 0.341011 0.751023
+mat_map 1 3
+refine 16
+pnorder 0
+
+k_tol 1e-10
+phi_tol 1e-9

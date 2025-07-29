@@ -1,8 +1,15 @@
 nx 10
-hx 10.0
+dx 10. 10. 10. 10. 10. 10. 10. 10. 10. 10.
 mat_map 1 1 1 1 1 1 1 1 2 2
+
+#nx 7
+#dx 30. 10. 10. 10. 10. 10. 20
+#mat_map 1 1 1 1 1 1 2
+
 xslib_fname tworeg.xs
-refine 10
+refine 12
 k_tol 1d-10
 phi_tol 1d-9
 max_iter 1000
+pnorder 0
+boundary_right 'zero'
