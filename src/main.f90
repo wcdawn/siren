@@ -12,7 +12,7 @@ use output, only : output_open_file, output_close_file, output_write, &
 use power, only : power_calculate
 implicit none
 
-integer(ik) :: i, g
+integer(ik) :: i
 character(1024) :: input_fname
 character(1024) :: fname_stub, fname_flux, fname_phi, fname_power, fname_transportxs, fname_out
 character(1024) :: line
@@ -61,15 +61,6 @@ endif
 
 allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
-
-  ! TODO hacked diffusion coefficient for comparison
-  do i = 1,xs%niso
-    do g = 1,xs%ngroup
-      xs%mat(i)%diffusion(g) = 1d0/(3d0*xs%mat(i)%sigma_t(g))
-    enddo
-  enddo
-
-  ! TODO proper dx
   call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
 
