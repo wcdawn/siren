@@ -61,9 +61,9 @@ contains
         mprev = mat_map(nx-1)
         mthis = mat_map(nx)
         do g = 1,xslib%ngroup
-        dprev = 2 &
-          * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-          / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          dprev = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
           sub(nx-1,g) = -dprev
           dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
@@ -72,9 +72,9 @@ contains
         mprev = mat_map(nx-1)
         mthis = mat_map(nx)
         do g = 1,xslib%ngroup
-        dprev = 2 &
-          * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-          / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          dprev = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
           sub(nx-1,g) = -dprev
           dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
         enddo
