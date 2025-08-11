@@ -3,7 +3,8 @@ nx 2
 dx 0.0329074 9.034787
 mat_map 1 2
 refine 10
-pnorder 0
+pnorder 55
 
 k_tol 1e-10
 phi_tol 1e-9
+max_iter 10000
