@@ -5,6 +5,8 @@ FFLAGS = -O3 -Wall -Wextra -std=f2008 -pedantic
 #FFLAGS = -O0 -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fcheck=all -Wall -Wextra -std=f2008 -pedantic
 
 OBJ = \
+	  analytic.o \
+	  constant.o \
 	  diffusion.o \
 	  fileio.o \
 	  geometry.o \
@@ -33,6 +35,8 @@ clean:
 	$(RM) $(OBJ)
 	$(RM) siren.x
 
+analytic.o: kind.o
+constant.o : kind.o
 diffusion.o : kind.o linalg.o output.o xs.o
 fileio.o :
 geometry.o : kind.o
