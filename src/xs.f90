@@ -164,7 +164,8 @@ contains
     write(line, '(a,i0)') 'nmoment = ', xslib%nmoment
     call output_write(line)
     do i = 1,xslib%niso
-      if ((xslib%ngroup == 2) .and. (xslib%mat(i)%is_fiss)) then
+      if ((xslib%mat(i)%is_fiss) .and. &
+        ((xslib%ngroup == 2) .or. (xslib%ngroup == 1))) then
         write(line, '(a,a,a,i0,a,l1,a,f8.6)') &
           'name = "', trim(adjustl(xslib%mat(i)%name)), '" , idx = ', i, &
           ' , fiss = ', xslib%mat(i)%is_fiss, ' , kinf = ', calc_kinf(xslib%mat(i))
@@ -178,19 +179,23 @@ contains
 
   endsubroutine xs_summary
 
-  real(rk) function calc_kinf(xsmat)
+  real(rk) pure function calc_kinf(xsmat)
     type(XSMaterial), intent(in) :: xsmat
 
     real(rk) :: ratio
     real(rk) :: rem1, rem2
 
-    if ((.not. xsmat%is_fiss) .or. (xsmat%ngroup /= 2)) then
-      calc_kinf = -1.0
-    else
+    if (.not. xsmat%is_fiss) then
+      calc_kinf = -1.0_rk
+    else if (xsmat%ngroup == 1) then
+      calc_kinf = xsmat%nusf(1) / (xsmat%sigma_t(1) - xsmat%scatter(1,1,1))
+    else if (xsmat%ngroup == 2) then
       rem1 = xsmat%sigma_t(1) - xsmat%scatter(1,1,1)
       rem2 = xsmat%sigma_t(2) - xsmat%scatter(2,2,1)
       ratio = xsmat%scatter(1,2,1) / rem2
       calc_kinf = (xsmat%nusf(1) + xsmat%nusf(2)*ratio) / rem1
+    else
+      calc_kinf = -1.0_rk
     endif
   endfunction calc_kinf
 

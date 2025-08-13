@@ -15,12 +15,13 @@ real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 
 contains
 
-  subroutine transport_build_matrix(nx, dx, mat_map, xslib, neven, sub, dia, sup)
+  subroutine transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
+    character(*), intent(in) :: boundary_right
     integer, intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
 
@@ -93,26 +94,55 @@ contains
     ! BC at x=L, i=N
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    do n = 1,neven
-      idxn = 2*(n-1)
-      xn = real(idxn, rk)
-      xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
-      xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
-      do g = 1,xslib%ngroup
-        cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
-        cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
-        if (idxn > 0) then
-          cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
-          cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
-        endif
-        dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
-        sub(nx-1,g,n) = -dprev
-        dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
-        if (idxn+1 <= xslib%nmoment) then
-          dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
-        endif
-      enddo ! g = 1,xslib%ngroup
-    enddo ! n = 1,neven
+    select case (boundary_right)
+      case ('mirror')
+        do n = 1,neven
+          idxn = 2*(n-1)
+          xn = real(idxn, rk)
+          xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
+          xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
+          do g = 1,xslib%ngroup
+            cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
+            cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
+            if (idxn > 0) then
+              cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
+              cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
+            endif
+            dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
+            sub(nx-1,g,n) = -dprev
+            dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
+            if (idxn+1 <= xslib%nmoment) then
+              dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
+            endif
+          enddo ! g = 1,xslib%ngroup
+        enddo ! n = 1,neven
+      case ('zero')
+        do n = 1,neven
+          idxn = 2*(n-1)
+          xn = real(idxn, rk)
+          xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
+          xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
+          do g = 1,xslib%ngroup
+            cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
+            cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
+            if (idxn > 0) then
+              cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
+              cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
+            endif
+            dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
+            sub(nx-1,g,n) = -dprev
+            dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
+              + 2 * cthis / dx(nx)
+            if (idxn+1 <= xslib%nmoment) then
+              dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
+            endif
+          enddo ! g = 1,xslib%ngroup
+        enddo ! n = 1,neven
+      case default
+        write(*,*) 'unknown boundary_right in transport_build_matrix: ' // trim(adjustl(boundary_right))
+        stop
+    endselect
+
 
   endsubroutine transport_build_matrix
 
@@ -425,7 +455,7 @@ contains
 
   endfunction transport_fission_summation
 
-  subroutine transport_power_iteration(nx, dx, mat_map, xslib, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  subroutine transport_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -433,6 +463,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
+    character(*), intent(in) :: boundary_right
     real(rk), intent(in) :: k_tol, phi_tol 
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
@@ -496,7 +527,8 @@ contains
 
       call transport_odd_update(nx, dx, xslib%ngroup, pnorder, sigma_tr, phi)
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
-      call transport_build_matrix(nx, dx, mat_map, xslib, neven, sub, dia, sup)
+      ! TODO boundary_right from input
+      call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
 
       call transport_build_next_source(nx, dx, xslib%ngroup, sigma_tr, phi, pn_next_source)
 

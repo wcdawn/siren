@@ -56,10 +56,10 @@ contains
     enddo
 
     ! BC at x=L, i=N
+    mprev = mat_map(nx-1)
+    mthis = mat_map(nx)
     select case(boundary_right)
       case ('zero')
-        mprev = mat_map(nx-1)
-        mthis = mat_map(nx)
         do g = 1,xslib%ngroup
           dprev = 2 &
             * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
@@ -69,8 +69,6 @@ contains
             + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
         enddo
       case ('mirror')
-        mprev = mat_map(nx-1)
-        mthis = mat_map(nx)
         do g = 1,xslib%ngroup
           dprev = 2 &
             * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
@@ -79,7 +77,8 @@ contains
           dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
         enddo
       case default
-        stop 'unknown boundary_right in diffusion_build_matrix'
+        write(*,*) 'unknown boundary_right in diffusion_build_matrix' // trim(adjustl(boundary_right))
+        stop
     endselect
 
   endsubroutine diffusion_build_matrix

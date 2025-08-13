@@ -107,10 +107,13 @@ contains
   endsubroutine input_read
 
   subroutine input_check()
+    use output, only : output_write
     if (trim(adjustl(boundary_left)) /= 'mirror') then
       stop 'boundary_left must be set to mirror (for now)'
-    elseif ((pnorder /= 0) .and. (trim(adjustl(boundary_right)) /= 'mirror')) then
-      stop 'all boundaries must be set to mirror for PN (non-diffusion) calculation'
+    elseif ((pnorder /= 0) .and. (trim(adjustl(boundary_right)) == 'zero')) then
+      call output_write('WARNING: Zero-flux boundary condition with PN transport is probably not what you want.')
+      call output_write('WARNING: This will set the scalar flux to identically zero at the boundary.')
+      call output_write('WARNING: It is intended only for numerical benchmarking.')
     endif
   endsubroutine input_check
 

@@ -13,6 +13,9 @@ real(rk), parameter :: Bf_tworeg = 0.01716859736590981012_rk ! [1/cm] LF=80cm
 real(rk), parameter :: Lf_tworeg = 80.0_rk
 real(rk), parameter :: Lr_tworeg = 100.0_rk
 
+! analytic p3
+real(rk), parameter :: Lx_p3 = 1e2_rk
+
 contains
 
   subroutine analytic_error(analytic_name, nx, ngroup, pnorder, xslib, dx, phi, keff)
@@ -68,6 +71,8 @@ contains
         call analytic_fun_twogroup(x, xslib, phi_exact)
       case ('tworeg')
         call analytic_fun_tworeg(x, xslib, phi_exact)
+      case ('analytic_p3')
+        call analytic_fun_p3(x, xslib, phi_exact)
       case default
         ! TODO exception handling
         write(*,*) 'unknown analytic_name: ' // trim(adjustl(analytic_name))
@@ -86,8 +91,10 @@ contains
         keff_exact = analytic_keff_twogroup(xslib)
       case ('tworeg')
         keff_exact = analytic_keff_tworeg(xslib)
+      case ('analytic_p3')
+        keff_exact = analytic_keff_p3(xslib)
       case default
-        write(*,*) 'second -- unknwon analytic_name :' // trim(adjustl(analytic_name))
+        write(*,*) 'second -- unknwon analytic_name: ' // trim(adjustl(analytic_name))
         stop
     endselect
     keff_diff = keff_exact - keff
@@ -123,13 +130,10 @@ contains
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(out) :: exact(:,:,:)
 
-    real(rk) :: ratio
-
     real(rk), parameter :: phi0 = 1.0_rk
 
-    exact(:,1,1) = phi0*cos(pi*x/Lx_twogroup)
-    ratio = analytic_ratio_twogroup(xslib)
-    exact(:,2,1) = ratio * exact(:,1,1)
+    exact(:,1,1) = phi0 * cos(pi * x/ Lx_twogroup)
+    exact(:,2,1) = analytic_ratio_twogroup(xslib) * exact(:,1,1)
   endsubroutine analytic_fun_twogroup
 
   real(rk) pure function analytic_ratio_twogroup(xslib)
@@ -184,5 +188,40 @@ contains
     analytic_keff_tworeg = xslib%mat(1)%nusf(1) &
       / (xslib%mat(1)%diffusion(1) * Bf_tworeg**2 + (xslib%mat(1)%sigma_t(1) - xslib%mat(1)%scatter(1,1,1)))
   endfunction analytic_keff_tworeg
+
+  subroutine analytic_fun_p3(x, xslib, exact)
+    use xs, only : XSLibrary
+    use constant, only : pi
+    real(rk), intent(in) :: x(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(out) :: exact(:,:,:)
+
+    real(rk), parameter :: phi0 = 1.0_rk
+
+    exact(:,1,1) = phi0 * cos(pi * x / Lx_p3)
+    exact(:,1,2) = analytic_ratio_p3(xslib) * exact(:,1,1)
+  endsubroutine analytic_fun_p3
+
+  real(rk) pure function analytic_ratio_p3(xslib)
+    use xs, only : XSLibrary
+    use constant, only : pi
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), parameter :: bsq = (pi/Lx_p3)**2
+    analytic_ratio_p3 = (-2.0_rk/15.0_rk/xslib%mat(1)%sigma_t(1)*bsq) &
+      / (11.0_rk/21.0_rk/xslib%mat(1)%sigma_t(1)*bsq + xslib%mat(1)%sigma_t(1))
+  endfunction analytic_ratio_p3
+
+  real(rk) pure function analytic_keff_p3(xslib)
+    use xs, only : XSLibrary
+    use constant, only : pi
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), parameter :: bsq = (pi/Lx_p3)**2
+    real(rk) :: rem
+    rem = xslib%mat(1)%sigma_t(1) - xslib%mat(1)%scatter(1,1,1)
+    analytic_keff_p3 = xslib%mat(1)%nusf(1) &
+      / (1.0_rk/3.0_rk/xslib%mat(1)%sigma_t(1)*bsq &
+      + 2.0_rk/3.0_rk/xslib%mat(1)%sigma_t(1)*bsq * analytic_ratio_p3(xslib) &
+      + rem)
+  endfunction analytic_keff_p3
 
 endmodule analytic

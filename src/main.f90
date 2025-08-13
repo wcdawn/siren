@@ -64,7 +64,7 @@ allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
   call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
-  call transport_power_iteration(nx, dx, mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
 endif
 
 write(line, '(a,f22.20)') 'keff = ', keff
