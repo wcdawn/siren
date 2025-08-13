@@ -479,8 +479,8 @@ contains
 
     allocate(flux_old(nx,xslib%ngroup))
 
-    !keff = 1d0
-    !phi = 1d0
+    keff = 1d0
+    phi = 1d0
     fsum = 1d0
 
     if (.not. allocated(sigma_tr)) then

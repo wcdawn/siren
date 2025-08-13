@@ -3,13 +3,14 @@ use kind
 use xs, only : XSLibrary, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
-  k_tol, phi_tol, max_iter
+  k_tol, phi_tol, max_iter, analytic_reference
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use transport, only : sigma_tr, transport_power_iteration
 use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate
+use analytic, only : analytic_error
 implicit none
 
 integer(ik) :: i
@@ -63,16 +64,16 @@ allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
   call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
-
-  phi = 1d0
-  keff = 1d0
   call transport_power_iteration(nx, dx, mat_map, xs, k_tol, phi_tol, max_iter, pnorder, keff, phi)
-
 endif
 
 write(line, '(a,f22.20)') 'keff = ', keff
 call output_write(line)
 call output_write('')
+
+if (analytic_reference /= 'none') then
+  call analytic_error(analytic_reference, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
+endif
 
 call output_write('writing ' // trim(adjustl(fname_flux)))
 call output_flux_csv(trim(adjustl(fname_flux)), nx, xs%ngroup, dx, phi(:,:,1))

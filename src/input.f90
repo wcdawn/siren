@@ -20,6 +20,9 @@ integer(ik) :: refine = 0
 ! only allowed for very special problems
 character(16) :: boundary_left = 'mirror', boundary_right = 'mirror'
 
+! optional analytic reference solution
+character(16) :: analytic_reference = 'none'
+
 public :: input_read, input_cleanup
 
 public :: nx, dx, xslib_fname, mat_map
@@ -27,6 +30,7 @@ public :: k_tol, phi_tol, max_iter
 public :: pnorder
 public :: refine
 public :: boundary_left, boundary_right
+public :: analytic_reference
 
 contains
 
@@ -87,6 +91,8 @@ contains
           read(line, *) card, boundary_left
         case ('boundary_right')
           read(line, *) card, boundary_right
+        case ('analytic_reference')
+          read(line, *) card, analytic_reference
         case default
           write(*,*) 'card:', trim(adjustl(card))
           stop 'unknown input card'
@@ -122,6 +128,7 @@ contains
     call output_write(line)
     call output_write('boundary_left = *' // trim(adjustl(boundary_left)) // '*')
     call output_write('boundary_right = *' // trim(adjustl(boundary_right)) // '*')
+    call output_write('analytic_reference = *' // trim(adjustl(analytic_reference)) // '*')
 
     call output_write('')
   endsubroutine input_summary
