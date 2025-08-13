@@ -5,7 +5,13 @@ implicit none
 private
 public :: analytic_error
 
+! twogroup
 real(rk), parameter :: Lx_twogroup = 1e2_rk
+
+! tworeg
+real(rk), parameter :: Bf_tworeg = 0.01716859736590981012_rk ! [1/cm] LF=80cm
+real(rk), parameter :: Lf_tworeg = 80.0_rk
+real(rk), parameter :: Lr_tworeg = 100.0_rk
 
 contains
 
@@ -60,6 +66,8 @@ contains
     select case (analytic_name)
       case ('twogroup')
         call analytic_fun_twogroup(x, xslib, phi_exact)
+      case ('tworeg')
+        call analytic_fun_tworeg(x, xslib, phi_exact)
       case default
         ! TODO exception handling
         write(*,*) 'unknown analytic_name: ' // trim(adjustl(analytic_name))
@@ -76,6 +84,8 @@ contains
     select case (analytic_name)
       case ('twogroup')
         keff_exact = analytic_keff_twogroup(xslib)
+      case ('tworeg')
+        keff_exact = analytic_keff_tworeg(xslib)
       case default
         write(*,*) 'second -- unknwon analytic_name :' // trim(adjustl(analytic_name))
         stop
@@ -142,5 +152,37 @@ contains
       (xslib%mat(1)%nusf(1) + xslib%mat(1)%nusf(2)*analytic_ratio_twogroup(xslib)) &
       / (xslib%mat(1)%diffusion(1) * (pi/Lx_twogroup)**2 + rem1)
   endfunction analytic_keff_twogroup
+
+  subroutine analytic_fun_tworeg(x, xslib, exact)
+    use xs, only : XSLibrary
+    real(rk), intent(in) :: x(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(out) :: exact(:,:,:)
+
+    integer(ik) :: i
+
+    real(rk), parameter :: phi0 = 1.0_rk
+    real(rk) :: kr
+
+    kr = &
+      sqrt((xslib%mat(2)%sigma_t(1) - xslib%mat(2)%scatter(1,1,1)) &
+      / xslib%mat(2)%diffusion(1))
+
+    do i = 1,size(x)
+      if (x(i) <= Lf_tworeg) then
+        exact(i,1,1) = phi0 * cos(Bf_tworeg * x(i))
+      else
+        exact(i,1,1) = phi0 * cos(Bf_tworeg * Lf_tworeg) &
+          * (cosh(kr*(x(i)-Lf_tworeg)) - sinh(kr*(x(i)-Lf_tworeg))/tanh(kr*(Lr_tworeg-Lf_tworeg)))
+      endif
+    enddo
+  endsubroutine analytic_fun_tworeg
+
+  real(rk) pure function analytic_keff_tworeg(xslib)
+    use xs, only : XSLibrary
+    type(XSLibrary), intent(in) :: xslib
+    analytic_keff_tworeg = xslib%mat(1)%nusf(1) &
+      / (xslib%mat(1)%diffusion(1) * Bf_tworeg**2 + (xslib%mat(1)%sigma_t(1) - xslib%mat(1)%scatter(1,1,1)))
+  endfunction analytic_keff_tworeg
 
 endmodule analytic
