@@ -117,7 +117,7 @@ contains
       call output_write(line)
     elseif (analytic_name == 'analytic_p3') then
       ratio_exact = analytic_ratio_p3(xslib)
-      ratio_siren = phi(1,1,2) / phi(1,1,1)
+      ratio_siren = phi(1,1,3) / phi(1,1,1)
       ratio_diff = ratio_exact - ratio_siren
       write(line, '(a,f23.20)') 'ratio_exact = ', ratio_exact
       call output_write(line)
