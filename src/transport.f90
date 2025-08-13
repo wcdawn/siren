@@ -192,11 +192,9 @@ contains
     enddo ! n = 1,pnorder+1
   endsubroutine transport_build_transportxs
 
-  ! TODO need to check on these formulae with variable dx
-  subroutine transport_odd_update(nx, dx, hx, ng, pnorder, sigma_tr, phi)
+  subroutine transport_odd_update(nx, dx, ng, pnorder, sigma_tr, phi)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
-    real(rk), intent(in) :: hx
     integer(ik), intent(in) :: ng
     integer(ik), intent(in) :: pnorder
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
@@ -216,20 +214,22 @@ contains
         do g = 1,ng
           do i = 2,nx-1
             ! central difference for interior
-            dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(2d0*hx)
-            dphi_next = (phi(i+1,g,idxn+1+1) - phi(i-1,g,idxn+1+1))/(2d0*hx)
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0d0, +0.5_rk*(dx(i)+dx(i+1)), &
+              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0d0, +0.5_rk*(dx(i)+dx(i+1)), &
+              phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
             phi(i,g,idxn+1) = &
               - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
               / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
           ! forward/backward difference on boundaries
-          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/hx
-          dphi_next = (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1))/hx
+          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/(0.5_rk*(dx(1)+dx(2)))
+          dphi_next = (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1))/(0.5_rk*(dx(1)+dx(2)))
           phi(1,g,idxn+1) = &
             - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
             / sigma_tr(1,g,idxn+1)
-          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/hx
-          dphi_next = (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1))/hx
+          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/(0.5_rk*(dx(nx-1)+dx(nx)))
+          dphi_next = (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1))/(0.5_rk*(dx(nx-1)+dx(nx)))
           phi(nx,g,idxn+1) = &
             - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
             / sigma_tr(nx,g,idxn+1)
@@ -238,13 +238,14 @@ contains
         do g = 1,ng
           do i = 2,nx-1
             ! central difference for interior
-            dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(2d0*hx)
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0d0, +0.5_rk*(dx(i)+dx(i+1)), &
+              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
             phi(i,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
           ! forward/backward difference on boundaries
-          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/hx
+          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/(0.5_rk*(dx(1)+dx(2)))
           phi(1,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(1,g,idxn+1)
-          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/hx
+          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/(0.5_rk*(dx(nx-1)+dx(nx)))
           phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
         enddo ! g = 1,ng
       endif
@@ -493,8 +494,7 @@ contains
       flux_old = phi(:,:,1)
       fsum_old = fsum
 
-      ! TODO dx(1) --> dx
-      call transport_odd_update(nx, dx, dx(1), xslib%ngroup, pnorder, sigma_tr, phi)
+      call transport_odd_update(nx, dx, xslib%ngroup, pnorder, sigma_tr, phi)
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
       call transport_build_matrix(nx, dx, mat_map, xslib, neven, sub, dia, sup)
 

@@ -30,13 +30,9 @@ if __name__ == "__main__":
         pnorder = np.max((pnorder, n))
     pnorder += 1
 
-    print("g=", ngroup)
-    print("pnorder=", pnorder)
-
     dphi = np.zeros_like(phi)
-    hx = x[1] - x[0]
     for i in range(phi.shape[1]):
-        dphi[:, i] = np.gradient(phi[:, i], hx)
+        dphi[:, i] = np.gradient(phi[:, i], x)
 
     # post-compute the odd moments as well
     # TODO remove this
@@ -44,7 +40,6 @@ if __name__ == "__main__":
     sigma_tr = dat[:, 1:]
     phi_odd = np.zeros_like(phi)
     for n in range(1, pnorder, 2):
-        print("nodd=", n, "(n-1)=", n - 1)
         for g in range(ngroup):
             if n < pnorder - 1:
                 phi_odd[:, g + n * ngroup] = (
@@ -64,25 +59,25 @@ if __name__ == "__main__":
 
         plt.figure()
         for g in range(ngroup):
-            plt.plot(x, phi[:, g + n * ngroup], label="g={:d}".format(g + 1))
+            plt.plot(x, phi[:, g + n * ngroup], "-x", label="g={:d}".format(g + 1))
         if ngroup <= 10:
             plt.legend()
         plt.xlabel("x [cm]")
         plt.ylabel("$\\phi(x)$ (arb. units)")
         plt.title("SIREN $\\phi$ {:d}".format(n))
         plt.tight_layout()
-        plt.savefig("phi_{:d}".format(n) + extension, dpi=dpi)
+        plt.savefig("phi_{:d}".format(n) + "." + extension, dpi=dpi)
 
         if n % 2 == 1:
             plt.figure()
             for g in range(ngroup):
-                plt.plot(x, phi_odd[:, g + n * ngroup], label="g={:d}".format(g + 1))
+                plt.plot(x, phi_odd[:, g + n * ngroup], "-x", label="g={:d}".format(g + 1))
             if ngroup <= 10:
                 plt.legend()
             plt.xlabel("x [cm]")
             plt.ylabel("$\\phi(x)$ (arb. units)")
             plt.title("SIREN ODD COMPUTE $\\phi$ {:d}".format(n))
             plt.tight_layout()
-            plt.savefig("phi_odd_{:d}".format(n) + extension, dpi=dpi)
+            plt.savefig("phi_odd_{:d}".format(n) + "." + extension, dpi=dpi)
 
     plt.show()
