@@ -104,6 +104,7 @@ contains
     call output_write(line)
     write(line, '(a,f15.6,a)') 'keff_diff = ', keff_diff*1e5_rk, ' [pcm]'
     call output_write(line)
+
     if (analytic_name == 'twogroup') then
       ratio_exact = analytic_ratio_twogroup(xslib)
       ratio_siren = phi(1,2,1) / phi(1,1,1)
@@ -114,7 +115,18 @@ contains
       call output_write(line)
       write(line, '(a,es13.6)') 'ratio_diff = ', ratio_diff
       call output_write(line)
+    elseif (analytic_name == 'analytic_p3') then
+      ratio_exact = analytic_ratio_p3(xslib)
+      ratio_siren = phi(1,1,2) / phi(1,1,1)
+      ratio_diff = ratio_exact - ratio_siren
+      write(line, '(a,f23.20)') 'ratio_exact = ', ratio_exact
+      call output_write(line)
+      write(line, '(a,f23.20)') 'ratio_siren = ', ratio_siren
+      call output_write(line)
+      write(line, '(a,es13.6)') 'ratio_diff = ', ratio_diff
+      call output_write(line)
     endif
+    
     write(line, '(a,es13.6)') 'linferr = ', linferr
     call output_write(line)
     call output_write('')
