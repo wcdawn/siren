@@ -1,0 +1,16 @@
+nx 5
+dx 10. 10. 10. 10. 10.
+mat_map 1 1 1 1 1
+
+xslib_fname benchmark.xs
+
+refine 10
+pnorder 3
+
+k_tol 1d-10
+phi_tol 1e-9
+max_iter 1000
+
+boundary_right zero
+
+analytic_reference analytic_p3
