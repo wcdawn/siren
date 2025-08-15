@@ -6,7 +6,6 @@ private
 
 public :: sigma_tr, transport_power_iteration
 
-integer(ik) :: neven
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 
 ! 0d0 < damping < 1d0  -- damped
@@ -43,7 +42,7 @@ contains
       do g = 1,xslib%ngroup
         cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
         cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
-        if (idxn > 1) then
+        if (idxn > 1) then ! TODO i'm not sure that this is correct
           cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
           cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
         endif
@@ -357,10 +356,10 @@ contains
 
   endsubroutine transport_build_fsource
 
-  subroutine transport_build_next_source(nx, dx, ngroup, sigma_tr, phi, qnext)
+  subroutine transport_build_next_source(nx, dx, ngroup, neven, sigma_tr, phi, qnext)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
-    integer(ik), intent(in) :: ngroup
+    integer(ik), intent(in) :: ngroup, neven
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(out) :: qnext(:,:,:) ! (nx, ngroup, neven)
@@ -377,6 +376,8 @@ contains
       xn = real(idxn, rk)
       xmul = (xn+1d0)*(xn+2d0)/((2d0*xn+1d0)*(2d0*xn+3d0))
       do g = 1,ngroup
+        ! TODO I believe this is incorrect.
+        ! I believe that qnext is not zero at node=1, but rather at the boundary
         qnext(1,g,n) = 0d0
         do i = 2,nx-1
 
@@ -390,6 +391,8 @@ contains
           qnext(i, g, n) = phi(i-1,g,idxn+1+2) * daprev - phi(i,g,idxn+1+2) * (daprev + danext) + phi(i+1,g,idxn+1+2) * danext
 
         enddo
+        ! TODO I believe this is incorrect.
+        ! I believe that qnext is not zero at node=nx, but rather at the boundary
         qnext(nx,g,n) = 0d0
       enddo ! g = 1,ngroup
     enddo ! n = 1,neven
@@ -414,6 +417,8 @@ contains
     xmul = (xn**2-xn)/(4d0*xn**2 - 1d0)
 
     do g = 1,ngroup
+      ! TODO I believe this is incorrect.
+      ! I believe that qprev is not zero at node=1, but rather at the boundary
       qprev(1,g) = 0d0
       do i = 2,nx-1
 
@@ -427,6 +432,8 @@ contains
         qprev(i,g) = phi(i-1,g,idxn+1-2) * dbprev - phi(i,g,idxn+1-2) * (dbprev + dbnext) + phi(i+1,g,idxn+1-2) * dbnext
 
       enddo ! i = 2,nx-1
+      ! TODO I believe this is incorrect.
+      ! I believe that qprev is not zero at node=nx, but rather at the boundary
       qprev(nx,g) = 0d0
     enddo ! g = 1,ngroup
 
@@ -472,7 +479,7 @@ contains
 
     ! matrix
     real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
-    real(rk), allocatable :: sub_copy(:,:,:), dia_copy(:,:,:), sup_copy(:,:,:)
+    real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
     ! neutron source
     real(rk), allocatable :: fsource(:,:) ! (nx, ngroup) -- all p0
     real(rk), allocatable :: upsource(:,:) ! (nx, ngroup) -- just this moment
@@ -488,6 +495,7 @@ contains
     real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- all p0
     real(rk) :: delta_k, delta_phi
 
+    integer(ik) :: neven, idxn
     integer(ik) :: n, g
 
     character(1024) :: line
@@ -499,7 +507,7 @@ contains
     neven = max((pnorder + 1) / 2, 1)
 
     allocate(sub(nx-1,xslib%ngroup,neven), dia(nx,xslib%ngroup,neven), sup(nx-1,xslib%ngroup,neven))
-    allocate(sub_copy(nx-1,xslib%ngroup,neven), dia_copy(nx,xslib%ngroup,neven), sup_copy(nx-1,xslib%ngroup,neven))
+    allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
 
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
@@ -527,24 +535,25 @@ contains
 
       call transport_odd_update(nx, dx, xslib%ngroup, pnorder, sigma_tr, phi)
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
-      ! TODO boundary_right from input
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
 
-      call transport_build_next_source(nx, dx, xslib%ngroup, sigma_tr, phi, pn_next_source)
+      call transport_build_next_source(nx, dx, xslib%ngroup, neven, sigma_tr, phi, pn_next_source)
 
       do n = 1,neven
+
+        idxn = 2*(n-1)
 
         if (n == 1) then
           call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
         else ! (n > 1)
-          call transport_build_prev_source(nx, dx, xslib%ngroup, sigma_tr, phi, 2*(n-1), pn_prev_source)
+          call transport_build_prev_source(nx, dx, xslib%ngroup, sigma_tr, phi, idxn, pn_prev_source)
         endif
 
-        call transport_build_upscatter(nx, dx, mat_map, xslib, phi, 2*(n-1), upsource)
+        call transport_build_upscatter(nx, dx, mat_map, xslib, phi, idxn, upsource)
 
         do g = 1,xslib%ngroup
 
-          call transport_build_downscatter(nx, dx, mat_map, xslib, phi, 2*(n-1), g, downsource)
+          call transport_build_downscatter(nx, dx, mat_map, xslib, phi, idxn, g, downsource)
 
           q = upsource(:,g) + downsource
 
@@ -560,10 +569,10 @@ contains
 
           ! SOLVE
           ! need to store copies, trid uses them as scratch space
-          sub_copy(:,g,n) = sub(:,g,n)
-          dia_copy(:,g,n) = dia(:,g,n)
-          sup_copy(:,g,n) = sup(:,g,n)
-          call trid(nx, sub_copy(:,g,n), dia_copy(:,g,n), sup_copy(:,g,n), q, phi(:,g,2*(n-1)+1))
+          sub_copy = sub(:,g,n)
+          dia_copy = dia(:,g,n)
+          sup_copy = sup(:,g,n)
+          call trid(nx, sub_copy, dia_copy, sup_copy, q, phi(:,g,idxn+1))
 
         enddo ! g = 1,ngroup
       enddo ! n = 1,neven

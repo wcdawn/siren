@@ -18,15 +18,16 @@ real(rk), parameter :: Lx_p3 = 1e2_rk
 
 contains
 
-  subroutine analytic_error(analytic_name, nx, ngroup, pnorder, xslib, dx, phi, keff)
+  subroutine analytic_error(analytic_name, fname, nx, ngroup, pnorder, xslib, dx, phi, keff)
     use xs, only : XSLibrary
     use linalg, only : norm
     use output, only : output_write
     character(*), intent(in) :: analytic_name
+    character(*), intent(in) :: fname
     integer(ik), intent(in) :: nx, ngroup, pnorder
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: dx(:)
-    real(rk), intent(in) :: phi(:,:,:) ! (nx,ngroup,neven)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx,ngroup,pnorder+1)
     real(rk), intent(in) :: keff
 
     ! assume that the coordinate system starts at xleft==0.0
@@ -35,7 +36,6 @@ contains
     real(rk), parameter :: x0 = 0.0_rk
 
     real(rk) :: xleft
-    integer(ik) :: neven
     integer(ik) :: i
 
     real(rk), allocatable :: x(:)
@@ -55,8 +55,7 @@ contains
     enddo
 
     ! work on a copy so that we can change normalization
-    neven = max((pnorder + 1) / 2, 1)
-    allocate(phi_analysis(nx,ngroup,neven))
+    allocate(phi_analysis(nx,ngroup,pnorder+1))
     phi_analysis = phi
     ! extrapolate to estimate phi(0) for the first group, scalar flux
     ! this is used to normalize such that phi(0) = 1.0 for first group, scalar flux
@@ -65,7 +64,7 @@ contains
     phi_analysis = phi_analysis / phi_zero
     
     ! get phi_exact
-    allocate(phi_exact(nx,ngroup,neven))
+    allocate(phi_exact(nx,ngroup,pnorder+1))
     select case (analytic_name)
       case ('twogroup')
         call analytic_fun_twogroup(x, xslib, phi_exact)
@@ -79,7 +78,7 @@ contains
         stop
     endselect
 
-    allocate(phi_diff(nx,ngroup,neven))
+    allocate(phi_diff(nx,ngroup,pnorder+1))
     phi_diff = phi_exact - phi_analysis
     ! NOTE: using the two-norm would be reasonable.
     ! However, one would need to be careful since the mesh is not uniform.
@@ -129,11 +128,76 @@ contains
     
     write(line, '(a,es13.6)') 'linferr = ', linferr
     call output_write(line)
+
+    call output_write('writing ' // trim(adjustl(fname)))
+    call analytic_output_csv(fname, nx, ngroup, pnorder, x, phi_analysis, phi_exact, phi_diff)
+
     call output_write('')
 
     deallocate(phi_analysis, phi_exact, phi_diff)
     deallocate(x)
   endsubroutine analytic_error
+
+  subroutine analytic_output_csv(fname, nx, ngroup, pnorder, x, phi_normalized, phi_exact, phi_diff)
+    use fileio, only : fileio_open_write
+    character(*), intent(in) :: fname
+    integer(ik), intent(in) :: nx, ngroup, pnorder
+    real(rk), intent(in) :: x(:)
+    real(rk), intent(in) :: phi_normalized(:,:,:)
+    real(rk), intent(in) :: phi_exact(:,:,:)
+    real(rk), intent(in) :: phi_diff(:,:,:)
+
+    integer(ik) :: i, g, n
+
+    integer, parameter :: iounit = 17
+
+    call fileio_open_write(fname, iounit)
+
+    write(iounit, '(a)', advance='no') 'x [cm]'
+    do n = 1,pnorder+1
+      do g = 1,ngroup
+        write(iounit, '(a,a,i0,a,i0)', advance='no') ',', 'phisiren_n', n-1, '_g', g
+      enddo ! g = 1,ngroup
+    enddo ! n = 1,pnorder+1
+    do n = 1,pnorder+1
+      do g = 1,ngroup
+        write(iounit, '(a,a,i0,a,i0)', advance='no') ',', 'phiexact_n', n-1, '_g', g
+      enddo ! g = 1,ngroup
+    enddo ! n = 1,pnorder+1
+    do n = 1,pnorder+1
+      do g = 1,ngroup
+        write(iounit, '(a,a,i0,a,i0)', advance='no') ',', 'phidiff_n', n-1, '_g', g
+      enddo ! g = 1,ngroup
+    enddo ! n = 1,pnorder+1
+    write(iounit,*)
+
+    do i = 1,nx
+      write(iounit, '(es23.16)', advance='no') x(i)
+
+      do n = 1,pnorder+1
+        do g = 1,ngroup
+          write(iounit, '(a,es23.16)', advance='no') ',', phi_normalized(i,g,n)
+        enddo ! g = 1,ngroup
+      enddo ! n = 1,pnorder+1
+
+      do n = 1,pnorder+1
+        do g = 1,ngroup
+          write(iounit, '(a,es23.16)', advance='no') ',', phi_exact(i,g,n)
+        enddo ! g = 1,ngroup
+      enddo ! n = 1,pnorder+1
+
+      do n = 1,pnorder+1
+        do g = 1,ngroup
+          write(iounit, '(a,es23.16)', advance='no') ',', phi_diff(i,g,n)
+        enddo ! g = 1,ngroup
+      enddo ! n = 1,pnorder+1
+
+      write(iounit,*)
+
+    enddo ! i = 1,nx
+
+    close(iounit)
+  endsubroutine analytic_output_csv
 
   subroutine analytic_fun_twogroup(x, xslib, exact)
     use xs, only : XSLibrary
@@ -210,8 +274,11 @@ contains
 
     real(rk), parameter :: phi0 = 1.0_rk
 
-    exact(:,1,1) = phi0 * cos(pi * x / Lx_p3)
-    exact(:,1,2) = analytic_ratio_p3(xslib) * exact(:,1,1)
+    ! TODO it is possible to obtain an expression for p1 & p3,
+    ! I just have to dig up the recursion relations
+
+    exact(:,1,1) = phi0 * cos(pi * x / Lx_p3) ! p0
+    exact(:,1,3) = analytic_ratio_p3(xslib) * exact(:,1,1) ! p2
   endsubroutine analytic_fun_p3
 
   real(rk) pure function analytic_ratio_p3(xslib)

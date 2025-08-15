@@ -15,7 +15,8 @@ implicit none
 
 integer(ik) :: i
 character(1024) :: input_fname
-character(1024) :: fname_stub, fname_flux, fname_phi, fname_power, fname_transportxs, fname_out
+character(1024) :: fname_stub, &
+  fname_flux, fname_phi, fname_power, fname_transportxs, fname_out, fname_analytic
 character(1024) :: line
 type(XSLibrary) :: xs
 
@@ -39,6 +40,7 @@ fname_flux = trim(adjustl(fname_stub)) // '_flux.csv'
 fname_phi = trim(adjustl(fname_stub)) // '_phi.csv'
 fname_power = trim(adjustl(fname_stub)) // '_power.csv'
 fname_transportxs = trim(adjustl(fname_stub)) // '_transportxs.csv'
+fname_analytic = trim(adjustl(fname_stub)) // '_analytic.csv'
 
 call output_open_file(trim(adjustl(fname_out)))
 
@@ -72,7 +74,7 @@ call output_write(line)
 call output_write('')
 
 if (analytic_reference /= 'none') then
-  call analytic_error(analytic_reference, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
+  call analytic_error(analytic_reference, fname_analytic, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
 endif
 
 call output_write('writing ' // trim(adjustl(fname_flux)))

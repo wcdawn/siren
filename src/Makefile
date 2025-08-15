@@ -35,7 +35,7 @@ clean:
 	$(RM) $(OBJ)
 	$(RM) siren.x
 
-analytic.o: constant.o kind.o linalg.o output.o xs.o
+analytic.o: constant.o fileio.o kind.o linalg.o output.o xs.o
 constant.o : kind.o
 diffusion.o : kind.o linalg.o output.o xs.o
 fileio.o :

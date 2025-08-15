@@ -184,7 +184,7 @@ contains
     real(rk), intent(out) :: flux(:,:) ! (nx,ngroup)
 
     real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:)
-    real(rk), allocatable :: sub_copy(:,:), dia_copy(:,:), sup_copy(:,:)
+    real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
     real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:)
     real(rk), allocatable :: q(:)
 
@@ -197,7 +197,7 @@ contains
     character(1024) :: line
 
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
-    allocate(sub_copy(nx-1,xslib%ngroup), dia_copy(nx,xslib%ngroup), sup_copy(nx-1,xslib%ngroup))
+    allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
     call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
 
     allocate(fsource(nx,xslib%ngroup))
@@ -227,10 +227,10 @@ contains
         q = fsource(:,g)/keff + upsource(:,g) + downsource
         ! SOLVE
         ! need to store copies, trid uses them as scratch space
-        sub_copy(:,g) = sub(:,g)
-        dia_copy(:,g) = dia(:,g)
-        sup_copy(:,g) = sup(:,g)
-        call trid(nx, sup_copy(:,g), dia_copy(:,g), sup_copy(:,g), q, flux(:,g))
+        sub_copy = sub(:,g)
+        dia_copy = dia(:,g)
+        sup_copy = sup(:,g)
+        call trid(nx, sup_copy, dia_copy, sup_copy, q, flux(:,g))
       enddo
 
       fsum = diffusion_fission_summation(nx, dx, mat_map, xslib, flux)
