@@ -272,13 +272,16 @@ contains
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(out) :: exact(:,:,:)
 
+    real(rk) :: ratio
+
     real(rk), parameter :: phi0 = 1.0_rk
 
-    ! TODO it is possible to obtain an expression for p1 & p3,
-    ! I just have to dig up the recursion relations
+    ratio = analytic_ratio_p3(xslib)
 
     exact(:,1,1) = phi0 * cos(pi * x / Lx_p3) ! p0
-    exact(:,1,3) = analytic_ratio_p3(xslib) * exact(:,1,1) ! p2
+    exact(:,1,2) = (1.0_rk/3.0_rk) * phi0 * pi/Lx_p3 * (1.0_rk + 2.0_rk*ratio) * sin(pi * x / Lx_p3) / xslib%mat(1)%sigma_t(1)
+    exact(:,1,3) = ratio * exact(:,1,1) ! p2
+    exact(:,1,4) = (3.0_rk/7.0_rk) * phi0 * pi/Lx_p3 * ratio * sin(pi * x / Lx_p3) / xslib%mat(1)%sigma_t(1)
   endsubroutine analytic_fun_p3
 
   real(rk) pure function analytic_ratio_p3(xslib)
