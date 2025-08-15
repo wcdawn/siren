@@ -6,7 +6,7 @@ if __name__ == "__main__":
 
     fname = sys.argv[1]
     extension = "png"
-    dpi = 600
+    resolution = 600
 
     dat = np.loadtxt(fname, delimiter=",", skiprows=1)
 
@@ -59,25 +59,25 @@ if __name__ == "__main__":
 
         plt.figure()
         for g in range(ngroup):
-            plt.plot(x, phi[:, g + n * ngroup], "-x", label="g={:d}".format(g + 1))
+            plt.plot(x, phi[:, g + n * ngroup], label="g={:d}".format(g + 1))
         if ngroup <= 10:
             plt.legend()
         plt.xlabel("x [cm]")
         plt.ylabel("$\\phi(x)$ (arb. units)")
         plt.title("SIREN $\\phi$ {:d}".format(n))
         plt.tight_layout()
-        plt.savefig("phi_{:d}".format(n) + "." + extension, dpi=dpi)
+        plt.savefig("phi_{:d}".format(n) + "." + extension, dpi=resolution)
 
         if n % 2 == 1:
             plt.figure()
             for g in range(ngroup):
-                plt.plot(x, phi_odd[:, g + n * ngroup], "-x", label="g={:d}".format(g + 1))
+                plt.plot(x, phi_odd[:, g + n * ngroup], label="g={:d}".format(g + 1))
             if ngroup <= 10:
                 plt.legend()
             plt.xlabel("x [cm]")
             plt.ylabel("$\\phi(x)$ (arb. units)")
             plt.title("SIREN ODD COMPUTE $\\phi$ {:d}".format(n))
             plt.tight_layout()
-            plt.savefig("phi_odd_{:d}".format(n) + "." + extension, dpi=dpi)
+            plt.savefig("phi_odd_{:d}".format(n) + "." + extension, dpi=resolution)
 
     plt.show()
