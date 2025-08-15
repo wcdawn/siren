@@ -7,9 +7,11 @@ mat_map 1 1 1 1 1 1 1 1 2 2
 #mat_map 1 1 1 1 1 1 2
 
 xslib_fname tworeg.xs
-refine 12
+refine 8
 k_tol 1d-10
 phi_tol 1d-9
 max_iter 1000
 pnorder 0
 boundary_right 'zero'
+
+analytic_reference tworeg

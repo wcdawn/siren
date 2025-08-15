@@ -5,5 +5,5 @@ mat_map 1 1 1 1 1
 refine 0
 pnorder 0
 
-k_tol 1e-10
-phi_tol 1e-9
+k_tol 1e-13
+phi_tol 1e-10

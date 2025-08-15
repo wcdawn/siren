@@ -42,7 +42,7 @@ contains
       do g = 1,xslib%ngroup
         cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
         cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
-        if (idxn > 1) then ! TODO i'm not sure that this is correct
+        if (idxn > 1) then
           cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
           cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
         endif
@@ -356,10 +356,12 @@ contains
 
   endsubroutine transport_build_fsource
 
-  subroutine transport_build_next_source(nx, dx, ngroup, neven, sigma_tr, phi, qnext)
+  subroutine transport_build_next_source(nx, dx, ngroup, boundary_right, neven, sigma_tr, phi, qnext)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
-    integer(ik), intent(in) :: ngroup, neven
+    integer(ik), intent(in) :: ngroup
+    character(*), intent(in) :: boundary_right
+    integer(ik), intent(in) :: neven
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(out) :: qnext(:,:,:) ! (nx, ngroup, neven)
@@ -376,9 +378,13 @@ contains
       xn = real(idxn, rk)
       xmul = (xn+1d0)*(xn+2d0)/((2d0*xn+1d0)*(2d0*xn+3d0))
       do g = 1,ngroup
-        ! TODO I believe this is incorrect.
-        ! I believe that qnext is not zero at node=1, but rather at the boundary
-        qnext(1,g,n) = 0d0
+
+        ! BC at x=0, i=1
+        kathis = xmul/sigma_tr(1,g,idxn+1+1)
+        kanext = xmul/sigma_tr(2,g,idxn+1+1)
+        danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
+        qnext(1,g,n) = -phi(1,g,idxn+1+2)*danext + danext*phi(2,g,idxn+1+2)
+
         do i = 2,nx-1
 
           kaprev = xmul/sigma_tr(i-1,g,idxn+1+1)
@@ -391,18 +397,34 @@ contains
           qnext(i, g, n) = phi(i-1,g,idxn+1+2) * daprev - phi(i,g,idxn+1+2) * (daprev + danext) + phi(i+1,g,idxn+1+2) * danext
 
         enddo
-        ! TODO I believe this is incorrect.
-        ! I believe that qnext is not zero at node=nx, but rather at the boundary
-        qnext(nx,g,n) = 0d0
+
+        ! BC at x=L, i=N
+        select case (boundary_right)
+          case ('mirror')
+            kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
+            kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
+            daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
+            qnext(nx,g,n) = phi(nx-1,g,idxn+1+2)*daprev - phi(nx,g,idxn+1+2)*daprev
+          case ('zero')
+            kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
+            kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
+            daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
+            qnext(nx,g,n) = phi(nx-1,g,idxn+1+2)*daprev - phi(nx,g,idxn+1+2)*3*daprev
+          case default
+            write(*,*) 'unknown boundary in next_source: ' // trim(adjustl(boundary_right))
+            stop
+        endselect
+
       enddo ! g = 1,ngroup
     enddo ! n = 1,neven
 
   endsubroutine transport_build_next_source
 
-  subroutine transport_build_prev_source(nx, dx, ngroup, sigma_tr, phi, idxn, qprev)
+  subroutine transport_build_prev_source(nx, dx, ngroup, boundary_right, sigma_tr, phi, idxn, qprev)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
+    character(*), intent(in) :: boundary_right
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     integer(ik), intent(in) :: idxn
@@ -417,9 +439,13 @@ contains
     xmul = (xn**2-xn)/(4d0*xn**2 - 1d0)
 
     do g = 1,ngroup
-      ! TODO I believe this is incorrect.
-      ! I believe that qprev is not zero at node=1, but rather at the boundary
-      qprev(1,g) = 0d0
+
+      ! BC at x=0, i=1
+      kbthis = xmul/sigma_tr(1,g,idxn+1-1)
+      kbnext = xmul/sigma_tr(2,g,idxn+1-1)
+      dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
+      qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
+
       do i = 2,nx-1
 
         kbprev = xmul/sigma_tr(i-1,g,idxn+1-1)
@@ -432,9 +458,24 @@ contains
         qprev(i,g) = phi(i-1,g,idxn+1-2) * dbprev - phi(i,g,idxn+1-2) * (dbprev + dbnext) + phi(i+1,g,idxn+1-2) * dbnext
 
       enddo ! i = 2,nx-1
-      ! TODO I believe this is incorrect.
-      ! I believe that qprev is not zero at node=nx, but rather at the boundary
-      qprev(nx,g) = 0d0
+
+      ! BC at x=L, i=N
+      select case (boundary_right)
+        case ('mirror')
+          kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
+          kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
+          dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
+          qprev(nx,g) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev
+        case ('zero')
+          kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
+          kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
+          dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
+          qprev(nx,g) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*3*dbprev
+        case default
+          write(*,*) 'unknown boundary in prev_source: ' // trim(adjustl(boundary_right))
+          stop
+      endselect
+
     enddo ! g = 1,ngroup
 
   endsubroutine transport_build_prev_source
@@ -537,7 +578,7 @@ contains
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
 
-      call transport_build_next_source(nx, dx, xslib%ngroup, neven, sigma_tr, phi, pn_next_source)
+      call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
 
       do n = 1,neven
 
@@ -546,7 +587,7 @@ contains
         if (n == 1) then
           call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
         else ! (n > 1)
-          call transport_build_prev_source(nx, dx, xslib%ngroup, sigma_tr, phi, idxn, pn_prev_source)
+          call transport_build_prev_source(nx, dx, xslib%ngroup, boundary_right, sigma_tr, phi, idxn, pn_prev_source)
         endif
 
         call transport_build_upscatter(nx, dx, mat_map, xslib, phi, idxn, upsource)

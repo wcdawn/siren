@@ -2,39 +2,41 @@
 
 EXEC=../../src/siren.x
 
-cp tworeg.inp tworeg_run.inp
+BASE=tworeg_nonuniform
 
-sed -i '' 's/refine.*$/refine 0/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+cp ${BASE}.inp ${BASE}_run.inp
 
-sed -i '' 's/refine.*$/refine 1/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 0/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 2/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 1/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 3/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 2/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 4/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 3/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 5/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 4/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 6/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 5/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 7/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 6/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 8/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 7/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 9/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 8/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-sed -i '' 's/refine.*$/refine 10/' tworeg_run.inp
-${EXEC} tworeg_run.inp | grep 'keff ='
+sed -i '' 's/refine.*$/refine 9/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
 
-rm -f tworeg_run.inp
+sed -i '' 's/refine.*$/refine 10/' ${BASE}_run.inp
+${EXEC} ${BASE}_run.inp | grep 'linferr ='
+
+rm -f ${BASE}_run.inp

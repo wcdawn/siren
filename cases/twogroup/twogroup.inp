@@ -1,5 +1,9 @@
 xslib_fname twogroup.xs
 nx 5
-hx 10.
+dx 10. 10. 10. 10. 10.
 mat_map 1 1 1 1 1
-refine 15
+refine 9
+boundary_right zero
+k_tol 1e-14
+phi_tol 1e-10
+analytic_reference twogroup

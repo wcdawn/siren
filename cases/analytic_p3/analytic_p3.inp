@@ -4,7 +4,7 @@ mat_map 1 1 1 1 1
 
 xslib_fname benchmark.xs
 
-refine 10
+refine 2
 pnorder 3
 
 k_tol 1d-10
