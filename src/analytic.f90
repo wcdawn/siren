@@ -36,14 +36,14 @@ contains
     real(rk), parameter :: x0 = 0.0_rk
 
     real(rk) :: xleft
-    integer(ik) :: i
+    integer(ik) :: i, g, n
 
     real(rk), allocatable :: x(:)
     real(rk), allocatable :: phi_analysis(:,:,:), phi_exact(:,:,:), phi_diff(:,:,:)
     real(rk) :: phi_zero
     real(rk) :: keff_exact, keff_diff
     real(rk) :: ratio_exact, ratio_siren, ratio_diff
-    real(rk) :: linferr
+    real(rk), allocatable :: linferr(:,:) ! (ngroup,pnorder+1)
 
     character(1024) :: line
 
@@ -79,10 +79,15 @@ contains
     endselect
 
     allocate(phi_diff(nx,ngroup,pnorder+1))
+    allocate(linferr(ngroup,pnorder+1))
     phi_diff = phi_exact - phi_analysis
     ! NOTE: using the two-norm would be reasonable.
     ! However, one would need to be careful since the mesh is not uniform.
-    linferr = norm(-1, phi_diff(:,1,1))
+    do n = 1,pnorder+1
+      do g = 1,ngroup
+        linferr(g,n) = norm(-1, phi_diff(:,g,n))
+      enddo ! g = 1,ngroup
+    enddo ! n = 1,pnorder+1
 
     ! get keff_exact
     select case (analytic_name)
@@ -125,15 +130,20 @@ contains
       write(line, '(a,es13.6)') 'ratio_diff = ', ratio_diff
       call output_write(line)
     endif
-    
-    write(line, '(a,es13.6)') 'linferr = ', linferr
-    call output_write(line)
 
+    do n = 1,pnorder+1
+      do g = 1,ngroup
+        write(line, '(a,i0,a,i0,a,es13.6)') 'linferr_n', n-1, '_g', g, ' = ', linferr(g,n)
+        call output_write(line)
+      enddo ! g = 1,ngroup
+    enddo ! n = 1,pnorder+1
+    
     call output_write('writing ' // trim(adjustl(fname)))
     call analytic_output_csv(fname, nx, ngroup, pnorder, x, phi_analysis, phi_exact, phi_diff)
 
     call output_write('')
 
+    deallocate(linferr)
     deallocate(phi_analysis, phi_exact, phi_diff)
     deallocate(x)
   endsubroutine analytic_error
