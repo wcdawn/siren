@@ -221,10 +221,11 @@ contains
     enddo ! n = 1,pnorder+1
   endsubroutine transport_build_transportxs
 
-  subroutine transport_odd_update(nx, dx, ng, pnorder, sigma_tr, phi)
+  subroutine transport_odd_update(nx, dx, ng, boundary_right, pnorder, sigma_tr, phi)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ng
+    character(*), intent(in) :: boundary_right
     integer(ik), intent(in) :: pnorder
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, pnorder)
@@ -251,17 +252,26 @@ contains
               - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
               / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
-          ! forward/backward difference on boundaries
-          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/(0.5_rk*(dx(1)+dx(2)))
-          dphi_next = (phi(2,g,idxn+1+1) - phi(1,g,idxn+1+1))/(0.5_rk*(dx(1)+dx(2)))
-          phi(1,g,idxn+1) = &
-            - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-            / sigma_tr(1,g,idxn+1)
-          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/(0.5_rk*(dx(nx-1)+dx(nx)))
-          dphi_next = (phi(nx,g,idxn+1+1) - phi(nx-1,g,idxn+1+1))/(0.5_rk*(dx(nx-1)+dx(nx)))
-          phi(nx,g,idxn+1) = &
-            - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-            / sigma_tr(nx,g,idxn+1)
+          ! BC at x=0, i=1
+          ! use the fact that odd moments must equal zero for mirror bc
+          ! this stencil kind of extends to x3 because phi(2) was computed earlier
+          phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+          ! BC at x=L, i=N
+          select case (boundary_right)
+            case ('mirror')
+              phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
+            case ('zero')
+              dphi_prev = deriv(-0.5_rk*(dx(nx-1)+dx(nx)), 0.0_rk, +0.5_rk*dx(nx), &
+                phi(nx-1,g,idxn+1-1), phi(nx,g,idxn+1-1), 0.0_rk)
+              dphi_next = deriv(-0.5_rk*(dx(nx-1)+dx(nx)), 0.0_rk, +0.5_rk*dx(nx), &
+                phi(nx-1,g,idxn+1+1), phi(nx,g,idxn+1+1), 0.0_rk)
+              phi(nx,g,idxn+1) = &
+                - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+                / sigma_tr(nx,g,idxn+1)
+            case default
+              write(*,*) 'unknown boundary in odd_update: ' // trim(adjustl(boundary_right))
+              stop
+          endselect
         enddo ! g = 1,ng
       else
         do g = 1,ng
@@ -271,11 +281,22 @@ contains
               phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
             phi(i,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
-          ! forward/backward difference on boundaries
-          dphi_prev = (phi(2,g,idxn+1-1) - phi(1,g,idxn+1-1))/(0.5_rk*(dx(1)+dx(2)))
-          phi(1,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(1,g,idxn+1)
-          dphi_prev = (phi(nx,g,idxn+1-1) - phi(nx-1,g,idxn+1-1))/(0.5_rk*(dx(nx-1)+dx(nx)))
-          phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
+          ! BC at x=0, i=1
+          ! use the fact that odd moments must equal zero for mirror bc
+          ! this stencil kind of extends to x3 because phi(2) was computed earlier
+          phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+          ! BC at x=L, i=N
+          select case (boundary_right)
+            case ('mirror')
+              phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
+            case ('zero')
+              dphi_prev = deriv(-0.5_rk*(dx(nx-1)+dx(nx)), 0.0_rk, +0.5_rk*dx(nx), &
+                phi(nx-1,g,idxn+1-1), phi(nx,g,idxn+1-1), 0.0_rk)
+              phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
+            case default
+              write(*,*) 'unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right))
+              stop
+          endselect
         enddo ! g = 1,ng
       endif
     enddo ! n = 2,pnorder+1,2
@@ -574,7 +595,7 @@ contains
       flux_old = phi(:,:,1)
       fsum_old = fsum
 
-      call transport_odd_update(nx, dx, xslib%ngroup, pnorder, sigma_tr, phi)
+      call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
 
