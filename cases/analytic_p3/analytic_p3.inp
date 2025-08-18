@@ -2,9 +2,9 @@ nx 5
 dx 10. 10. 10. 10. 10.
 mat_map 1 1 1 1 1
 
-xslib_fname benchmark.xs
+xslib_fname benchmark_new.xs
 
-refine 2
+refine 5
 pnorder 3
 
 k_tol 1d-10
