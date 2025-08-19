@@ -261,10 +261,8 @@ contains
             case ('mirror')
               phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
             case ('zero')
-              dphi_prev = deriv(-0.5_rk*(dx(nx-1)+dx(nx)), 0.0_rk, +0.5_rk*dx(nx), &
-                phi(nx-1,g,idxn+1-1), phi(nx,g,idxn+1-1), 0.0_rk)
-              dphi_next = deriv(-0.5_rk*(dx(nx-1)+dx(nx)), 0.0_rk, +0.5_rk*dx(nx), &
-                phi(nx-1,g,idxn+1+1), phi(nx,g,idxn+1+1), 0.0_rk)
+              dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
+              dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
               phi(nx,g,idxn+1) = &
                 - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
                 / sigma_tr(nx,g,idxn+1)
@@ -290,8 +288,7 @@ contains
             case ('mirror')
               phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
             case ('zero')
-              dphi_prev = deriv(-0.5_rk*(dx(nx-1)+dx(nx)), 0.0_rk, +0.5_rk*dx(nx), &
-                phi(nx-1,g,idxn+1-1), phi(nx,g,idxn+1-1), 0.0_rk)
+              dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
               phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
             case default
               write(*,*) 'unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right))
@@ -647,8 +644,7 @@ contains
       delta_phi = maxval(abs(phi(:,:,1) - flux_old)) / maxval(phi(:,:,1))
 
       if ((keff < 0d0) .or. (keff > 2d0)) then
-        write(*,*) 'keff', keff
-        stop 'invalid keff'
+        write(*,*) 'invalid keff', keff
       endif
 
       write(line, '(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
