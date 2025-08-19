@@ -26,10 +26,8 @@ if __name__ == "__main__":
         n = int(t[1].replace("n", ""))
         pnorder = np.max((pnorder, n))
     pnorder += 1
-    print("pnorder", pnorder)
 
     arr_per_phi = int((dat.shape[1] - 1) / 3)
-    print("arr_per_phi", arr_per_phi)
 
     x = dat[:, 0]
     phi_siren = dat[:, arr_per_phi * 0 + 1 : arr_per_phi * 1 + 1]
