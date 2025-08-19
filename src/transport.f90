@@ -8,10 +8,6 @@ public :: sigma_tr, transport_power_iteration
 
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 
-! 0d0 < damping < 1d0  -- damped
-! damping == 1d0 -- undamped
-! 1d0 < damping < 2d0 -- accelerated
-
 contains
 
   subroutine transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
@@ -37,8 +33,8 @@ contains
     do n = 1,neven
       idxn = 2*(n-1)
       xn = real(idxn, rk)
-      xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
-      xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
+      xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+      xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
       do g = 1,xslib%ngroup
         cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
         cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
@@ -58,8 +54,8 @@ contains
     do n = 1,neven
       idxn = 2*(n-1)
       xn = real(idxn, rk)
-      xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
-      xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
+      xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+      xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
       do g = 1,xslib%ngroup
         do i = 2,nx-1
 
@@ -98,8 +94,8 @@ contains
         do n = 1,neven
           idxn = 2*(n-1)
           xn = real(idxn, rk)
-          xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
-          xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
+          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
           do g = 1,xslib%ngroup
             cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
             cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
@@ -119,8 +115,8 @@ contains
         do n = 1,neven
           idxn = 2*(n-1)
           xn = real(idxn, rk)
-          xmul_next = (xn+1d0)**2 / ((2d0*xn+1d0)*(2d0*xn+3d0))
-          xmul_prev = xn**2 / (4d0*xn**2 - 1d0)
+          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
           do g = 1,xslib%ngroup
             cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
             cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
@@ -238,15 +234,15 @@ contains
     do n = 2,pnorder+1,2
       idxn = n-1
       xn = real(idxn, rk)
-      xmul_prev = xn/(2d0*xn+1d0)
-      xmul_next = (xn+1d0)/(2d0*xn+1d0)
+      xmul_prev = xn/(2.0_rk*xn+1.0_rk)
+      xmul_next = (xn+1.0_rk)/(2.0_rk*xn+1.0_rk)
       if (n < pnorder+1) then
         do g = 1,ng
           do i = 2,nx-1
             ! central difference for interior
-            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0d0, +0.5_rk*(dx(i)+dx(i+1)), &
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
               phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
-            dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0d0, +0.5_rk*(dx(i)+dx(i+1)), &
+            dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
               phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
             phi(i,g,idxn+1) = &
               - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
@@ -275,7 +271,7 @@ contains
         do g = 1,ng
           do i = 2,nx-1
             ! central difference for interior
-            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0d0, +0.5_rk*(dx(i)+dx(i+1)), &
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
               phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
             phi(i,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
@@ -313,7 +309,7 @@ contains
     integer(ik) :: mthis
 
     if (idxn+1 > xslib%nmoment) then
-      qup = 0d0
+      qup = 0.0_rk
     else
       do i = 1,nx
         mthis = mat_map(i)
@@ -340,7 +336,7 @@ contains
     integer(ik) :: mthis
 
     if (idxn+1 > xslib%nmoment) then
-      qdown = 0d0
+      qdown = 0.0_rk
     else
       do i = 1,nx
         mthis = mat_map(i)
@@ -368,7 +364,7 @@ contains
       if (xslib%mat(mthis)%is_fiss) then
         qfiss(i,:) = xslib%mat(mthis)%chi(:) * sum(xslib%mat(mthis)%nusf(:) * phi0(i,:)) * dx(i)
       else
-        qfiss(i,:) = 0d0
+        qfiss(i,:) = 0.0_rk
       endif
     enddo ! i = 1,nx
 
@@ -390,11 +386,11 @@ contains
     real(rk) :: kaprev, kathis, kanext
     real(rk) :: daprev, danext
 
-    qnext(:,:,neven) = 0d0
+    qnext(:,:,neven) = 0.0_rk
     do n = 1,neven-1
       idxn = 2*(n-1)
       xn = real(idxn, rk)
-      xmul = (xn+1d0)*(xn+2d0)/((2d0*xn+1d0)*(2d0*xn+3d0))
+      xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
       do g = 1,ngroup
 
         ! BC at x=0, i=1
@@ -454,7 +450,7 @@ contains
     real(rk) :: dbprev, dbnext
 
     xn = real(idxn, rk)
-    xmul = (xn**2-xn)/(4d0*xn**2 - 1d0)
+    xmul = (xn**2-xn)/(4.0_rk*xn**2 - 1.0_rk)
 
     do g = 1,ngroup
 
@@ -510,7 +506,7 @@ contains
     integer(ik) :: i, mthis
     real(rk) :: xsum
 
-    xsum = 0d0
+    xsum = 0.0_rk
     do i = 1,nx
       mthis = mat_map(i)
       if (xslib%mat(mthis)%is_fiss) then
@@ -551,7 +547,7 @@ contains
 
     integer(ik) :: iter
     real(rk) :: k_old, fsum, fsum_old
-    real(rk), allocatable :: flux_old(:,:) ! (nx, ngroup) -- all p0
+    real(rk), allocatable :: phi_old(:,:,:)
     real(rk) :: delta_k, delta_phi
 
     integer(ik) :: neven, idxn
@@ -575,11 +571,11 @@ contains
     allocate(pn_prev_source(nx,xslib%ngroup))
     allocate(q(nx))
 
-    allocate(flux_old(nx,xslib%ngroup))
+    allocate(phi_old(nx,xslib%ngroup,pnorder+1))
 
-    keff = 1d0
-    phi = 1d0
-    fsum = 1d0
+    keff = 1.0_rk
+    phi = 1.0_rk
+    fsum = 1.0_rk
 
     if (.not. allocated(sigma_tr)) then
       call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
@@ -589,7 +585,7 @@ contains
 
     do iter = 1,max_iter
       k_old = keff
-      flux_old = phi(:,:,1)
+      phi_old = phi
       fsum_old = fsum
 
       call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
@@ -640,10 +636,12 @@ contains
       fsum = transport_fission_summation(nx, dx, mat_map, xslib, phi(:,:,1))
       if (iter > 1) keff = keff * fsum / fsum_old
       delta_k = abs(keff - k_old)
-      ! only scalar flux, all groups
-      delta_phi = maxval(abs(phi(:,:,1) - flux_old)) / maxval(phi(:,:,1))
+      ! NOTE: we look at convergence in all space, all groups, all moments!
+      ! This is seriously overkill, but necessary to demonstrate that the odd moments are second-order convergent as well.
+      ! Furthermore, we may expect that the higher-order moments are important for anisotropic scattering.
+      delta_phi = maxval(abs(phi - phi_old)) / maxval(phi)
 
-      if ((keff < 0d0) .or. (keff > 2d0)) then
+      if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
         write(*,*) 'invalid keff', keff
       endif
 
@@ -667,7 +665,7 @@ contains
     deallocate(sub_copy, dia_copy, sup_copy)
     deallocate(fsource, upsource, downsource, q)
     deallocate(pn_next_source, pn_prev_source)
-    deallocate(flux_old)
+    deallocate(phi_old)
 
   endsubroutine transport_power_iteration
 
