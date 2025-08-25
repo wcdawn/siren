@@ -583,6 +583,12 @@ contains
 
     call output_write('=== PN TRANSPORT POWER ITERATION ===')
 
+    ! TODO I believe that the original FLIP algorithm had the nesting in the opposite order.
+    ! I think I got away with it in LUPINE since it is pretty irrelevant for isotropic scattering.
+    ! This could require somewhat intensive rewriting of routines.
+    ! See Gelbard (1959) and Fletcher (1983).
+    ! Particularly Fletcher, p. 36, bottom of column 1 and top of column 2.
+
     do iter = 1,max_iter
       k_old = keff
       phi_old = phi
