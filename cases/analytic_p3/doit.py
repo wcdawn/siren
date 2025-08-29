@@ -77,13 +77,12 @@ if __name__ == "__main__":
             sys.exit(1)
         out = out.split("\n")
 
-
         keff = get_keff(out)
         keff_diff[r] = get_keyword(out, "keff_diff")
         ratio_diff[r] = get_keyword(out, "ratio_diff")
 
         for n in range(linferr.shape[1]):
-            linferr[r,n] = get_keyword(out, "linferr_n{:d}_g1".format(n))
+            linferr[r, n] = get_keyword(out, "linferr_n{:d}_g1".format(n))
 
         nx[r] = get_nx(out)
 
@@ -99,7 +98,7 @@ if __name__ == "__main__":
             f.write(" , {:.16f}".format(keff_diff[ridx]))
             f.write(" , {:.16f}".format(ratio_diff[ridx]))
             for n in range(linferr.shape[1]):
-                f.write(" , {:.16e}".format(linferr[ridx,n]))
+                f.write(" , {:.16e}".format(linferr[ridx, n]))
             f.write("\n")
 
     plt.figure()
@@ -118,7 +117,7 @@ if __name__ == "__main__":
 
     plt.figure()
     for n in range(linferr.shape[1]):
-        plt.loglog(nx, linferr[:,n], "-o", label="$\\phi_{{{:d}}}$".format(n))
+        plt.loglog(nx, linferr[:, n], "-o", label="$\\phi_{{{:d}}}$".format(n))
     plt.legend()
     plt.xlabel("NX")
     plt.ylabel("$\\| \\phi_n \\|$")
