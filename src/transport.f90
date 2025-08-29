@@ -303,7 +303,7 @@ contains
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     integer(ik), intent(in) :: idxn
-    real(rk), intent(out) :: qup(:,:) ! (nx, ngroup) 
+    real(rk), intent(out) :: qup(:,:) ! (nx, ngroup)
 
     integer(ik) :: i, g
     integer(ik) :: mthis
@@ -330,7 +330,7 @@ contains
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     integer(ik), intent(in) :: idxn
     integer(ik), intent(in) :: g
-    real(rk), intent(out) :: qdown(:) ! (nx) 
+    real(rk), intent(out) :: qdown(:) ! (nx)
 
     integer(ik) :: i
     integer(ik) :: mthis
@@ -526,7 +526,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_right
-    real(rk), intent(in) :: k_tol, phi_tol 
+    real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
     real(rk), intent(inout) :: keff
@@ -594,6 +594,7 @@ contains
       phi_old = phi
       fsum_old = fsum
 
+      ! update odd moments -> use odd moments for transport xs -> reconstruct transport matrices
       call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
       call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
@@ -662,7 +663,7 @@ contains
       endif
 
     enddo ! iter = 1,max_iter
-    
+
     if (iter > max_iter) then
       call output_write('WARNING: failed to converge')
     endif
