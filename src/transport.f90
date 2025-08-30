@@ -594,8 +594,10 @@ contains
       phi_old = phi
       fsum_old = fsum
 
-      call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
-      call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      if (iter > 1) then
+        call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      endif
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
 
       call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
