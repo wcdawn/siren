@@ -217,9 +217,10 @@ contains
     enddo ! n = 1,pnorder+1
   endsubroutine transport_build_transportxs
 
-  subroutine transport_odd_update(nx, dx, ng, boundary_right, pnorder, sigma_tr, phi)
+  subroutine transport_odd_update(nx, dx, mat_map, ng, boundary_right, pnorder, sigma_tr, phi)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
     integer(ik), intent(in) :: ng
     character(*), intent(in) :: boundary_right
     integer(ik), intent(in) :: pnorder
@@ -239,11 +240,30 @@ contains
       if (n < pnorder+1) then
         do g = 1,ng
           do i = 2,nx-1
-            ! central difference for interior
-            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
-            dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-              phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
+            if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
+              ! central difference for interior (second order)
+              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+              dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+                phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
+            elseif (mat_map(i) == mat_map(i+1)) then
+              ! forward difference (first order)
+              dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
+              dphi_next = (phi(i+1,g,idxn+1+1) - phi(i,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i+1)))
+            elseif (mat_map(i) == mat_map(i-1)) then
+              ! backward difference (first order)
+              dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
+              dphi_next = (phi(i,g,idxn+1+1) - phi(i-1,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i-1)))
+            else
+              ! this means that there is a material region with width of a single cell
+              ! what a terrible idea...
+              ! try central difference because why not
+              ! TODO raise warning probably in the input processing
+              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+              dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+                phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
+            endif
             phi(i,g,idxn+1) = &
               - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
               / sigma_tr(i,g,idxn+1)
@@ -270,9 +290,24 @@ contains
       else
         do g = 1,ng
           do i = 2,nx-1
-            ! central difference for interior
-            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
+              ! central difference for interior (second order)
+              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            elseif (mat_map(i) == mat_map(i+1)) then
+              ! forward difference (first order)
+              dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
+            elseif (mat_map(i) == mat_map(i-1)) then
+              ! backward difference (first order)
+              dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
+            else
+              ! this means that there is a material region with width of a single cell
+              ! what a terrible idea...
+              ! try central difference because why not
+              ! TODO raise warning probably in the input processing
+              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            endif
             phi(i,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(i,g,idxn+1)
           enddo ! i = 2,nx-1
           ! BC at x=0, i=1
@@ -595,7 +630,7 @@ contains
       fsum_old = fsum
 
       if (iter > 1) then
-        call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call transport_odd_update(nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
         call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
       endif
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
