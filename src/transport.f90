@@ -1,5 +1,6 @@
 module transport
 use kind
+use exception_handler
 implicit none
 
 private
@@ -134,8 +135,7 @@ contains
           enddo ! g = 1,xslib%ngroup
         enddo ! n = 1,neven
       case default
-        write(*,*) 'unknown boundary_right in transport_build_matrix: ' // trim(adjustl(boundary_right))
-        stop
+        call exception_fatal('unknown boundary_right in transport_build_matrix: ' // trim(adjustl(boundary_right)))
     endselect
 
 
@@ -283,8 +283,7 @@ contains
                 - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
                 / sigma_tr(nx,g,idxn+1)
             case default
-              write(*,*) 'unknown boundary in odd_update: ' // trim(adjustl(boundary_right))
-              stop
+              call exception_handler('unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
           endselect
         enddo ! g = 1,ng
       else
@@ -322,8 +321,7 @@ contains
               dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
               phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
             case default
-              write(*,*) 'unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right))
-              stop
+              call exception_handler('unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right)))
           endselect
         enddo ! g = 1,ng
       endif
@@ -490,8 +488,7 @@ contains
             daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
             qnext(nx,g,n) = phi(nx-1,g,idxn+1+2)*daprev - phi(nx,g,idxn+1+2)*3*daprev
           case default
-            write(*,*) 'unknown boundary in next_source: ' // trim(adjustl(boundary_right))
-            stop
+            call exception_handler('unknown boundary in next_source: ' // trim(adjustl(boundary_right)))
         endselect
 
       enddo ! g = 1,ngroup
@@ -548,8 +545,7 @@ contains
         dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
         qprev(nx) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*3*dbprev
       case default
-        write(*,*) 'unknown boundary in prev_source: ' // trim(adjustl(boundary_right))
-        stop
+        call exception_handler('unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
     endselect
 
   endsubroutine transport_build_prev_source_flip
@@ -606,8 +602,7 @@ contains
           dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
           qprev(nx,g) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*3*dbprev
         case default
-          write(*,*) 'unknown boundary in prev_source: ' // trim(adjustl(boundary_right))
-          stop
+          call exception_handler('unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
       endselect
 
     enddo ! g = 1,ngroup
@@ -676,7 +671,7 @@ contains
     character(1024) :: line
 
     if (mod(pnorder,2) /= 1) then
-      stop 'pnorder must be odd'
+      call exception_handler('pnorder must be odd')
     endif
 
     neven = max((pnorder + 1) / 2, 1)
@@ -844,7 +839,7 @@ contains
     character(1024) :: line
 
     if (mod(pnorder,2) /= 1) then
-      stop 'pnorder must be odd'
+      call exception_handler('pnorder must be odd')
     endif
 
     neven = max((pnorder + 1) / 2, 1)
