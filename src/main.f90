@@ -84,6 +84,7 @@ if (analytic_reference /= 'none') then
   call analytic_error(analytic_reference, fname_analytic, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
 endif
 
+call timer_start('output')
 call output_write('writing ' // trim(adjustl(fname_flux)))
 call output_flux_csv(trim(adjustl(fname_flux)), nx, xs%ngroup, dx, phi(:,:,1))
 
@@ -102,6 +103,7 @@ if (allocated(sigma_tr)) then
 endif
 
 call output_write('')
+call timer_stop('output')
 
 call timer_summary()
 call exception_summary()
