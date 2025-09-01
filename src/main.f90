@@ -6,7 +6,7 @@ use input, only : input_read, input_cleanup, &
   k_tol, phi_tol, max_iter, analytic_reference
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
-use transport, only : sigma_tr, transport_power_iteration
+use transport, only : sigma_tr, transport_power_iteration_flip
 use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate
@@ -66,7 +66,7 @@ allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
   call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
-  call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  call transport_power_iteration_flip(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
 endif
 
 write(line, '(a,f22.20)') 'keff = ', keff

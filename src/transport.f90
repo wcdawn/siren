@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: sigma_tr, transport_power_iteration
+public :: sigma_tr, transport_power_iteration_flip
 
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 
@@ -295,7 +295,7 @@ contains
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
 
-  subroutine transport_build_upscatter(nx, dx, mat_map, xslib, phi, neven, qup)
+  subroutine transport_build_upscatter_flip(nx, dx, mat_map, xslib, phi, neven, qup)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
@@ -323,7 +323,7 @@ contains
         enddo ! i = 1,nx
       endif
     enddo ! n = 1,neven
-  endsubroutine transport_build_upscatter
+  endsubroutine transport_build_upscatter_flip
 
   subroutine transport_build_downscatter(nx, dx, mat_map, xslib, phi, idxn, g, qdown)
     use xs, only : XSLibrary
@@ -516,7 +516,7 @@ contains
 
   endfunction transport_fission_summation
 
-  subroutine transport_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  subroutine transport_power_iteration_flip(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -580,9 +580,9 @@ contains
       call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
     endif
 
-    call output_write('=== PN TRANSPORT POWER ITERATION ===')
+    call output_write('=== PN TRANSPORT POWER ITERATION (FLIP) ===')
 
-    ! TODO I believe that the original FLIP algorithm had the nesting in the opposite order.
+    ! I believe that the original FLIP algorithm had the nesting in the opposite order.
     ! I think I got away with it in LUPINE since it is pretty irrelevant for isotropic scattering.
     ! This could require somewhat intensive rewriting of routines.
     ! See Gelbard (1959) and Fletcher (1983).
@@ -593,22 +593,24 @@ contains
       phi_old = phi
       fsum_old = fsum
 
-      ! update odd moments -> use odd moments for transport xs -> reconstruct transport matrices
-      call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
-      call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      if (iter > 1) then
+        ! update odd moments -> use odd moments for transport xs -> reconstruct transport matrices
+        call transport_odd_update(nx, dx, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      endif
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
 
       ! groups are coupled together by fission and upscattering
       ! fission is just upscattering of the zeroth moment with multiplicity
       call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
-      call transport_build_upscatter(nx, dx, mat_map, xslib, phi, neven, upsource)
+      call transport_build_upscatter_flip(nx, dx, mat_map, xslib, phi, neven, upsource)
 
       ! by solving all moments for one group at-a-time, this is analagous to converging the
       ! "within group" scattering source in discrete ordinates before proceeding to the next group
 
       ! the PN "next" source does not have group-to-group transfer, only moment-to-moment
       ! so we may precompute it only once
-      ! note that computing it once per group would save memory
+      ! NOTE that computing it once per group would save memory
       ! may be worth considering for 586g ...
       call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
 
@@ -653,6 +655,7 @@ contains
       ! Furthermore, we may expect that the higher-order moments are important for anisotropic scattering.
       delta_phi = maxval(abs(phi - phi_old)) / maxval(phi)
 
+      ! TODO look at isnan
       if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
         write(*,*) 'invalid keff', keff
       endif
@@ -679,7 +682,7 @@ contains
     deallocate(pn_next_source, pn_prev_source)
     deallocate(phi_old)
 
-  endsubroutine transport_power_iteration
+  endsubroutine transport_power_iteration_flip
 
   ! return first derivative using a second-order estimate on non-uniform grid
   ! derivative is returned at coordinate x2
