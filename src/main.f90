@@ -3,10 +3,10 @@ use kind
 use xs, only : XSLibrary, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
-  k_tol, phi_tol, max_iter, analytic_reference
+  k_tol, phi_tol, max_iter, analytic_reference, pn_solver_opt
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
-use transport, only : sigma_tr, transport_power_iteration
+use transport, only : sigma_tr, transport_power_iteration, transport_power_iteration_flip
 use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate
@@ -66,7 +66,11 @@ allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
   call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
 else
-  call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  if (pn_solver_opt == 'flip') then
+    call transport_power_iteration_flip(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, abs(pnorder), keff, phi)
+  elseif (pn_solver_opt == 'lupine') then
+    call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  endif
 endif
 
 write(line, '(a,f22.20)') 'keff = ', keff

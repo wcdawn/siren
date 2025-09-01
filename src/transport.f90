@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: sigma_tr, transport_power_iteration
+public :: sigma_tr, transport_power_iteration, transport_power_iteration_flip
 
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
 
@@ -330,6 +330,36 @@ contains
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
 
+  subroutine transport_build_upscatter_flip(nx, dx, mat_map, xslib, phi, neven, qup)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    integer(ik), intent(in) :: neven
+    real(rk), intent(out) :: qup(:,:,:) ! (nx, ngroup, neven)
+
+    integer(ik) :: i, g, n
+    integer(ik) :: idxn
+    integer(ik) :: mthis
+
+    do n = 1,neven
+      idxn = 2*(n-1)
+      if (idxn+1 > xslib%nmoment) then
+        qup(:,:,n) = 0.0_rk
+      else
+        do i = 1,nx
+          mthis = mat_map(i)
+          do g = 1,xslib%ngroup
+            qup(i,g,n) = &
+              sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,idxn+1) * phi(i,g+1:xslib%ngroup,idxn+1)) * dx(i)
+          enddo
+        enddo ! i = 1,nx
+      endif
+    enddo ! n = 1,neven
+  endsubroutine transport_build_upscatter_flip
+
   subroutine transport_build_upscatter(nx, dx, mat_map, xslib, phi, idxn, qup)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
@@ -365,7 +395,7 @@ contains
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     integer(ik), intent(in) :: idxn
     integer(ik), intent(in) :: g
-    real(rk), intent(out) :: qdown(:) ! (nx) 
+    real(rk), intent(out) :: qdown(:) ! (nx)
 
     integer(ik) :: i
     integer(ik) :: mthis
@@ -469,6 +499,61 @@ contains
 
   endsubroutine transport_build_next_source
 
+  subroutine transport_build_prev_source_flip(nx, dx, boundary_right, sigma_tr, phi, idxn, g, qprev)
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    character(*), intent(in) :: boundary_right
+    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    integer(ik), intent(in) :: idxn
+    real(rk), intent(out) :: qprev(:) ! (nx)
+
+    integer(ik) :: g, i
+    real(rk) :: xn, xmul
+    real(rk) :: kbprev, kbthis, kbnext
+    real(rk) :: dbprev, dbnext
+
+    xn = real(idxn, rk)
+    xmul = (xn**2-xn)/(4.0_rk*xn**2 - 1.0_rk)
+
+    ! BC at x=0, i=1
+    kbthis = xmul/sigma_tr(1,g,idxn+1-1)
+    kbnext = xmul/sigma_tr(2,g,idxn+1-1)
+    dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
+    qprev(1) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
+
+    do i = 2,nx-1
+
+      kbprev = xmul/sigma_tr(i-1,g,idxn+1-1)
+      kbthis = xmul/sigma_tr(i  ,g,idxn+1-1)
+      kbnext = xmul/sigma_tr(i+1,g,idxn+1-1)
+
+      dbprev = 2 * kbthis / dx(i) * kbprev / dx(i-1) / (kbthis / dx(i) + kbprev / dx(i-1))
+      dbnext = 2 * kbthis / dx(i) * kbnext / dx(i+1) / (kbthis / dx(i) + kbnext / dx(i+1))
+
+      qprev(i) = phi(i-1,g,idxn+1-2) * dbprev - phi(i,g,idxn+1-2) * (dbprev + dbnext) + phi(i+1,g,idxn+1-2) * dbnext
+
+    enddo ! i = 2,nx-1
+
+    ! BC at x=L, i=N
+    select case (boundary_right)
+      case ('mirror')
+        kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
+        kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
+        dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
+        qprev(nx) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev
+      case ('zero')
+        kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
+        kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
+        dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
+        qprev(nx) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*3*dbprev
+      case default
+        write(*,*) 'unknown boundary in prev_source: ' // trim(adjustl(boundary_right))
+        stop
+    endselect
+
+  endsubroutine transport_build_prev_source_flip
+
   subroutine transport_build_prev_source(nx, dx, ngroup, boundary_right, sigma_tr, phi, idxn, qprev)
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
@@ -552,6 +637,174 @@ contains
 
   endfunction transport_fission_summation
 
+  subroutine transport_power_iteration_flip(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+    use xs, only : XSLibrary
+    use linalg, only : trid
+    use output, only : output_write
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    character(*), intent(in) :: boundary_right
+    real(rk), intent(in) :: k_tol, phi_tol
+    integer(ik), intent(in) :: max_iter
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(inout) :: keff
+    real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, nmoment)
+
+    ! matrix
+    real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
+    real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
+    ! neutron source
+    real(rk), allocatable :: fsource(:,:) ! (nx, ngroup) -- all p0
+    real(rk), allocatable :: upsource(:,:,:) ! (nx, ngroup, neven)
+    real(rk), allocatable :: downsource(:) ! (nx) -- just this moment & this group
+    ! moment source
+    real(rk), allocatable :: pn_next_source(:,:,:) ! (nx, ngroup, neven)
+    real(rk), allocatable :: pn_prev_source(:) ! (nx) -- just this moment
+    ! combined source
+    real(rk), allocatable :: q(:)
+
+    integer(ik) :: iter
+    real(rk) :: k_old, fsum, fsum_old
+    real(rk), allocatable :: phi_old(:,:,:)
+    real(rk) :: delta_k, delta_phi
+
+    integer(ik) :: neven, idxn
+    integer(ik) :: n, g
+
+    character(1024) :: line
+
+    if (mod(pnorder,2) /= 1) then
+      stop 'pnorder must be odd'
+    endif
+
+    neven = max((pnorder + 1) / 2, 1)
+
+    allocate(sub(nx-1,xslib%ngroup,neven), dia(nx,xslib%ngroup,neven), sup(nx-1,xslib%ngroup,neven))
+    allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+
+    allocate(fsource(nx,xslib%ngroup))
+    allocate(upsource(nx,xslib%ngroup,neven))
+    allocate(downsource(nx))
+    allocate(pn_next_source(nx,xslib%ngroup,neven))
+    allocate(pn_prev_source(nx))
+    allocate(q(nx))
+
+    allocate(phi_old(nx,xslib%ngroup,pnorder+1))
+
+    keff = 1.0_rk
+    phi = 1.0_rk
+    fsum = 1.0_rk
+
+    if (.not. allocated(sigma_tr)) then
+      call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
+    endif
+
+    call output_write('=== PN TRANSPORT POWER ITERATION (FLIP) ===')
+
+    ! I believe that the original FLIP algorithm had the nesting in the opposite order.
+    ! I think I got away with it in LUPINE since it is pretty irrelevant for isotropic scattering.
+    ! This could require somewhat intensive rewriting of routines.
+    ! See Gelbard (1959) and Fletcher (1983).
+    ! Particularly Fletcher, p. 36, bottom of column 1 and top of column 2.
+
+    do iter = 1,max_iter
+      k_old = keff
+      phi_old = phi
+      fsum_old = fsum
+
+      if (iter > 1) then
+        ! update odd moments -> use odd moments for transport xs -> reconstruct transport matrices
+        call transport_odd_update(nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+      endif
+      call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+
+      ! groups are coupled together by fission and upscattering
+      ! fission is just upscattering of the zeroth moment with multiplicity
+      call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
+      call transport_build_upscatter_flip(nx, dx, mat_map, xslib, phi, neven, upsource)
+
+      ! by solving all moments for one group at-a-time, this is analagous to converging the
+      ! "within group" scattering source in discrete ordinates before proceeding to the next group
+
+      ! the PN "next" source does not have group-to-group transfer, only moment-to-moment
+      ! so we may precompute it only once
+      ! NOTE that computing it once per group would save memory
+      ! may be worth considering for 586g ...
+      call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
+
+      do g = 1,xslib%ngroup
+
+        do n = 1,neven
+
+          idxn = 2*(n-1)
+
+          if (n > 1) then
+            call transport_build_prev_source_flip(nx, dx, boundary_right, sigma_tr, phi, idxn, g, pn_prev_source)
+          endif
+
+          call transport_build_downscatter(nx, dx, mat_map, xslib, phi, idxn, g, downsource)
+
+          q = upsource(:,g,n) + downsource
+          if (n == 1) then
+            q = q + fsource(:,g)/keff
+          else ! (n > 1)
+            q = q + pn_prev_source
+          endif
+          if (n < neven) then
+            q = q + pn_next_source(:,g,n)
+          endif
+
+          ! SOLVE
+          ! need to store copies, trid uses them as scratch space
+          sub_copy = sub(:,g,n)
+          dia_copy = dia(:,g,n)
+          sup_copy = sup(:,g,n)
+          call trid(nx, sub_copy, dia_copy, sup_copy, q, phi(:,g,idxn+1))
+
+        enddo ! n = 1,neven
+      enddo ! g = 1,xslib%ngroup
+
+      ! eigenvalue update
+      fsum = transport_fission_summation(nx, dx, mat_map, xslib, phi(:,:,1))
+      if (iter > 1) keff = keff * fsum / fsum_old
+      delta_k = abs(keff - k_old)
+      ! NOTE: we look at convergence in all space, all groups, all moments!
+      ! This is seriously overkill, but necessary to demonstrate that the odd moments are second-order convergent as well.
+      ! Furthermore, we may expect that the higher-order moments are important for anisotropic scattering.
+      delta_phi = maxval(abs(phi - phi_old)) / maxval(phi)
+
+      ! TODO look at isnan
+      if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
+        write(*,*) 'invalid keff', keff
+      endif
+
+      write(line, '(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
+        'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
+      call output_write(line)
+
+      if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
+        call output_write('CONVERGENCE!')
+        call output_write('')
+        exit
+      endif
+
+    enddo ! iter = 1,max_iter
+
+    if (iter > max_iter) then
+      call output_write('WARNING: failed to converge')
+    endif
+
+    deallocate(sub, dia, sup)
+    deallocate(sub_copy, dia_copy, sup_copy)
+    deallocate(fsource, upsource, downsource, q)
+    deallocate(pn_next_source, pn_prev_source)
+    deallocate(phi_old)
+
+  endsubroutine transport_power_iteration_flip
+
   subroutine transport_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
@@ -618,11 +871,8 @@ contains
 
     call output_write('=== PN TRANSPORT POWER ITERATION ===')
 
-    ! TODO I believe that the original FLIP algorithm had the nesting in the opposite order.
-    ! I think I got away with it in LUPINE since it is pretty irrelevant for isotropic scattering.
-    ! This could require somewhat intensive rewriting of routines.
-    ! See Gelbard (1959) and Fletcher (1983).
-    ! Particularly Fletcher, p. 36, bottom of column 1 and top of column 2.
+    ! Note that this iterative scheme is the same as that in LUPINE.
+    ! It seems like it may be slightly less stable than that suggested by Gelbard and later Gamino.
 
     do iter = 1,max_iter
       k_old = keff
