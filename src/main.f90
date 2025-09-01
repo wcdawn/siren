@@ -109,6 +109,7 @@ deallocate(phi)
 call xs_cleanup(xs)
 call input_cleanup()
 
+call output_write('Normal Termination :)')
 call output_write('end SIREN')
 
 call output_close_file()
