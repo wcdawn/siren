@@ -8,6 +8,7 @@ OBJ = \
 	  analytic.o \
 	  constant.o \
 	  diffusion.o \
+	  exception_handler.o \
 	  fileio.o \
 	  geometry.o \
 	  input.o \
@@ -35,16 +36,17 @@ clean:
 	$(RM) $(OBJ)
 	$(RM) siren.x
 
-analytic.o: constant.o fileio.o kind.o linalg.o output.o xs.o
+analytic.o: constant.o exception_handler.o fileio.o kind.o linalg.o output.o xs.o
 constant.o : kind.o
-diffusion.o : kind.o linalg.o output.o xs.o
+diffusion.o : exception_handler.o kind.o linalg.o output.o xs.o
+exception_handler.o : kind.o output.o
 fileio.o :
 geometry.o : kind.o
-input.o : fileio.o kind.o output.o
+input.o : exception_handler.o fileio.o kind.o output.o
 kind.o :
 linalg.o : kind.o
-main.o : xs.o input.o geometry.o output.o power.o transport.o
+main.o : kind.o xs.o input.o geometry.o diffusion.o transport.o output.o power.o analytic.o exception_handler.o
 output.o : fileio.o kind.o
 power.o : kind.o xs.o
 transport.o : kind.o linalg.o xs.o
-xs.o : fileio.o kind.o output.o
+xs.o : exception_handler.o fileio.o kind.o output.o

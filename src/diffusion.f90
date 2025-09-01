@@ -1,5 +1,6 @@
 module diffusion
 use kind
+use exception_handler
 implicit none
 
 private
@@ -77,8 +78,7 @@ contains
           dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
         enddo
       case default
-        write(*,*) 'unknown boundary_right in diffusion_build_matrix' // trim(adjustl(boundary_right))
-        stop
+        call exception_fatal('unknown boundary_right in diffusion_build_matrix' // trim(adjustl(boundary_right)))
     endselect
 
   endsubroutine diffusion_build_matrix

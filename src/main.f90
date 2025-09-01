@@ -11,6 +11,7 @@ use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate
 use analytic, only : analytic_error
+use exception_handler
 implicit none
 
 integer(ik) :: i
@@ -98,12 +99,17 @@ if (allocated(sigma_tr)) then
   deallocate(sigma_tr)
 endif
 
+call output_write('')
+
+call exception_print()
+
 deallocate(power)
 deallocate(phi)
 
 call xs_cleanup(xs)
 call input_cleanup()
 
+call output_write('Normal Termination :)')
 call output_write('end SIREN')
 
 call output_close_file()

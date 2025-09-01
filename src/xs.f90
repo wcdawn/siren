@@ -1,5 +1,6 @@
 module xs
-use kind, only : rk, ik
+use kind
+use exception_handler
 implicit none
 private
 
@@ -138,8 +139,7 @@ contains
             read(iounit, *) xslib%mat(pnt)%scatter(:,i,mom+1)
           enddo
         case default
-          write(*,*) 'Unknown card:', trim(adjustl(card))
-          stop 'error in xs_read_library'
+          call exception_fatal('Error in xs_read_library. Unknown card: ' // trim(adjustl(card)))
       endselect
     enddo
 

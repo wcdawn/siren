@@ -1,5 +1,6 @@
 module input
 use kind
+use exception_handler
 implicit none
 
 private
@@ -101,8 +102,7 @@ contains
         case ('pn_solver_opt')
           read(line, *) card, pn_solver_opt
         case default
-          write(*,*) 'card:', trim(adjustl(card))
-          stop 'unknown input card'
+          call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect
     enddo
 
@@ -116,11 +116,11 @@ contains
   subroutine input_check()
     use output, only : output_write
     if (trim(adjustl(boundary_left)) /= 'mirror') then
-      stop 'boundary_left must be set to mirror (for now)'
+      call exception_fatal('boundary_left must be set to mirror (for now)')
     elseif ((pnorder /= 0) .and. (trim(adjustl(boundary_right)) == 'zero')) then
-      call output_write('WARNING: Zero-flux boundary condition with PN transport is probably not what you want.')
-      call output_write('WARNING: This will set the scalar flux to identically zero at the boundary.')
-      call output_write('WARNING: It is intended only for numerical benchmarking.')
+      call exception_warning('WARNING: Zero-flux boundary condition with PN transport is probably not what you want. ' // &
+        'This will set the scalar flux to identically zero at the boundary. ' // &
+        'It is intended only for numerical benchmarking.')
     endif
   endsubroutine input_check
 

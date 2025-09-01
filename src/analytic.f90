@@ -22,6 +22,7 @@ contains
     use xs, only : XSLibrary
     use linalg, only : norm
     use output, only : output_write
+    use exception_handler
     character(*), intent(in) :: analytic_name
     character(*), intent(in) :: fname
     integer(ik), intent(in) :: nx, ngroup, pnorder
@@ -73,9 +74,7 @@ contains
       case ('analytic_p3')
         call analytic_fun_p3(x, xslib, phi_exact)
       case default
-        ! TODO exception handling
-        write(*,*) 'unknown analytic_name: ' // trim(adjustl(analytic_name))
-        stop
+        call exception_fatal('unknown analytic_name: ' // trim(adjustl(analytic_name)))
     endselect
 
     allocate(phi_diff(nx,ngroup,pnorder+1))
@@ -98,8 +97,7 @@ contains
       case ('analytic_p3')
         keff_exact = analytic_keff_p3(xslib)
       case default
-        write(*,*) 'second -- unknwon analytic_name: ' // trim(adjustl(analytic_name))
-        stop
+        call exception_fatal('second -- unknown analytic_name: ' // trim(adjustl(analytic_name)))
     endselect
     keff_diff = keff_exact - keff
 
