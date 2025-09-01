@@ -34,10 +34,14 @@ contains
     endif
 
     allocate(stack(length+1))
-    stack(1:length) = stack_old
+    if (allocated(stack_old)) then
+      stack(1:length) = stack_old
+    endif
     stack(length+1) = x
 
-    deallocate(stack_old)
+    if (allocated(stack_old)) then
+      deallocate(stack_old)
+    endif
   endsubroutine exception_append
 
   subroutine exception_note(msg)

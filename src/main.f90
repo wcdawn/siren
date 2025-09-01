@@ -12,6 +12,7 @@ use output, only : output_open_file, output_close_file, output_write, &
 use power, only : power_calculate
 use analytic, only : analytic_error
 use exception_handler
+use timer
 implicit none
 
 integer(ik) :: i
@@ -29,6 +30,7 @@ if (command_argument_count() == 0) then
   stop 'missing input filename'
 endif
 
+call timer_init()
 
 input_fname = ''
 call get_command_argument(1, input_fname)
@@ -101,7 +103,8 @@ endif
 
 call output_write('')
 
-call exception_print()
+call timer_summary()
+call exception_summary()
 
 deallocate(power)
 deallocate(phi)
