@@ -51,18 +51,24 @@ call output_write('begin SIREN')
 call output_write('input file: ' // trim(adjustl(input_fname)))
 call output_write('')
 
+call timer_start('input_read')
 call input_read(input_fname)
 call output_write('(before refinement)')
 call geometry_summary(nx, dx, mat_map)
+call timer_stop('input_read')
 
+call timer_start('xs_read')
 call xs_read_library(xslib_fname, xs)
+call timer_stop('xs_read')
 
 if (refine > 0) then
+  call timer_start('refinement')
   do i = 1,refine
     call geometry_uniform_refinement(nx, dx, mat_map)
   enddo
   call output_write('(after refinement)')
   call geometry_summary(nx, dx, mat_map)
+  call timer_stop('refinement')
 endif
 
 allocate(phi(nx, xs%ngroup, pnorder+1))

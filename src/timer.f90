@@ -109,11 +109,13 @@ contains
       max_len = max(max_len, len(trim(adjustl(timer_arr(i)%name))))
     enddo
 
-    write(format_str, '(a,i0)') '(a', max_len+1
+    format_str = ''
+    write(format_str, '(a,i0,a)') '(a,', max_len+1-4, 'x'
     format_str = trim(adjustl(format_str)) // ',a)'
-    write(line, format_str) 'name', '   dt [s]    [%]'
+    write(line, format_str) 'name', 'dt [s]    [%]'
     call output_write(line)
 
+    format_str = ''
     write(format_str, '(a,i0)') '(a', max_len+1
     if (total < 1e1_rk) then
       format_str = trim(adjustl(format_str)) // ', f6.4'
