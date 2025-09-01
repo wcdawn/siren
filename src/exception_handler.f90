@@ -1,7 +1,7 @@
 module exception_handler
 use kind
 
-public :: exception_note, exception_warning, exception_fatal, exception_print
+public :: exception_note, exception_warning, exception_fatal, exception_summary
 
 private
 
@@ -68,11 +68,11 @@ contains
     obj%msg = trim(adjustl(msg))
     call exception_append(exception_stack, obj)
     call output_write('FATAL :: ' // trim(adjustl(msg)))
-    call exception_print()
+    call exception_summary()
     stop
   endsubroutine exception_fatal
 
-  subroutine exception_print()
+  subroutine exception_summary()
     use output, only : output_write
     integer(ik) :: i
     integer(ik) :: count_note, count_warning, count_fatal
@@ -110,6 +110,10 @@ contains
     call output_write(line)
     call output_write('')
 
-  endsubroutine exception_print
+    if (allocated(exception_stack)) then
+      deallocate(exception_stack)
+    endif
+
+  endsubroutine exception_summary
 
 endmodule exception_handler
