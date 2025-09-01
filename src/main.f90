@@ -11,6 +11,7 @@ use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
 use power, only : power_calculate
 use analytic, only : analytic_error
+use exception_handler
 implicit none
 
 integer(ik) :: i
@@ -97,6 +98,10 @@ if (allocated(sigma_tr)) then
   call output_transportxs_csv(trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, dx, sigma_tr)
   deallocate(sigma_tr)
 endif
+
+call output_write('')
+
+call exception_print()
 
 deallocate(power)
 deallocate(phi)
