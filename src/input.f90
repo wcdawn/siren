@@ -23,6 +23,10 @@ character(16) :: boundary_left = 'mirror', boundary_right = 'mirror'
 ! optional analytic reference solution
 character(16) :: analytic_reference = 'none'
 
+! optional solver option for pn solver
+! right now, just chooses iteration order either classical "flip" or my version of "lupine"
+character(16) :: pn_solver_opt = 'lupine'
+
 public :: input_read, input_cleanup
 
 public :: nx, dx, xslib_fname, mat_map
@@ -31,6 +35,7 @@ public :: pnorder
 public :: refine
 public :: boundary_left, boundary_right
 public :: analytic_reference
+public :: pn_solver_opt
 
 contains
 
@@ -93,6 +98,8 @@ contains
           read(line, *) card, boundary_right
         case ('analytic_reference')
           read(line, *) card, analytic_reference
+        case ('pn_solver_opt')
+          read(line, *) card, pn_solver_opt
         case default
           write(*,*) 'card:', trim(adjustl(card))
           stop 'unknown input card'
