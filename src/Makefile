@@ -17,6 +17,7 @@ OBJ = \
 	  main.o \
 	  output.o \
 	  power.o \
+	  timer.o \
 	  transport.o \
 	  xs.o
 
@@ -38,15 +39,16 @@ clean:
 
 analytic.o: constant.o exception_handler.o fileio.o kind.o linalg.o output.o xs.o
 constant.o : kind.o
-diffusion.o : exception_handler.o kind.o linalg.o output.o xs.o
+diffusion.o : exception_handler.o kind.o linalg.o output.o timer.o xs.o
 exception_handler.o : kind.o output.o
 fileio.o :
 geometry.o : kind.o
 input.o : exception_handler.o fileio.o kind.o output.o
 kind.o :
 linalg.o : kind.o
-main.o : kind.o xs.o input.o geometry.o diffusion.o transport.o output.o power.o analytic.o exception_handler.o
+main.o : kind.o xs.o input.o geometry.o diffusion.o transport.o output.o power.o analytic.o exception_handler.o timer.o
 output.o : fileio.o kind.o
 power.o : kind.o xs.o
+timer.o : kind.o output.o
 transport.o : exception_handler.o kind.o linalg.o xs.o
 xs.o : exception_handler.o fileio.o kind.o output.o

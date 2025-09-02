@@ -12,6 +12,7 @@ use output, only : output_open_file, output_close_file, output_write, &
 use power, only : power_calculate
 use analytic, only : analytic_error
 use exception_handler
+use timer
 implicit none
 
 integer(ik) :: i
@@ -29,6 +30,7 @@ if (command_argument_count() == 0) then
   stop 'missing input filename'
 endif
 
+call timer_init()
 
 input_fname = ''
 call get_command_argument(1, input_fname)
@@ -49,20 +51,27 @@ call output_write('begin SIREN')
 call output_write('input file: ' // trim(adjustl(input_fname)))
 call output_write('')
 
+call timer_start('input_read')
 call input_read(input_fname)
 call output_write('(before refinement)')
 call geometry_summary(nx, dx, mat_map)
+call timer_stop('input_read')
 
+call timer_start('xs_read')
 call xs_read_library(xslib_fname, xs)
+call timer_stop('xs_read')
 
 if (refine > 0) then
+  call timer_start('refinement')
   do i = 1,refine
     call geometry_uniform_refinement(nx, dx, mat_map)
   enddo
   call output_write('(after refinement)')
   call geometry_summary(nx, dx, mat_map)
+  call timer_stop('refinement')
 endif
 
+call timer_start('solver')
 allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
   call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
@@ -73,6 +82,7 @@ else
     call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
   endif
 endif
+call timer_stop('solver')
 
 write(line, '(a,f22.20)') 'keff = ', keff
 call output_write(line)
@@ -82,6 +92,7 @@ if (analytic_reference /= 'none') then
   call analytic_error(analytic_reference, fname_analytic, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
 endif
 
+call timer_start('output')
 call output_write('writing ' // trim(adjustl(fname_flux)))
 call output_flux_csv(trim(adjustl(fname_flux)), nx, xs%ngroup, dx, phi(:,:,1))
 
@@ -100,8 +111,10 @@ if (allocated(sigma_tr)) then
 endif
 
 call output_write('')
+call timer_stop('output')
 
-call exception_print()
+call timer_summary()
+call exception_summary()
 
 deallocate(power)
 deallocate(phi)
