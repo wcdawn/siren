@@ -39,7 +39,7 @@ clean:
 
 analytic.o: constant.o exception_handler.o fileio.o kind.o linalg.o output.o xs.o
 constant.o : kind.o
-diffusion.o : exception_handler.o kind.o linalg.o output.o xs.o
+diffusion.o : exception_handler.o kind.o linalg.o output.o timer.o xs.o
 exception_handler.o : kind.o output.o
 fileio.o :
 geometry.o : kind.o

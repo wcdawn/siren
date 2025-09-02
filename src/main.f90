@@ -71,6 +71,7 @@ if (refine > 0) then
   call timer_stop('refinement')
 endif
 
+call timer_start('solver')
 allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
   call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
@@ -81,6 +82,7 @@ else
     call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
   endif
 endif
+call timer_stop('solver')
 
 write(line, '(a,f22.20)') 'keff = ', keff
 call output_write(line)

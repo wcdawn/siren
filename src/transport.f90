@@ -636,6 +636,7 @@ contains
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
+    use timer, only : timer_start, timer_stop
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -711,15 +712,23 @@ contains
 
       if (iter > 1) then
         ! update odd moments -> use odd moments for transport xs -> reconstruct transport matrices
+        call timer_start('transport_odd_update')
         call transport_odd_update(nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call timer_stop('transport_odd_update')
+        call timer_start('transport_build_transportxs')
         call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+        call timer_stop('transport_build_transportxs')
       endif
+      call timer_start('transport_build_matrix')
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+      call timer_stop('transport_build_matrix')
 
       ! groups are coupled together by fission and upscattering
       ! fission is just upscattering of the zeroth moment with multiplicity
+      call timer_start('transport_scatter_source')
       call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
       call transport_build_upscatter_flip(nx, dx, mat_map, xslib, phi, neven, upsource)
+      call timer_stop('transport_scatter_source')
 
       ! by solving all moments for one group at-a-time, this is analagous to converging the
       ! "within group" scattering source in discrete ordinates before proceeding to the next group
@@ -728,7 +737,9 @@ contains
       ! so we may precompute it only once
       ! NOTE that computing it once per group would save memory
       ! may be worth considering for 586g ...
+      call timer_start('transport_pn_source')
       call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
+      call timer_stop('transport_pn_source')
 
       do g = 1,xslib%ngroup
 
@@ -737,10 +748,14 @@ contains
           idxn = 2*(n-1)
 
           if (n > 1) then
+            call timer_start('transport_pn_source')
             call transport_build_prev_source_flip(nx, dx, boundary_right, sigma_tr, phi, idxn, g, pn_prev_source)
+            call timer_stop('transport_pn_source')
           endif
 
+          call timer_start('transport_source')
           call transport_build_downscatter(nx, dx, mat_map, xslib, phi, idxn, g, downsource)
+          call timer_stop('transport_source')
 
           q = upsource(:,g,n) + downsource
           if (n == 1) then
@@ -752,16 +767,19 @@ contains
             q = q + pn_next_source(:,g,n)
           endif
 
+          call timer_start('transport_tridiagonal')
           ! SOLVE
           ! need to store copies, trid uses them as scratch space
           sub_copy = sub(:,g,n)
           dia_copy = dia(:,g,n)
           sup_copy = sup(:,g,n)
           call trid(nx, sub_copy, dia_copy, sup_copy, q, phi(:,g,idxn+1))
+          call timer_stop('transport_tridiagonal')
 
         enddo ! n = 1,neven
       enddo ! g = 1,xslib%ngroup
 
+      call timer_start('transport_convergence')
       ! eigenvalue update
       fsum = transport_fission_summation(nx, dx, mat_map, xslib, phi(:,:,1))
       if (iter > 1) keff = keff * fsum / fsum_old
@@ -770,6 +788,7 @@ contains
       ! This is seriously overkill, but necessary to demonstrate that the odd moments are second-order convergent as well.
       ! Furthermore, we may expect that the higher-order moments are important for anisotropic scattering.
       delta_phi = maxval(abs(phi - phi_old)) / maxval(phi)
+      call timer_stop('transport_convergence')
 
       ! TODO look at isnan
       if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
@@ -804,6 +823,7 @@ contains
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
+    use timer, only : timer_start, timer_stop
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -870,33 +890,50 @@ contains
     ! It seems like it may be slightly less stable than that suggested by Gelbard and later Gamino.
 
     do iter = 1,max_iter
+
       k_old = keff
       phi_old = phi
       fsum_old = fsum
 
       if (iter > 1) then
+        call timer_start('transport_odd_update')
         call transport_odd_update(nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call timer_stop('transport_odd_update')
+        call timer_start('transport_build_transportxs')
         call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+        call timer_stop('transport_build_transportxs')
       endif
+      call timer_start('transport_build_matrix')
       call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+      call timer_stop('transport_build_matrix')
 
+      call timer_start('transport_pn_source')
       call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
+      call timer_stop('transport_pn_source')
 
       do n = 1,neven
 
         idxn = 2*(n-1)
 
         if (n == 1) then
+          call timer_start('transport_scatter_source')
           call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
+          call timer_stop('transport_scatter_source')
         else ! (n > 1)
+          call timer_start('transport_pn_source')
           call transport_build_prev_source(nx, dx, xslib%ngroup, boundary_right, sigma_tr, phi, idxn, pn_prev_source)
+          call timer_stop('transport_pn_source')
         endif
 
+        call timer_start('transport_pn_source')
         call transport_build_upscatter(nx, dx, mat_map, xslib, phi, idxn, upsource)
+        call timer_stop('transport_pn_source')
 
         do g = 1,xslib%ngroup
 
+          call timer_start('transport_scatter_source')
           call transport_build_downscatter(nx, dx, mat_map, xslib, phi, idxn, g, downsource)
+          call timer_stop('transport_scatter_source')
 
           q = upsource(:,g) + downsource
 
@@ -910,16 +947,19 @@ contains
             q = q + pn_next_source(:,g,n)
           endif
 
+          call timer_start('transport_tridiagonal')
           ! SOLVE
           ! need to store copies, trid uses them as scratch space
           sub_copy = sub(:,g,n)
           dia_copy = dia(:,g,n)
           sup_copy = sup(:,g,n)
           call trid(nx, sub_copy, dia_copy, sup_copy, q, phi(:,g,idxn+1))
+          call timer_stop('transport_tridiagonal')
 
         enddo ! g = 1,ngroup
       enddo ! n = 1,neven
 
+      call timer_start('transport_convergence')
       ! eigenvalue update
       fsum = transport_fission_summation(nx, dx, mat_map, xslib, phi(:,:,1))
       if (iter > 1) keff = keff * fsum / fsum_old
@@ -928,6 +968,7 @@ contains
       ! This is seriously overkill, but necessary to demonstrate that the odd moments are second-order convergent as well.
       ! Furthermore, we may expect that the higher-order moments are important for anisotropic scattering.
       delta_phi = maxval(abs(phi - phi_old)) / maxval(phi)
+      call timer_stop('transport_convergence')
 
       if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
         write(*,*) 'invalid keff', keff

@@ -173,6 +173,7 @@ contains
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
+    use timer, only : timer_start, timer_stop
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -198,7 +199,9 @@ contains
 
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
     allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+    call timer_start('diffusion_build_matrix')
     call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+    call timer_stop('diffusion_build_matrix')
 
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
@@ -219,18 +222,27 @@ contains
       flux_old = flux
       fsum_old = fsum
 
+      call timer_start('diffusion_source')
       call diffusion_build_fsource(nx, dx, mat_map, xslib, flux, fsource)
       call diffusion_build_upscatter(nx, dx, mat_map, xslib, flux, upsource)
+      call timer_stop('diffusion_source')
 
       do g = 1,xslib%ngroup
+
+        call timer_start('diffusion_source')
         call diffusion_build_downscatter(nx, dx, mat_map, xslib, flux, g, downsource)
         q = fsource(:,g)/keff + upsource(:,g) + downsource
+        call timer_stop('diffusion_source')
+
+        call timer_start('diffusion_tridiagonal')
         ! SOLVE
         ! need to store copies, trid uses them as scratch space
         sub_copy = sub(:,g)
         dia_copy = dia(:,g)
         sup_copy = sup(:,g)
         call trid(nx, sup_copy, dia_copy, sup_copy, q, flux(:,g))
+        call timer_stop('diffusion_tridiagonal')
+
       enddo
 
       fsum = diffusion_fission_summation(nx, dx, mat_map, xslib, flux)
