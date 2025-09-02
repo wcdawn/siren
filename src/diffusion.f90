@@ -262,7 +262,7 @@ contains
     enddo
 
     if (iter > max_iter) then
-      call output_write('WARNING: failed to converge')
+      call exception_warning('failed to converge')
     endif
 
     deallocate(flux_old)

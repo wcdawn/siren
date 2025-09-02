@@ -118,7 +118,7 @@ contains
     if (trim(adjustl(boundary_left)) /= 'mirror') then
       call exception_fatal('boundary_left must be set to mirror (for now)')
     elseif ((pnorder /= 0) .and. (trim(adjustl(boundary_right)) == 'zero')) then
-      call exception_warning('WARNING: Zero-flux boundary condition with PN transport is probably not what you want. ' // &
+      call exception_warning('Zero-flux boundary condition with PN transport is probably not what you want. ' // &
         'This will set the scalar flux to identically zero at the boundary. ' // &
         'It is intended only for numerical benchmarking.')
     endif

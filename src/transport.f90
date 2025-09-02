@@ -808,7 +808,7 @@ contains
     enddo ! iter = 1,max_iter
 
     if (iter > max_iter) then
-      call output_write('WARNING: failed to converge')
+      call exception_warning('failed to converge')
     endif
 
     deallocate(sub, dia, sup)
@@ -987,7 +987,7 @@ contains
     enddo ! iter = 1,max_iter
     
     if (iter > max_iter) then
-      call output_write('WARNING: failed to converge')
+      call exception_warning('failed to converge')
     endif
 
     deallocate(sub, dia, sup)
