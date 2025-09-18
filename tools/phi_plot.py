@@ -1,12 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import transportxs_plot
 
-if __name__ == "__main__":
 
-    fname = sys.argv[1]
-    extension = "png"
-    resolution = 600
+def load(fname):
 
     dat = np.loadtxt(fname, delimiter=",", skiprows=1)
 
@@ -30,53 +28,70 @@ if __name__ == "__main__":
         pnorder = np.max((pnorder, n))
     pnorder += 1
 
+    phi_reshape = np.zeros((pnorder, ngroup, len(x)))
+    for n in range(pnorder):
+        for g in range(ngroup):
+            phi_reshape[n, g, :] = phi[:, g + n * ngroup]
+
+    return x, phi_reshape
+
+
+if __name__ == "__main__":
+
+    fname = sys.argv[1]
+    extension = "png"
+    resolution = 600
+
+    x, phi = load(fname)
+    pnorder = phi.shape[0]
+    ngroup = phi.shape[1]
+
     dphi = np.zeros_like(phi)
-    for i in range(phi.shape[1]):
-        dphi[:, i] = np.gradient(phi[:, i], x)
+    for g in range(ngroup):
+        for n in range(pnorder):
+            dphi[n, g, :] = np.gradient(phi[n, g, :], x)
 
     # post-compute the odd moments as well
     # TODO remove this
-    dat = np.loadtxt(fname.replace("phi", "transportxs"), delimiter=",", skiprows=1)
-    sigma_tr = dat[:, 1:]
+    x, sigma_tr = transportxs_plot.load(fname.replace("phi", "transportxs"))
     phi_odd = np.zeros_like(phi)
     for n in range(1, pnorder, 2):
         for g in range(ngroup):
             if n < pnorder - 1:
-                phi_odd[:, g + n * ngroup] = (
+                phi_odd[n, g, :] = (
                     -(
-                        (n + 1) / (2 * n + 1) * dphi[:, g + (n + 1) * ngroup]
-                        + n / (2 * n + 1) * dphi[:, g + (n - 1) * ngroup]
+                        (n + 1) / (2 * n + 1) * dphi[n + 1, g, :]
+                        + n / (2 * n + 1) * dphi[n - 1, g, :]
                     )
-                    / sigma_tr[:, g + n * ngroup]
+                    / sigma_tr[n, g, :]
                 )
             else:
-                phi_odd[:, g + n * ngroup] = (
-                    -(n / (2 * n + 1) * dphi[:, g + (n - 1) * ngroup])
-                    / sigma_tr[:, g + n * ngroup]
+                phi_odd[n, g, :] = (
+                    -(n / (2 * n + 1) * dphi[n - 1, g, :]) / sigma_tr[n, g, :]
                 )
 
     for n in range(pnorder):
 
         plt.figure()
         for g in range(ngroup):
-            plt.plot(x, phi[:, g + n * ngroup], label="g={:d}".format(g + 1))
+            plt.plot(x, phi[n, g, :], label="g={:d}".format(g + 1))
         if ngroup <= 10:
             plt.legend()
         plt.xlabel("x [cm]")
         plt.ylabel("$\\phi(x)$ (arb. units)")
-        plt.title("SIREN $\\phi$ {:d}".format(n))
+        plt.title("Siren $\\phi$ {:d}".format(n))
         plt.tight_layout()
         plt.savefig("phi_{:d}".format(n) + "." + extension, dpi=resolution)
 
         if n % 2 == 1:
             plt.figure()
             for g in range(ngroup):
-                plt.plot(x, phi_odd[:, g + n * ngroup], label="g={:d}".format(g + 1))
+                plt.plot(x, phi_odd[n, g, :], label="g={:d}".format(g + 1))
             if ngroup <= 10:
                 plt.legend()
             plt.xlabel("x [cm]")
             plt.ylabel("$\\phi(x)$ (arb. units)")
-            plt.title("SIREN ODD COMPUTE $\\phi$ {:d}".format(n))
+            plt.title("Siren odd compute $\\phi$ {:d}".format(n))
             plt.tight_layout()
             plt.savefig("phi_odd_{:d}".format(n) + "." + extension, dpi=resolution)
 

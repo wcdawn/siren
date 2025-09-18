@@ -2,11 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-if __name__ == "__main__":
 
-    fname = sys.argv[1]
-    extension = "png"
-    dpi = 600
+def load(fname):
 
     dat = np.loadtxt(fname, delimiter=",", skiprows=1)
 
@@ -30,15 +27,33 @@ if __name__ == "__main__":
         pnorder = np.max((pnorder, n))
     pnorder += 1
 
+    sigma_tr_reshape = np.zeros((pnorder, ngroup, len(x)))
+    for n in range(pnorder):
+        for g in range(ngroup):
+            sigma_tr_reshape[n, g, :] = sigma_tr[:, g + n * ngroup]
+
+    return x, sigma_tr_reshape
+
+
+if __name__ == "__main__":
+
+    fname = sys.argv[1]
+    extension = "png"
+    dpi = 600
+
+    x, sigma_tr = load(fname)
+    pnorder = sigma_tr.shape[0]
+    ngroup = sigma_tr.shape[1]
+
     for n in range(pnorder):
         plt.figure()
         for g in range(ngroup):
-            plt.plot(x, sigma_tr[:, g + n * ngroup], label="g={:d}".format(g + 1))
+            plt.plot(x, sigma_tr[n, g, :], label="g={:d}".format(g + 1))
         if ngroup <= 10:
             plt.legend()
         plt.xlabel("x [cm]")
         plt.ylabel("$\\Sigma_{{tr}}(x)$ (arb. units)")
-        plt.title("SIREN $\\Sigma_{{tr}}$ {:d}".format(n))
+        plt.title("Siren $\\Sigma_{{tr}}$ {:d}".format(n))
         plt.tight_layout()
         plt.savefig("sigma_tr_n{:d}".format(n) + extension, dpi=dpi)
     plt.show()
