@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def read(fname):
+def load(fname):
 
     xs = {}
     xsthis = None
@@ -137,5 +137,5 @@ def summary(lib):
 if __name__ == "__main__":
 
     fname = "../cases/pin_slab/c5xs.xs"
-    xs = read(fname)
+    xs = load(fname)
     summary(xs)
