@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy
+import scipy.optimize
 import phi_plot
 import material_plot
 import xslib
@@ -86,6 +88,53 @@ def nonlin_richardson(n, sigma_t, sigma_tr, scatter, phi_g, dphi_g_prev, dphi_g_
 
     print("failed to converge conv={:.2e}".format(conv))
     return sigma_tr, phi_g
+
+
+def func(n, sigma_t, scatter, dphi_g_prev, dphi_g_next, xvec):
+
+    ngroup = len(sigma_t)
+    sigma_tr = xvec[:ngroup]
+    phi_g = xvec[ngroup:]
+
+    sigma_tr_update = eval_transportxs(sigma_t, scatter, phi_g)
+    phi_g_update = eval_phi_odd(n, sigma_tr, dphi_g_prev, dphi_g_next)
+
+    xvec = np.zeros_like(xvec)
+    xvec[:ngroup] = sigma_tr - sigma_tr_update
+    xvec[ngroup:] = phi_g - phi_g_update
+    return xvec
+
+
+def nonlin_solve(n, sigma_t, sigma_tr, scatter, phi_g, dphi_g_prev, dphi_g_next):
+
+    # initial guess
+    sigma_tr = sigma_t
+    phi_g = eval_phi_odd(n, sigma_tr, dphi_g_prev, dphi_g_next)
+    x0 = np.append(sigma_tr, phi_g)
+
+    f = lambda x: func(n, sigma_t, scatter, dphi_g_prev, dphi_g_next, x)
+    xvec = scipy.optimize.fsolve(f, x0)
+
+    ngroup = len(sigma_t)
+    return xvec[:ngroup], xvec[ngroup:]
+
+
+def nonlin_jfnk(n, sigma_t, sigma_tr, scatter, phi_g, dphi_g_prev, dphi_g_next):
+
+    # initial guess
+    sigma_tr = sigma_t
+    phi_g = eval_phi_odd(n, sigma_tr, dphi_g_prev, dphi_g_next)
+    x0 = np.append(sigma_tr, phi_g)
+
+    f = lambda x: func(n, sigma_t, scatter, dphi_g_prev, dphi_g_next, x)
+    # sol = scipy.optimize.root(f, x0, method="krylov", options={"disp": True, "maxiter": int(2e4)})
+    sol = scipy.optimize.root(f, x0, method="krylov", options={"maxiter": int(2e4)})
+    xvec = sol.x
+    if not sol.success:
+        print("failed to converge")
+
+    ngroup = len(sigma_t)
+    return xvec[:ngroup], xvec[ngroup:]
 
 
 def calc_transportxs(x, dx, phi, mat_map, xs):
@@ -175,7 +224,8 @@ def calc_transportxs(x, dx, phi, mat_map, xs):
                         phi[n - 1, :, i + 1],
                     )
 
-                sigma_tr[n, :, i], phi[n, :, i] = nonlin_picard(
+                print("i=", i, "x=", x[i], "n=", n)
+                sigma_tr[n, :, i], phi[n, :, i] = nonlin_solve(
                     n,
                     xsmat["sigma_t"],
                     sigma_tr[n, :, i],
@@ -215,7 +265,7 @@ if __name__ == "__main__":
     resolution = 600
 
     fname_phi = "../cases/pin_slab/pin_slab_phi.csv"
-    fname_xs = "../cases/pin_slab/c5xs_p0.xs"  # TODO
+    fname_xs = "../cases/pin_slab/c5xs.xs"  # TODO
     fname_matmap = "../cases/pin_slab/pin_slab_matmap.csv"
 
     x, phi = phi_plot.load(fname_phi)
