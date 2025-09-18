@@ -8,7 +8,7 @@ use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use transport, only : sigma_tr, transport_power_iteration, transport_power_iteration_flip
 use output, only : output_open_file, output_close_file, output_write, &
-  output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
+  output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, output_matmap_csv
 use power, only : power_calculate
 use analytic, only : analytic_error
 use exception_handler
@@ -18,7 +18,8 @@ implicit none
 integer(ik) :: i
 character(1024) :: input_fname
 character(1024) :: fname_stub, &
-  fname_flux, fname_phi, fname_power, fname_transportxs, fname_out, fname_analytic
+  fname_flux, fname_phi, fname_power, fname_transportxs, fname_out, fname_analytic, &
+  fname_matmap
 character(1024) :: line
 type(XSLibrary) :: xs
 
@@ -44,6 +45,7 @@ fname_phi = trim(adjustl(fname_stub)) // '_phi.csv'
 fname_power = trim(adjustl(fname_stub)) // '_power.csv'
 fname_transportxs = trim(adjustl(fname_stub)) // '_transportxs.csv'
 fname_analytic = trim(adjustl(fname_stub)) // '_analytic.csv'
+fname_matmap = trim(adjustl(fname_stub)) // '_matmap.csv'
 
 call output_open_file(trim(adjustl(fname_out)))
 
@@ -109,6 +111,9 @@ if (allocated(sigma_tr)) then
   call output_transportxs_csv(trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, dx, sigma_tr)
   deallocate(sigma_tr)
 endif
+
+call output_write('writing ' // trim(adjustl(fname_matmap)))
+call output_matmap_csv(trim(adjustl(fname_matmap)), nx, dx, mat_map, xs)
 
 call output_write('')
 call timer_stop('output')

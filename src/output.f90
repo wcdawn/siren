@@ -8,7 +8,8 @@ implicit none
 private
 
 public :: output_open_file, output_close_file, output_write, &
-  output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv
+  output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, &
+  output_matmap_csv
 
 integer, parameter, private :: output_file_unit = 99
 integer, parameter, private :: output_list(2) = [ stdout, output_file_unit ]
@@ -167,5 +168,37 @@ contains
 
     close(iounit)
   endsubroutine output_transportxs_csv
+
+  subroutine output_matmap_csv(fname, nx, dx, mat_map, xslib)
+    use fileio, only : fileio_open_write
+    use xs, only : xslibrary
+    character(*), intent(in) :: fname
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+
+    integer, parameter :: iounit = 17
+
+    integer(ik) :: i
+    real(rk) :: xlo, xhi
+
+    call fileio_open_write(fname, iounit)
+
+    write(iounit, '(a,i0)') 'niso ', xslib%niso
+    do i = 1,xslib%niso
+      write(iounit, '(a)') xslib%mat(i)%name
+    enddo
+
+    write(iounit, '(a)') 'xstart [cm] , xend [cm] , matid'
+    xlo = 0d0
+    do i = 1,nx
+      xhi = xlo + dx(i)
+      write(iounit, '(es23.16," , ",es23.16," , ",i0)') xlo, xhi, mat_map(i)
+      xlo = xhi
+    enddo
+
+    close(iounit)
+  endsubroutine output_matmap_csv
 
 endmodule output

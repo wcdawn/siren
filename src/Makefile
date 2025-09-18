@@ -47,7 +47,7 @@ input.o : exception_handler.o fileio.o kind.o output.o
 kind.o :
 linalg.o : kind.o
 main.o : kind.o xs.o input.o geometry.o diffusion.o transport.o output.o power.o analytic.o exception_handler.o timer.o
-output.o : fileio.o kind.o
+output.o : fileio.o kind.o xs.o
 power.o : kind.o xs.o
 timer.o : kind.o output.o
 transport.o : exception_handler.o kind.o linalg.o xs.o
