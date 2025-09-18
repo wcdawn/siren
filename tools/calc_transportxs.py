@@ -60,6 +60,34 @@ def nonlin_picard(n, sigma_t, sigma_tr, scatter, phi_g, dphi_g_prev, dphi_g_next
     return sigma_tr, phi_g
 
 
+def nonlin_richardson(n, sigma_t, sigma_tr, scatter, phi_g, dphi_g_prev, dphi_g_next):
+
+    maxiter = 10
+    reltol = 1e-6
+
+    omega_sigma_tr = 0.8
+    omega_phi = 0.75
+
+    for i in range(maxiter):
+
+        sigma_tr_old = sigma_tr.copy()
+        sigma_tr = eval_transportxs(sigma_t, scatter, phi_g)
+        sigma_tr = sigma_tr_old + omega_sigma_tr * (sigma_tr - sigma_tr_old)
+
+        phi_g_old = phi_g.copy()
+        phi_g = eval_phi_odd(n, sigma_tr, dphi_g_prev, dphi_g_next)
+        phi_g = phi_g_old + omega_phi * (phi_g - phi_g_old)
+
+        conv = np.max(
+            ((sigma_tr - sigma_tr_old) / sigma_tr, (phi_g - phi_g_old) / phi_g)
+        )
+        if conv < reltol:
+            return sigma_tr, phi_g
+
+    print("failed to converge conv={:.2e}".format(conv))
+    return sigma_tr, phi_g
+
+
 def calc_transportxs(x, dx, phi, mat_map, xs):
 
     pnorder = phi.shape[0]
