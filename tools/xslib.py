@@ -85,7 +85,7 @@ def eigen(xsmat):
     phi = np.ones(ngroup)
 
     A = np.diag(xsmat["sigma_t"])
-    A -= xsmat["scatter"][0, :, :]  # .transpose()  # TODO
+    A -= xsmat["scatter"][0, :, :]
 
     F = np.outer(xsmat["chi"], xsmat["nusf"])
 
