@@ -42,9 +42,21 @@ def eval_phi_odd(n, sigma_tr, dphi_g_prev, dphi_g_next):
 
 def nonlin_picard(n, sigma_t, sigma_tr, scatter, phi_g, dphi_g_prev, dphi_g_next):
 
-    sigma_tr = eval_transportxs(sigma_t, scatter, phi_g)
-    phi_g = eval_phi_odd(n, sigma_tr, dphi_g_prev, dphi_g_next)
+    maxiter = 10
+    reltol = 1e-6
 
+    for i in range(maxiter):
+        sigma_tr_old = sigma_tr.copy()
+        sigma_tr = eval_transportxs(sigma_t, scatter, phi_g)
+        phi_g_old = phi_g.copy()
+        phi_g = eval_phi_odd(n, sigma_tr, dphi_g_prev, dphi_g_next)
+        conv = np.max(
+            ((sigma_tr - sigma_tr_old) / sigma_tr, (phi_g - phi_g_old) / phi_g)
+        )
+        if conv < reltol:
+            return sigma_tr, phi_g
+
+    print("failed to converge conv={:.2e}".format(conv))
     return sigma_tr, phi_g
 
 
@@ -134,9 +146,6 @@ def calc_transportxs(x, dx, phi, mat_map, xs):
                         phi[n - 1, :, i],
                         phi[n - 1, :, i + 1],
                     )
-
-                maxiter = 1
-                reltol = 1e-6
 
                 sigma_tr[n, :, i], phi[n, :, i] = nonlin_picard(
                     n,
