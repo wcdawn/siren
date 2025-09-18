@@ -30,9 +30,6 @@ if __name__ == "__main__":
         pnorder = np.max((pnorder, n))
     pnorder += 1
 
-    print("g=", ngroup)
-    print("pnorder=", pnorder)
-
     for n in range(pnorder):
         plt.figure()
         for g in range(ngroup):
