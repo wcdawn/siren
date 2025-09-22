@@ -113,7 +113,7 @@ if (allocated(sigma_tr)) then
 endif
 
 call output_write('writing ' // trim(adjustl(fname_matmap)))
-call output_matmap_csv(trim(adjustl(fname_matmap)), nx, dx, mat_map, xs)
+call output_matmap_csv(trim(adjustl(fname_matmap)), nx, dx, mat_map, xs%niso, xs%mat(:)%name)
 
 call output_write('')
 call timer_stop('output')

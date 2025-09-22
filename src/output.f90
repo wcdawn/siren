@@ -169,14 +169,15 @@ contains
     close(iounit)
   endsubroutine output_transportxs_csv
 
-  subroutine output_matmap_csv(fname, nx, dx, mat_map, xslib)
+  subroutine output_matmap_csv(fname, nx, dx, mat_map, niso, xsname)
     use fileio, only : fileio_open_write
     use xs, only : xslibrary
     character(*), intent(in) :: fname
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
-    type(XSLibrary), intent(in) :: xslib
+    integer(ik), intent(in) :: niso
+    character(*), intent(in) :: xsname(:) ! niso
 
     integer, parameter :: iounit = 17
 
@@ -185,9 +186,9 @@ contains
 
     call fileio_open_write(fname, iounit)
 
-    write(iounit, '(a,i0)') 'niso ', xslib%niso
-    do i = 1,xslib%niso
-      write(iounit, '(a)') xslib%mat(i)%name
+    write(iounit, '(a,i0)') 'niso ', niso
+    do i = 1,niso
+      write(iounit, '(a)') trim(adjustl(xsname(i)))
     enddo
 
     write(iounit, '(a)') 'xstart [cm] , xend [cm] , matid'
