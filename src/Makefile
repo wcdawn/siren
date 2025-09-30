@@ -21,6 +21,8 @@ OBJ = \
 	  transport.o \
 	  xs.o
 
+MOD = $(OBJ:o=mod)
+
 .PHONY : default all clean
 
 default : all
@@ -35,6 +37,7 @@ siren.x : $(OBJ)
 
 clean:
 	$(RM) $(OBJ)
+	$(RM) $(MOD)
 	$(RM) siren.x
 
 analytic.o: constant.o exception_handler.o fileio.o kind.o linalg.o output.o xs.o
