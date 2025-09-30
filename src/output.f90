@@ -171,7 +171,6 @@ contains
 
   subroutine output_matmap_csv(fname, nx, dx, mat_map, niso, xsname)
     use fileio, only : fileio_open_write
-    use xs, only : xslibrary
     character(*), intent(in) :: fname
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
