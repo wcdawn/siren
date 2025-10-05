@@ -45,7 +45,7 @@ constant.o : kind.o
 diffusion.o : exception_handler.o kind.o linalg.o output.o timer.o xs.o
 exception_handler.o : kind.o output.o
 fileio.o :
-geometry.o : kind.o
+geometry.o : output.o kind.o
 input.o : exception_handler.o fileio.o kind.o output.o
 kind.o :
 linalg.o : kind.o
