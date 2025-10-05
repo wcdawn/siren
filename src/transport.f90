@@ -858,6 +858,8 @@ contains
 
     character(1024) :: line
 
+    logical :: isotropic
+
     if (mod(pnorder,2) /= 1) then
       call exception_fatal('pnorder must be odd')
     endif
@@ -889,23 +891,28 @@ contains
     ! Note that this iterative scheme is the same as that in LUPINE.
     ! It seems like it may be slightly less stable than that suggested by Gelbard and later Gamino.
 
+    isotropic = .true.
+    call timer_start('transport_build_matrix')
+    call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+    call timer_stop('transport_build_matrix')
+
     do iter = 1,max_iter
 
       k_old = keff
       phi_old = phi
       fsum_old = fsum
 
-      if (iter > 1) then
+      if (.not. isotropic) then
         call timer_start('transport_odd_update')
         call transport_odd_update(nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
         call timer_stop('transport_odd_update')
         call timer_start('transport_build_transportxs')
         call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
         call timer_stop('transport_build_transportxs')
+        call timer_start('transport_build_matrix')
+        call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+        call timer_stop('transport_build_matrix')
       endif
-      call timer_start('transport_build_matrix')
-      call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
-      call timer_stop('transport_build_matrix')
 
       call timer_start('transport_pn_source')
       call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
@@ -916,18 +923,18 @@ contains
         idxn = 2*(n-1)
 
         if (n == 1) then
-          call timer_start('transport_scatter_source')
+          call timer_start('transport_fission_source')
           call transport_build_fsource(nx, dx, mat_map, xslib, phi(:,:,1), fsource)
-          call timer_stop('transport_scatter_source')
+          call timer_stop('transport_fission_source')
         else ! (n > 1)
           call timer_start('transport_pn_source')
           call transport_build_prev_source(nx, dx, xslib%ngroup, boundary_right, sigma_tr, phi, idxn, pn_prev_source)
           call timer_stop('transport_pn_source')
         endif
 
-        call timer_start('transport_pn_source')
+        call timer_start('transport_scatter_source')
         call transport_build_upscatter(nx, dx, mat_map, xslib, phi, idxn, upsource)
-        call timer_stop('transport_pn_source')
+        call timer_stop('transport_scatter_source')
 
         do g = 1,xslib%ngroup
 
@@ -979,9 +986,13 @@ contains
       call output_write(line)
 
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
-        call output_write('CONVERGENCE!')
-        call output_write('')
-        exit
+        if (.not. isotropic) then
+          call output_write('CONVERGENCE!')
+          call output_write('')
+          exit
+        else
+          isotropic = .false.
+        endif
       endif
 
     enddo ! iter = 1,max_iter
