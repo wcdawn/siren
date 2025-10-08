@@ -8,6 +8,7 @@ OBJ = \
 	  analytic.o \
 	  constant.o \
 	  diffusion.o \
+	  diffusion_block.o \
 	  exception_handler.o \
 	  fileio.o \
 	  geometry.o \
@@ -23,6 +24,8 @@ OBJ = \
 
 MOD = $(OBJ:o=mod)
 
+LIBS = -llapack -lblas
+
 .PHONY : default all clean
 
 default : all
@@ -30,7 +33,7 @@ default : all
 all : siren.x
 
 siren.x : $(OBJ)
-	$(FC) $(FFLAGS) -o $@ $^
+	$(FC) $(FFLAGS) -o $@ $^ $(LIBS)
 
 %.o : %.f90
 	$(FC) $(FFLAGS) -c $<
@@ -43,13 +46,14 @@ clean:
 analytic.o: constant.o exception_handler.o fileio.o kind.o linalg.o output.o xs.o
 constant.o : kind.o
 diffusion.o : exception_handler.o kind.o linalg.o output.o timer.o xs.o
+diffusion_block.o : exception_handler.o kind.o linalg.o output.o timer.o xs.o
 exception_handler.o : kind.o output.o
 fileio.o :
 geometry.o : output.o kind.o
 input.o : exception_handler.o fileio.o kind.o output.o
 kind.o :
 linalg.o : kind.o
-main.o : kind.o xs.o input.o geometry.o diffusion.o transport.o output.o power.o analytic.o exception_handler.o timer.o
+main.o : kind.o xs.o input.o geometry.o diffusion.o diffusion_block.o transport.o output.o power.o analytic.o exception_handler.o timer.o
 output.o : fileio.o kind.o
 power.o : kind.o xs.o
 timer.o : kind.o output.o
