@@ -91,7 +91,7 @@ else
     case ('block')
       call transport_block_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     case ('onegroup')
-      select case ('pn_solver_opt')
+      select case (pn_solver_opt)
         case ('flip')
           call transport_power_iteration_flip(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
         case ('lupine')
