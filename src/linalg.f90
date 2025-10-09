@@ -78,47 +78,84 @@ contains
     deallocate(ipiv, work)
   endsubroutine inv
 
+  subroutine solve(n, a, b, x)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: a(:,:) ! (n,n)
+    real(rk), intent(in) :: b(:) ! (n)
+    real(rk), intent(out) :: x(:) ! (n)
+
+    integer :: info
+    integer(ik), allocatable :: ipiv(:)
+
+    real(rk), allocatable :: acpy(:,:)
+    real(rk), allocatable :: bcpy(:)
+
+    allocate(acpy(n,n))
+    allocate(bcpy(n))
+    allocate(ipiv(n))
+
+    acpy = a
+    bcpy = b
+
+    call dgesv(n, 1, acpy, n, ipiv, bcpy, n, info)
+    if (info /= 0) then
+      stop 'failure from dgesv'
+    endif
+    x = bcpy
+
+    deallocate(ipiv)
+    deallocate(acpy)
+    deallocate(bcpy)
+  endsubroutine solve
+
   ! block tri-diagonal system of n blocks, each nprime*nprime
   subroutine trid_block(n, nprime, sub, dia, sup, b, x)
     integer(ik), intent(in) :: n, nprime
-    real(rk), intent(inout) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nprime, nprime, n)
-    real(rk), intent(inout) :: b(:,:) ! (nprime,n)
-    real(rk), intent(inout) :: x(:,:) ! (nprime,n)
+    real(rk), intent(in) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nprime, nprime, n)
+    real(rk), intent(in) :: b(:,:) ! (nprime,n)
+    real(rk), intent(out) :: x(:,:) ! (nprime,n)
 
     integer(ik) :: i
 
-    real(rk), allocatable :: w(:,:) ! (nprime,nprime)
-    real(rk), allocatable :: y(:) ! (nprime)
+    real(rk), allocatable :: ahat_mat(:,:,:), gmat(:,:,:) ! (nprime, nprime, n)
+    real(rk), allocatable :: yvec(:,:) ! (nprime, n)
 
-    ! TODO there is a trade to be made here...
-    ! I think that it would kill my memory if I had to actually store all of these
-    ! inverses, but what do I know.
-    ! I guess fundamentally, this is probably where it's time to move to a
-    ! "matrix-free" method of evaluation, because at this point I have already stored
-    ! the nprime*nprime*n*3 numbers...
-    real(rk), allocatable :: a(:,:)
+    real(rk), allocatable :: invmat(:,:), auxmat(:,:) ! (nprime, nprime)
 
-    allocate(w(nprime,nprime))
-    allocate(y(nprime))
-    allocate(a(nprime,nprime))
+    allocate(ahat_mat(nprime,nprime,n))
+    allocate(gmat(nprime,nprime,n))
+    allocate(yvec(nprime,n))
+    allocate(invmat(nprime,nprime), auxmat(nprime,nprime))
 
+    ! compute values of gmat
+    auxmat = dia(:,:,1)
+    call inv(nprime, auxmat, invmat)
+    gmat(:,:,1) = matmul(invmat, sup(:,:,1))
+    do i = 2,n-1
+      auxmat = dia(:,:,i) - matmul(sub(:,:,i-1), gmat(:,:,i-1))
+      call inv(nprime, auxmat, invmat)
+      gmat(:,:,i) = matmul(invmat, sup(:,:,i))
+      yvec(:,i) = matmul(invmat, b(:,i) - matmul(sub(:,:,i-1), yvec(:,i-1)))
+    enddo
+
+    ! compute values of yvec
+    call inv(nprime, dia(:,:,1), invmat)
+    yvec(:,1) = matmul(invmat, b(:,1))
     do i = 2,n
-      call inv(nprime, dia(:,:,i-1), a)
-      w = matmul(sub(:,:,i-1), a)
-      dia(:,:,i) = dia(:,:,i) - matmul(w, sup(:,:,i-1))
-      b(:,i) = b(:,i) - matmul(w, b(:,i-1))
+      auxmat = dia(:,:,i) - matmul(sub(:,:,i-1), gmat(:,:,i-1))
+      call inv(nprime, auxmat, invmat)
+      yvec(:,i) = matmul(invmat, b(:,i) - matmul(sub(:,:,i-1), yvec(:,i-1)))
     enddo
 
-    call inv(nprime, dia(:,:,n), a)
-    x(:,n) = matmul(a, b(:,n))
+    ! backward substitution
+    x(:,n) = yvec(:,n)
     do i = n-1,1,-1
-      call inv(nprime, dia(:,:,i), a)
-      y = matmul(sup(:,:,i), x(:,i+1))
-      y = b(:,i) - y
-      x(:,i) = matmul(a, y)
+      x(:,i) = yvec(:,i) - matmul(gmat(:,:,i), x(:,i+1))
     enddo
 
-    deallocate(w, a, y)
+    deallocate(gmat)
+    deallocate(yvec)
+    deallocate(invmat, auxmat)
   endsubroutine trid_block
 
 endmodule linalg
