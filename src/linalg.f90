@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: trid, norm, trid_block
+public :: trid, norm, trid_block, inv
 
 contains
 
@@ -51,6 +51,33 @@ contains
     enddo
   endsubroutine trid
 
+  subroutine inv(n, a, ainv)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: a(:,:) ! (n,n)
+    real(rk), intent(out) :: ainv(:,:) ! (n,n)
+
+    integer :: info
+
+    ! scratch space used by LAPACK
+    integer, allocatable :: ipiv(:)
+    real(rk), allocatable :: work(:)
+
+    allocate(ipiv(n))
+    allocate(work(n))
+
+    ainv = a
+    call dgetrf(n, n, ainv, n, ipiv, info)
+    if (info /= 0) then
+      stop 'failure from dgetrf'
+    endif
+    call dgetri(n, ainv, n, ipiv, work, n, info)
+    if (info /= 0) then
+      stop 'failure from dgetri'
+    endif
+
+    deallocate(ipiv, work)
+  endsubroutine inv
+
   ! block tri-diagonal system of n blocks, each nprime*nprime
   subroutine trid_block(n, nprime, sub, dia, sup, b, x)
     integer(ik), intent(in) :: n, nprime
@@ -59,14 +86,9 @@ contains
     real(rk), intent(inout) :: x(:,:) ! (nprime,n)
 
     integer(ik) :: i
-    integer :: info
 
     real(rk), allocatable :: w(:,:) ! (nprime,nprime)
     real(rk), allocatable :: y(:) ! (nprime)
-
-    ! scratch space used by LAPACK
-    integer, allocatable :: ipiv(:)
-    real(rk), allocatable :: work(:)
 
     ! TODO there is a trade to be made here...
     ! I think that it would kill my memory if I had to actually store all of these
@@ -74,61 +96,29 @@ contains
     ! I guess fundamentally, this is probably where it's time to move to a
     ! "matrix-free" method of evaluation, because at this point I have already stored
     ! the nprime*nprime*n*3 numbers...
-    real(rk), allocatable :: inv(:,:)
+    real(rk), allocatable :: a(:,:)
 
     allocate(w(nprime,nprime))
-    allocate(inv(nprime,nprime))
-
-    allocate(ipiv(nprime))
-    allocate(work(nprime))
+    allocate(y(nprime))
+    allocate(a(nprime,nprime))
 
     do i = 2,n
-
-      inv = dia(:,:,i-1)
-      call dgetrf(nprime, nprime, inv, nprime, ipiv, info)
-      if (info /= 0) then
-        stop 'failure from dgetrf'
-      endif
-      call dgetri(nprime, inv, nprime, ipiv, work, n, info)
-      if (info /= 0) then
-        stop 'failure from dgetri'
-      endif
-
-      w = matmul(sub(:,:,i-1), inv)
+      call inv(nprime, dia(:,:,i-1), a)
+      w = matmul(sub(:,:,i-1), a)
       dia(:,:,i) = dia(:,:,i) - matmul(w, sup(:,:,i-1))
       b(:,i) = b(:,i) - matmul(w, b(:,i-1))
     enddo
 
-    inv = dia(:,:,n)
-    call dgetrf(nprime, nprime, inv, nprime, ipiv, info)
-    if (info /= 0) then
-      stop 'failure from dgetrf'
-    endif
-    call dgetri(nprime, inv, nprime, ipiv, work, n, info)
-    if (info /= 0) then
-      stop 'failure from dgetri'
-    endif
-
-    x(:,n) = matmul(inv, b(:,n))
+    call inv(nprime, dia(:,:,n), a)
+    x(:,n) = matmul(a, b(:,n))
     do i = n-1,1,-1
-
-      inv = dia(:,:,i)
-      call dgetrf(nprime, nprime, inv, nprime, ipiv, info)
-      if (info /= 0) then
-        stop 'failure from dgetrf'
-      endif
-      call dgetri(nprime, inv, nprime, ipiv, work, n, info)
-      if (info /= 0) then
-        stop 'failure from dgetri'
-      endif
-
+      call inv(nprime, dia(:,:,i), a)
       y = matmul(sup(:,:,i), x(:,i+1))
       y = b(:,i) - y
-      x(:,i) = matmul(inv, y)
+      x(:,i) = matmul(a, y)
     enddo
 
-    deallocate(w, inv)
-    deallocate(ipiv, work)
+    deallocate(w, a, y)
   endsubroutine trid_block
 
 endmodule linalg
