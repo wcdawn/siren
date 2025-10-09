@@ -82,12 +82,10 @@ contains
     allocate(ipiv(nprime))
     allocate(work(nprime))
 
-    allocate(inv(nprime,nprime))
-
     do i = 2,n
 
-      inv = dia(:,:,i)
-      call dgetrf(nprime, nprime, inv, ipiv, info)
+      inv = dia(:,:,i-1)
+      call dgetrf(nprime, nprime, inv, nprime, ipiv, info)
       if (info /= 0) then
         stop 'failure from dgetrf'
       endif
@@ -102,7 +100,7 @@ contains
     enddo
 
     inv = dia(:,:,n)
-    call dgetrf(nprime, nprime, inv, ipiv, info)
+    call dgetrf(nprime, nprime, inv, nprime, ipiv, info)
     if (info /= 0) then
       stop 'failure from dgetrf'
     endif
@@ -115,7 +113,7 @@ contains
     do i = n-1,1,-1
 
       inv = dia(:,:,i)
-      call dgetrf(nprime, nprime, inv, ipiv, info)
+      call dgetrf(nprime, nprime, inv, nprime, ipiv, info)
       if (info /= 0) then
         stop 'failure from dgetrf'
       endif
@@ -131,7 +129,6 @@ contains
 
     deallocate(w, inv)
     deallocate(ipiv, work)
-    deallocate(inv)
   endsubroutine trid_block
 
 endmodule linalg
