@@ -63,7 +63,7 @@ contains
     ! this is usually equivalent to phi0 == 1 from the analytic solutions
     phi_zero = -(phi(2,1,1)-phi(1,1,1)) * dx(1) / (dx(1) + dx(2)) + phi(1,1,1)
     phi_analysis = phi_analysis / phi_zero
-    
+
     ! get phi_exact
     allocate(phi_exact(nx,ngroup,pnorder+1))
     select case (analytic_name)
@@ -135,7 +135,7 @@ contains
         call output_write(line)
       enddo ! g = 1,ngroup
     enddo ! n = 1,pnorder+1
-    
+
     call output_write('writing ' // trim(adjustl(fname)))
     call analytic_output_csv(fname, nx, ngroup, pnorder, x, phi_analysis, phi_exact, phi_diff)
 

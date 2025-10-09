@@ -166,7 +166,6 @@ contains
       endif
     enddo ! i = 1,nx
     diffusion_fission_summation = xsum
-    
   endfunction diffusion_fission_summation
 
   subroutine diffusion_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)

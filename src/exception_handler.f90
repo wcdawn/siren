@@ -17,7 +17,7 @@ endtype Exception_obj
 type(Exception_obj), allocatable :: exception_stack(:)
 
 contains
-  
+
   subroutine exception_append(stack, x)
     type(Exception_obj), allocatable, intent(inout) :: stack(:)
     type(Exception_obj), intent(in) :: x

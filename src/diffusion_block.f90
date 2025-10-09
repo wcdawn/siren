@@ -38,7 +38,7 @@ contains
       dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
       sup(g,g,1) = -dnext
     enddo ! g = 1,xslib%ngroup
-    
+
     do i = 2,nx-1
 
       mprev = mat_map(i-1)

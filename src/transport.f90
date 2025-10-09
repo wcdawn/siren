@@ -366,7 +366,7 @@ contains
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
     integer(ik), intent(in) :: idxn
-    real(rk), intent(out) :: qup(:,:) ! (nx, ngroup) 
+    real(rk), intent(out) :: qup(:,:) ! (nx, ngroup)
 
     integer(ik) :: i, g
     integer(ik) :: mthis
@@ -829,7 +829,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_right
-    real(rk), intent(in) :: k_tol, phi_tol 
+    real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
     real(rk), intent(inout) :: keff
@@ -996,7 +996,7 @@ contains
       endif
 
     enddo ! iter = 1,max_iter
-    
+
     if (iter > max_iter) then
       call exception_warning('failed to converge')
     endif
