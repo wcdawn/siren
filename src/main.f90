@@ -89,7 +89,7 @@ if (pnorder == 0) then
 else
   select case (energy_solver_opt)
     case ('block')
-      call transport_block_power_iteration()
+      call transport_block_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
     case ('onegroup')
       select case ('pn_solver_opt')
         case ('flip')
