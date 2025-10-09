@@ -8,6 +8,7 @@ use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
 use transport, only : sigma_tr, transport_power_iteration, transport_power_iteration_flip
+use transport_block, only : transport_block_power_iteration
 use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, output_matmap_csv
 use power, only : power_calculate
@@ -77,17 +78,30 @@ endif
 call timer_start('solver')
 allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
-  if (energy_solver_opt == 'block') then
-    call diffusion_block_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
-  else
-    call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
-  endif
+  select case (energy_solver_opt)
+    case ('block')
+      call diffusion_block_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+    case ('onegroup')
+      call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+    case default
+      call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
+  endselect
 else
-  if (pn_solver_opt == 'flip') then
-    call transport_power_iteration_flip(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, abs(pnorder), keff, phi)
-  elseif (pn_solver_opt == 'lupine') then
-    call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
-  endif
+  select case (energy_solver_opt)
+    case ('block')
+      call transport_block_power_iteration()
+    case ('onegroup')
+      select case ('pn_solver_opt')
+        case ('flip')
+          call transport_power_iteration_flip(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+        case ('lupine')
+          call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+        case default
+          call exception_fatal('unknown pn_solver_opt: ' // trim(adjustl(pn_solver_opt)))
+      endselect
+    case default
+      call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
+  endselect
 endif
 call timer_stop('solver')
 
