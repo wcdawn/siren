@@ -120,16 +120,16 @@ contains
     real(rk), intent(in) :: flux(:,:) ! (ngroup,nx) NOTE this is in "block" order
 
     integer(ik) :: i, mthis
-    real(rk) :: xout
+    real(rk) :: xsum
 
-    xout = 0d0
+    xsum = 0d0
     do i = 1,nx
       mthis = mat_map(i)
       if (xslib%mat(mthis)%is_fiss) then
-        xout = xout + sum(xslib%mat(mthis)%nusf * flux(:,i))*dx(i)
+        xsum = xsum + sum(xslib%mat(mthis)%nusf * flux(:,i))*dx(i)
       endif
     enddo ! i = 1,nx
-    diffusion_block_fission_summation = xout
+    diffusion_block_fission_summation = xsum
   endfunction diffusion_block_fission_summation
 
   subroutine diffusion_block_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
