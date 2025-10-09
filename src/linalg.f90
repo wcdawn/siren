@@ -109,6 +109,10 @@ contains
   endsubroutine solve
 
   ! block tri-diagonal system of n blocks, each nprime*nprime
+  ! credit to textbook "Computational Mathematics: Models, Methods, and Analysis with MATLAB and MPI"
+  ! by R. E. White
+  ! This StackOverflow post was also helpful
+  ! https://scicomp.stackexchange.com/questions/6701/how-to-solve-block-tridiagonal-matrix-using-thomas-algorithm
   subroutine trid_block(n, nprime, sub, dia, sup, b, x)
     integer(ik), intent(in) :: n, nprime
     real(rk), intent(in) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nprime, nprime, n)
@@ -131,21 +135,17 @@ contains
     auxmat = dia(:,:,1)
     call inv(nprime, auxmat, invmat)
     gmat(:,:,1) = matmul(invmat, sup(:,:,1))
+    yvec(:,1) = matmul(invmat, b(:,1))
     do i = 2,n-1
       auxmat = dia(:,:,i) - matmul(sub(:,:,i-1), gmat(:,:,i-1))
       call inv(nprime, auxmat, invmat)
       gmat(:,:,i) = matmul(invmat, sup(:,:,i))
       yvec(:,i) = matmul(invmat, b(:,i) - matmul(sub(:,:,i-1), yvec(:,i-1)))
     enddo
-
-    ! compute values of yvec
-    call inv(nprime, dia(:,:,1), invmat)
-    yvec(:,1) = matmul(invmat, b(:,1))
-    do i = 2,n
-      auxmat = dia(:,:,i) - matmul(sub(:,:,i-1), gmat(:,:,i-1))
-      call inv(nprime, auxmat, invmat)
-      yvec(:,i) = matmul(invmat, b(:,i) - matmul(sub(:,:,i-1), yvec(:,i-1)))
-    enddo
+    ! unroll for i = n
+    auxmat = dia(:,:,n) - matmul(sub(:,:,n-1), gmat(:,:,n-1))
+    call inv(nprime, auxmat, invmat)
+    yvec(:,n) = matmul(invmat, b(:,n) - matmul(sub(:,:,n-1), yvec(:,n-1)))
 
     ! backward substitution
     x(:,n) = yvec(:,n)
