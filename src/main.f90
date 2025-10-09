@@ -132,6 +132,7 @@ if (allocated(sigma_tr)) then
 endif
 
 call output_write('writing ' // trim(adjustl(fname_matmap)))
+! TODO the debugger complains about this temporary array...
 call output_matmap_csv(trim(adjustl(fname_matmap)), nx, dx, mat_map, xs%niso, xs%mat(:)%name)
 
 call output_write('')
