@@ -474,7 +474,8 @@ contains
     transport_block_fission_summation = xsum
   endfunction transport_block_fission_summation
 
-  subroutine transport_block_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  subroutine transport_block_power_iteration(&
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr,phi)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
@@ -488,6 +489,7 @@ contains
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
     real(rk), intent(out) :: keff
+    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx,ngroup,nmoment)
     real(rk), intent(out) :: phi(:,:,:) ! (nx,ngroup,nmoment)
 
     integer(ik) :: i, g, n
@@ -605,8 +607,8 @@ contains
       call exception_warning('failed to converge')
     endif
 
-    ! TODO need to compute odd moments and transport xs as an edit
     call transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
+    call transport_block_calc_transportxs(nx, mat_map, xslib, pnorder, phi_block, sigma_tr)
     ! copy before exit
     do i = 1,nx
       do g = 1,xslib%ngroup
@@ -719,5 +721,38 @@ contains
     deallocate(trans)
     deallocate(dphi_prev, dphi_next)
   endsubroutine transport_block_calc_odd
+
+  subroutine transport_block_calc_transportxs(nx, mat_map, xslib, pnorder, phi_block, sigma_tr)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    integer(ik), intent(in) :: mat_map(:) ! (dx)
+    type(XSLibrary), intent(in) :: xslib
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+
+    ! NOTE the ordeirng is different here!
+    ! This was done becasue I'm lazy...
+    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx,ngroup,pnorder+1)
+
+    integer(ik) :: i, g, n
+    integer(ik) :: mthis
+    
+    do n = 1,pnorder+1
+      if (n < xslib%nmoment) then
+        do i = 1,nx
+          mthis = mat_map(i)
+          do g = 1,xslib%ngroup
+            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) &
+              - sum(xslib%mat(mthis)%scatter(:,g,n)*phi_block(:,i,n))/phi_block(g,i,n)
+          enddo ! g = 1,xslib%ngroup
+        enddo ! i = 1,nx
+      else
+        do i = 1,nx
+          mthis = mat_map(i)
+          sigma_tr(i,:,n) = xslib%mat(mthis)%sigma_t(:)
+        enddo ! i = 1,nx
+      endif
+    enddo ! n = 1,pnorder+1
+  endsubroutine transport_block_calc_transportxs
 
 endmodule transport_block

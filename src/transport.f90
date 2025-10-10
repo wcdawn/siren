@@ -5,18 +5,17 @@ implicit none
 
 private
 
-public :: sigma_tr, transport_power_iteration, transport_power_iteration_flip
-
-real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
+public :: transport_power_iteration, transport_power_iteration_flip
 
 contains
 
-  subroutine transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+  subroutine transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     character(*), intent(in) :: boundary_right
     integer, intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
@@ -137,8 +136,6 @@ contains
       case default
         call exception_fatal('unknown boundary_right in transport_build_matrix: ' // trim(adjustl(boundary_right)))
     endselect
-
-
   endsubroutine transport_build_matrix
 
   subroutine transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
@@ -147,12 +144,10 @@ contains
     integer, intent(in) :: mat_map(:)
     type(XSLibrary), intent(in) :: xslib
     integer, intent(in) :: pnorder
-    real(rk), allocatable, intent(out) :: sigma_tr(:,:,:) ! (nx,ngroup,pnorder+1)
+    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx,ngroup,pnorder+1)
 
     integer(ik) :: i, g, n
     integer(ik) :: mthis
-
-    allocate(sigma_tr(nx,xslib%ngroup,pnorder+1))
 
     do n = 1,pnorder+1
       if (n <= xslib%nmoment) then
@@ -637,7 +632,8 @@ contains
 
   endfunction transport_fission_summation
 
-  subroutine transport_power_iteration_flip(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  subroutine transport_power_iteration_flip(&
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -651,6 +647,7 @@ contains
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
     real(rk), intent(inout) :: keff
+    real(rk), intent(inout) :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
     real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, nmoment)
 
     ! matrix
@@ -698,9 +695,7 @@ contains
     phi = 1.0_rk
     fsum = 1.0_rk
 
-    if (.not. allocated(sigma_tr)) then
-      call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
-    endif
+    call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
 
     call output_write('=== PN TRANSPORT POWER ITERATION (FLIP) ===')
 
@@ -725,7 +720,7 @@ contains
         call timer_stop('transport_build_transportxs')
       endif
       call timer_start('transport_build_matrix')
-      call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+      call transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
       call timer_stop('transport_build_matrix')
 
       ! groups are coupled together by fission and upscattering
@@ -824,7 +819,8 @@ contains
 
   endsubroutine transport_power_iteration_flip
 
-  subroutine transport_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+  subroutine transport_power_iteration(&
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -838,6 +834,7 @@ contains
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
     real(rk), intent(inout) :: keff
+    real(rk), intent(inout) :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
     real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, nmoment)
 
     ! matrix
@@ -887,9 +884,7 @@ contains
     phi = 1.0_rk
     fsum = 1.0_rk
 
-    if (.not. allocated(sigma_tr)) then
-      call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
-    endif
+    call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
 
     call output_write('=== PN TRANSPORT POWER ITERATION ===')
 
@@ -898,7 +893,7 @@ contains
 
     isotropic = .true.
     call timer_start('transport_build_matrix')
-    call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+    call transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
     do iter = 1,max_iter
@@ -915,7 +910,7 @@ contains
         call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
         call timer_stop('transport_build_transportxs')
         call timer_start('transport_build_matrix')
-        call transport_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+        call transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
         call timer_stop('transport_build_matrix')
       endif
 
@@ -1011,7 +1006,6 @@ contains
     deallocate(fsource, upsource, downsource, q)
     deallocate(pn_next_source, pn_prev_source)
     deallocate(phi_old)
-
   endsubroutine transport_power_iteration
 
 endmodule transport

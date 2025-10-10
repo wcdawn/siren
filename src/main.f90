@@ -7,7 +7,7 @@ use input, only : input_read, input_cleanup, &
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
-use transport, only : sigma_tr, transport_power_iteration, transport_power_iteration_flip
+use transport, only : transport_power_iteration, transport_power_iteration_flip
 use transport_block, only : transport_block_power_iteration
 use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, output_matmap_csv
@@ -26,7 +26,8 @@ character(1024) :: line
 type(XSLibrary) :: xs
 
 real(rk) :: keff
-real(rk), allocatable :: phi(:,:,:) ! (nx, ngroup, pnorder)
+real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
+real(rk), allocatable :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
 real(rk), allocatable :: power(:)
 
 character(len=:), allocatable :: mat_name_list(:)
@@ -89,15 +90,19 @@ if (pnorder == 0) then
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
   endselect
 else
+  allocate(sigma_tr(nx, xs%ngroup, pnorder+1))
   select case (energy_solver_opt)
     case ('block')
-      call transport_block_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+      call transport_block_power_iteration(&
+        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     case ('onegroup')
       select case (pn_solver_opt)
         case ('flip')
-          call transport_power_iteration_flip(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+          call transport_power_iteration_flip(&
+            nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
         case ('lupine')
-          call transport_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, phi)
+          call transport_power_iteration(&
+            nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
         case default
           call exception_fatal('unknown pn_solver_opt: ' // trim(adjustl(pn_solver_opt)))
       endselect
@@ -149,6 +154,7 @@ call exception_summary()
 
 deallocate(power)
 deallocate(phi)
+if (allocated(sigma_tr)) deallocate(sigma_tr)
 
 call xs_cleanup(xs)
 call input_cleanup()
