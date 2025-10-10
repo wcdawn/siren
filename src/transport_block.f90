@@ -300,7 +300,7 @@ contains
       fhat_this = xmul*trans_this
       bprev = fhat_prev/dx(nx-1) + fhat_this/dx(nx)
       call inv(xslib%ngroup, bprev, matinv)
-      bnext = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(fhat_this, matinv), fhat_prev)
+      bprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(fhat_this, matinv), fhat_prev)
       select case (boundary_right)
         case ('mirror')
           pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,n+1)) - matmul(bprev, phi_block(:,nx,n+1)) 
