@@ -128,7 +128,6 @@ contains
     endif
     format_str = trim(adjustl(format_str)) // ', 1x, f6.2)'
 
-    ! TODO add percentages
     do i = 1,size(timer_arr)
       write(line, format_str) timer_arr(i)%name, timer_arr(i)%elapsed, timer_arr(i)%elapsed/total*1e2_rk
       call output_write(line)
