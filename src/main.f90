@@ -1,6 +1,6 @@
 program siren
 use kind
-use xs, only : XSLibrary, xs_read_library, xs_cleanup
+use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
   k_tol, phi_tol, max_iter, analytic_reference, pn_solver_opt, energy_solver_opt
@@ -28,6 +28,8 @@ type(XSLibrary) :: xs
 real(rk) :: keff
 real(rk), allocatable :: phi(:,:,:) ! (nx, ngroup, pnorder)
 real(rk), allocatable :: power(:)
+
+character(len=:), allocatable :: mat_name_list(:)
 
 if (command_argument_count() == 0) then
   stop 'missing input filename'
@@ -132,8 +134,12 @@ if (allocated(sigma_tr)) then
 endif
 
 call output_write('writing ' // trim(adjustl(fname_matmap)))
-! TODO the debugger complains about this temporary array...
-call output_matmap_csv(trim(adjustl(fname_matmap)), nx, dx, mat_map, xs%niso, xs%mat(:)%name)
+allocate(character(len=len(xs%mat(1)%name)) :: mat_name_list(xs%niso))
+do i = 1,xs%niso
+  mat_name_list(i) = xs%mat(i)%name
+enddo
+call output_matmap_csv(trim(adjustl(fname_matmap)), nx, dx, mat_map, xs%niso, mat_name_list)
+deallocate(mat_name_list)
 
 call output_write('')
 call timer_stop('output')
