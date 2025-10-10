@@ -486,7 +486,8 @@ contains
             kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
             kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
             daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
-            qnext(nx,g,n) = phi(nx-1,g,idxn+1+2)*daprev - phi(nx,g,idxn+1+2)*3*daprev
+            qnext(nx,g,n) = phi(nx-1,g,idxn+1+2)*daprev - phi(nx,g,idxn+1+2)*daprev &
+              - 2 * kathis / dx(nx) * phi(nx,g,idxn+1+2)
           case default
             call exception_fatal('unknown boundary in next_source: ' // trim(adjustl(boundary_right)))
         endselect
@@ -543,7 +544,8 @@ contains
         kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
         kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
         dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
-        qprev(nx) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*3*dbprev
+        qprev(nx) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev &
+          - 2 * kbthis / dx(nx) * phi(nx,g,idxn+1-2)
       case default
         call exception_fatal('unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
     endselect
@@ -600,7 +602,9 @@ contains
           kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
           kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
           dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
-          qprev(nx,g) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*3*dbprev
+          qprev(nx,g) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev &
+            - 2 * kbthis / dx(nx) * phi(nx,g,idxn+1-2)
+
         case default
           call exception_fatal('unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
       endselect
