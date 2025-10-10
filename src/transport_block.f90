@@ -606,7 +606,7 @@ contains
     endif
 
     ! TODO need to compute odd moments and transport xs as an edit
-    call transport_block_calc_odd(nx, dx, mat_map, xslib, phi_block)
+    call transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
     ! copy before exit
     do i = 1,nx
       do g = 1,xslib%ngroup
@@ -622,13 +622,102 @@ contains
     deallocate(sub_copy, dia_copy, sup_copy)
   endsubroutine transport_block_power_iteration
 
-  subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, phi_block)
+  subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
     use xs, only : XSLibrary
+    use numeric, only : deriv
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
+    character(*), intent(in) :: boundary_right
+    integer(ik), intent(in) :: pnorder
     real(rk), intent(inout) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+
+    integer(ik) :: i, g, n
+    integer(ik) :: idxn
+    integer(ik) :: mthis
+
+    real(rk) :: xn
+    real(rk) :: xmul_next, xmul_prev
+    real(rk) :: x1, x2, x3
+
+    real(rk), allocatable :: dphi_prev(:), dphi_next(:) ! (ngroup)
+    real(rk), allocatable :: trans(:,:) ! (ngroup,ngroup)
+
+    allocate(dphi_prev(xslib%ngroup), dphi_next(xslib%ngroup))
+    allocate(trans(xslib%ngroup,xslib%ngroup))
+
+    do n = 2,pnorder+1,2
+      idxn = n-1
+      xn = real(idxn, rk)
+      xmul_prev = xn/(2.0_rk*xn+1.0_rk)
+      xmul_next = (xn+1.0_rk)/(2.0_rk*xn+1.0_rk)
+      do i = 2,nx-1
+        mthis = mat_map(i)
+        x1 = -0.5_rk * (dx(i-1) + dx(i))
+        x2 = 0.0_rk
+        x3 = 0.5_rk * (dx(i+1) + dx(i))
+        dphi_next = 0.0_rk
+        if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
+          ! central difference for interior
+          do g = 1,xslib%ngroup
+            dphi_prev(g) = deriv(x1, x2, x3, &
+              phi_block(g,i-1,idxn+1-1), phi_block(g,i,idxn+1-1), phi_block(g,i+1,idxn+1-1))
+            if (n < pnorder + 1) then
+              dphi_next(g) = deriv(x1, x2, x3, &
+                phi_block(g,i-1,idxn+1+1), phi_block(g,i,idxn+1+1), phi_block(g,i+1,idxn+1+1))
+            endif
+          enddo ! g = 1,xslib%ngroup
+        elseif (mat_map(i) ==  mat_map(i+1)) then
+          ! forward difference (first-order)
+          dphi_prev = (phi_block(:,i+1,idxn+1-1) - phi_block(:,i,idxn+1-1))/(0.5_rk*(dx(i)+dx(i+1)))
+          if (n < pnorder + 1) then
+            dphi_next = (phi_block(:,i+1,idxn+1+1) - phi_block(:,i,idxn+1+1))/(0.5_rk*(dx(i)+dx(i+1)))
+          endif
+        elseif (mat_map(i) == mat_map(i-1)) then
+          ! backward difference (first-order)
+          dphi_prev = (phi_block(:,i,idxn+1-1) - phi_block(:,i-1,idxn+1-1))/(0.5_rk*(dx(i)+dx(i-1)))
+          if (n < pnorder + 1) then
+            dphi_next = (phi_block(:,i,idxn+1+1) - phi_block(:,i-1,idxn+1+1))/(0.5_rk*(dx(i)+dx(i-1)))
+          endif
+        else
+          ! take a guess at central difference
+          do g = 1,xslib%ngroup
+            dphi_prev(g) = deriv(x1, x2, x3, &
+              phi_block(g,i-1,idxn+1-1), phi_block(g,i,idxn+1-1), phi_block(g,i+1,idxn+1-1))
+            if (n < pnorder + 1) then
+              dphi_next(g) = deriv(x1, x2, x3, &
+                phi_block(g,i-1,idxn+1+1), phi_block(g,i,idxn+1+1), phi_block(g,i+1,idxn+1+1))
+            endif
+          enddo ! g = 1,xslib%ngroup
+        endif
+        call transport_invtransmat(xslib%mat(mthis), idxn, trans)
+        phi_block(:,i,idxn+1) = -matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
+      enddo ! i = 2,nx-1
+      ! BC at x=0, i=1
+      ! use the fact that odd moments must equal zero for mirror bc
+      ! this stencil kind of extends to x3 because phi(2) was computed earlier
+      phi_block(:,1,idxn+1) = phi_block(:,2,idxn+1) &
+        * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+      ! BC at x=L, i=N
+      select case (boundary_right)
+        case ('mirror')
+          phi_block(:,nx,idxn+1) = phi_block(:,nx-1,idxn+1) &
+            * 0.5_rk * dx(nx) / (dx(nx) + 0.5_rk*dx(nx-1))
+        case ('zero')
+          dphi_prev = -phi_block(:,nx-1,idxn+1-1)/(dx(nx) + 0.5_rk*(dx(nx-1)))
+          if (n < pnorder + 1) then
+            dphi_next = -phi_block(:,nx-1,idxn+1+1)/(dx(nx) + 0.5_rk*(dx(nx-1)))
+          endif
+          call transport_invtransmat(xslib%mat(mat_map(nx)), idxn, trans)
+          phi_block(:,nx,idxn+1) = -matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
+        case default
+          call exception_fatal('unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
+      endselect
+    enddo
+
+    deallocate(trans)
+    deallocate(dphi_prev, dphi_next)
   endsubroutine transport_block_calc_odd
 
 endmodule transport_block
