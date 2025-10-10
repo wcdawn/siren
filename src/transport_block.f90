@@ -210,7 +210,7 @@ contains
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_right
     integer(ik), intent(in) :: neven
-    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,neven)
+    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_next_source(:,:,:) ! (ngroup,nx,neven)
 
     integer(ik) :: i, n
@@ -253,7 +253,8 @@ contains
       bnext = fhat_next/dx(2) + fhat_this/dx(1)
       call inv(xslib%ngroup, bnext, matinv)
       bnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(fhat_this, matinv), fhat_next)
-      pn_next_source(:,1,n) = -matmul(bnext, phi_block(:,1,n+1)) + matmul(bnext, phi_block(:,2,n+1))
+      pn_next_source(:,1,n) = -matmul(bnext, phi_block(:,1,idxn+1+2)) &
+        + matmul(bnext, phi_block(:,2,idxn+1+2))
     enddo ! n = 1,neven-1
 
     do i = 2,nx-1
@@ -281,9 +282,9 @@ contains
         call inv(xslib%ngroup, bnext, matinv)
         bnext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(fhat_this, matinv), fhat_next)
 
-        pn_next_source(:,i,n) = matmul(bprev, phi_block(:,i-1,n+1)) &
-          - matmul(bprev + bnext, phi_block(:,i,n+1)) &
-          + matmul(bnext, phi_block(:,i+1,n+1))
+        pn_next_source(:,i,n) = matmul(bprev, phi_block(:,i-1,idxn+1+2)) &
+          - matmul(bprev + bnext, phi_block(:,i,idxn+1+2)) &
+          + matmul(bnext, phi_block(:,i+1,idxn+1+2))
       enddo
     enddo ! i = 2,nx-1
 
@@ -303,10 +304,12 @@ contains
       bprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(fhat_this, matinv), fhat_prev)
       select case (boundary_right)
         case ('mirror')
-          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,n+1)) - matmul(bprev, phi_block(:,nx,n+1)) 
+          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,idxn+1+2)) &
+            - matmul(bprev, phi_block(:,nx,idxn+1+2)) 
         case ('zero')
-          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,n+1)) - matmul(bprev, phi_block(:,nx,n+1)) &
-            - 2.0_rk/dx(nx) * matmul(fhat_this, phi_block(:,nx,n+1))
+          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,idxn+1+2)) &
+            - matmul(bprev, phi_block(:,nx,idxn+1+2)) &
+            - 2.0_rk/dx(nx) * matmul(fhat_this, phi_block(:,nx,idxn+1+2))
         case default
           call exception_fatal('unknown boundary_right in next_source: ' // trim(adjustl(boundary_right)))
       endselect
@@ -327,7 +330,7 @@ contains
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_right
     integer(ik), intent(in) :: idxn
-    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,neven)
+    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_prev_source(:,:) ! (ngroup,nx)
 
     integer(ik) :: i, n
@@ -372,7 +375,8 @@ contains
     cnext = ghat_next/dx(2) + ghat_this/dx(1)
     call inv(xslib%ngroup, cnext, matinv)
     cnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(ghat_this, matinv), ghat_next)
-    pn_prev_source(:,1) = -matmul(cnext, phi_block(:,1,n-1)) + matmul(cnext, phi_block(:,2,n-1))
+    pn_prev_source(:,1) = -matmul(cnext, phi_block(:,1,idxn+1-2)) &
+      + matmul(cnext, phi_block(:,2,idxn+1-2))
 
     do i = 2,nx-1
       mprev = mat_map(i-1)
@@ -394,9 +398,9 @@ contains
       call inv(xslib%ngroup, cnext, matinv)
       cnext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(ghat_this, matinv), ghat_next)
 
-      pn_prev_source(:,i) = matmul(cprev, phi_block(:,i-1,n-1)) &
-        - matmul(cprev + cnext, phi_block(:,i,n-1)) &
-        + matmul(cnext, phi_block(:,i+1,n-1))
+      pn_prev_source(:,i) = matmul(cprev, phi_block(:,i-1,idxn+1-2)) &
+        - matmul(cprev + cnext, phi_block(:,i,idxn+1-2)) &
+        + matmul(cnext, phi_block(:,i+1,idxn+1-2))
     enddo ! i = 2,nx-1
 
     ! BC at x=L, i=N
@@ -411,10 +415,12 @@ contains
     cprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(ghat_this, matinv), ghat_prev)
     select case (boundary_right)
       case ('mirror')
-        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,n-1)) - matmul(cprev, phi_block(:,nx,n-1))
+        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,idxn+1-2)) &
+          - matmul(cprev, phi_block(:,nx,idxn+1-2))
       case ('zero')
-        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,n-1)) - matmul(cprev, phi_block(:,nx,n-1)) &
-          - 2.0_rk/dx(nx) * matmul(ghat_this, phi_block(:,nx,n-1))
+        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,n-1)) &
+          - matmul(cprev, phi_block(:,nx,idxn+1-2)) &
+          - 2.0_rk/dx(nx) * matmul(ghat_this, phi_block(:,nx,idxn+1-2))
       case default
         call exception_fatal('unknown boundary_right in prev_source: ' // trim(adjustl(boundary_right)))
     endselect
@@ -501,7 +507,7 @@ contains
     real(rk), allocatable :: pn_next_source(:,:,:) ! (ngroup,nx,neven) -- for all moments
     real(rk), allocatable :: q(:,:) ! (ngroup,nx)
 
-    real(rk), allocatable :: phi_block(:,:,:), phi_old(:,:,:) ! (ngroup,nx,nmoment)
+    real(rk), allocatable :: phi_block(:,:,:), phi_old(:,:,:) ! (ngroup,nx,pnorder+1)
 
     character(1024) :: line
 
@@ -522,11 +528,11 @@ contains
     allocate(pn_next_source(xslib%ngroup,nx,neven))
     allocate(q(xslib%ngroup,nx))
 
-    allocate(phi_block(xslib%ngroup,nx,neven))
-    allocate(phi_old(xslib%ngroup,nx,neven))
+    allocate(phi_block(xslib%ngroup,nx,pnorder+1))
+    allocate(phi_old(xslib%ngroup,nx,pnorder+1))
 
     phi_block(:,:,1) = 1d0
-    phi_block(:,:,2:neven) = 0d0
+    phi_block(:,:,2:pnorder+1) = 0d0
     keff = 1d0
     fsum = 1d0
 
@@ -567,7 +573,7 @@ contains
         sub_copy = sub(:,:,:,n)
         dia_copy = dia(:,:,:,n)
         sup_copy = sup(:,:,:,n)
-        call trid_block(nx, xslib%ngroup, sub_copy, dia_copy, sup_copy, q, phi_block(:,:,n))
+        call trid_block(nx, xslib%ngroup, sub_copy, dia_copy, sup_copy, q, phi_block(:,:,idxn+1))
         call timer_stop('transport_block_tridiagonal')
       enddo ! n = 1,neven
 
@@ -599,23 +605,30 @@ contains
       call exception_warning('failed to converge')
     endif
 
+    ! TODO need to compute odd moments and transport xs as an edit
+    call transport_block_calc_odd(nx, dx, mat_map, xslib, phi_block)
     ! copy before exit
     do i = 1,nx
       do g = 1,xslib%ngroup
-        do n = 1,neven
-          phi(i,g,2*(n-1)+1) = phi_block(g,i,n)
+        do n = 1,pnorder+1
+          phi(i,g,n) = phi_block(g,i,n)
         enddo ! n = 1,neven
       enddo ! g = 1,xslib%ngroup
     enddo ! i = 1,nx
-    ! TODO need to compute odd moments and transport xs as an edit
-      do n = 2,pnorder,2
-      phi(:,:,n) = 0d0
-    enddo
 
     deallocate(fsource, pn_prev_source, pn_next_source, q)
     deallocate(phi_block, phi_old)
     deallocate(sub, dia, sup)
     deallocate(sub_copy, dia_copy, sup_copy)
   endsubroutine transport_block_power_iteration
+
+  subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, phi_block)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(inout) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+  endsubroutine transport_block_calc_odd
 
 endmodule transport_block
