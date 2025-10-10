@@ -46,6 +46,7 @@ if __name__ == "__main__":
     ngroup = sigma_tr.shape[1]
 
     for n in range(pnorder):
+
         plt.figure()
         for g in range(ngroup):
             plt.plot(x, sigma_tr[n, g, :], label="g={:d}".format(g + 1))
@@ -56,4 +57,23 @@ if __name__ == "__main__":
         plt.title("Siren $\\Sigma_{{tr}}$ {:d}".format(n))
         plt.tight_layout()
         plt.savefig("sigma_tr_n{:d}".format(n) + extension, dpi=dpi)
+
+    for n in range(0, pnorder, 2):
+        plt.figure()
+        for g in range(ngroup):
+            xnext = (n + 1) * (n + 1) / ((2 * n + 1) * (2 * n + 3))
+            xprev = n * n / ((2 * n + 1) * (2 * n - 1))
+            if n == 0:
+                d = xnext / sigma_tr[n + 1, g, :]
+            else:
+                d = xnext / sigma_tr[n + 1, g, :] + xprev / sigma_tr[n - 1, g, :]
+            plt.plot(x, d, label="g={:d}".format(g + 1))
+        if ngroup <= 10:
+            plt.legend()
+        plt.xlabel("x [cm]")
+        plt.ylabel("$D_g(x)$")
+        plt.title("Coefficient of Diffusivity n={:d}".format(n))
+        plt.tight_layout()
+        plt.savefig("diff_n{:d}".format(n) + extension, dpi=dpi)
+
     plt.show()
