@@ -237,7 +237,7 @@ contains
     allocate(matinv(xslib%ngroup,xslib%ngroup))
 
     ! NOTE: there is no "next" source after the last moment
-    pn_next_source(:,:,neven) = 0d0
+    pn_next_source(1:xslib%ngroup,1:nx,neven) = 0d0
 
     ! BC at x=0, i=1
     mthis = mat_map(1)
@@ -246,14 +246,14 @@ contains
       idxn = 2*(n-1)
       xn = real(idxn, rk)
       xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-      call transport_invtransmat(xslib%mat(mthis), idxn, trans_this)
-      call transport_invtransmat(xslib%mat(mnext), idxn, trans_next)
+      call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
+      call transport_invtransmat(xslib%mat(mnext), idxn+1, trans_next)
       fhat_this = xmul*trans_this
       fhat_next = xmul*trans_next
       bnext = fhat_next/dx(2) + fhat_this/dx(1)
       call inv(xslib%ngroup, bnext, matinv)
       bnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(fhat_this, matinv), fhat_next)
-      pn_next_source(:,1,n) = matmul(bnext, phi_block(:,1,n+1))
+      pn_next_source(:,1,n) = -matmul(bnext, phi_block(:,1,n+1)) + matmul(bnext, phi_block(:,2,n+1))
     enddo ! n = 1,neven-1
 
     do i = 2,nx-1
@@ -261,8 +261,56 @@ contains
       mthis = mat_map(i)
       mnext = mat_map(i+1)
       do n = 1,neven-1
+        idxn = 2*(n-1)
+        xn = real(idxn, rk)
+        xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+
+        call transport_invtransmat(xslib%mat(mprev), idxn+1, trans_prev)
+        call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
+        call transport_invtransmat(xslib%mat(mnext), idxn+1, trans_next)
+
+        fhat_prev = xmul*trans_prev
+        fhat_this = xmul*trans_this
+        fhat_next = xmul*trans_next
+
+        bprev = fhat_prev/dx(i-1) + fhat_this/dx(i)
+        call inv(xslib%ngroup, bprev, matinv)
+        bprev = 2.0_rk/dx(i)/dx(i-1) * matmul(matmul(fhat_this, matinv), fhat_prev)
+
+        bnext = fhat_next/dx(i+1) + fhat_this/dx(i)
+        call inv(xslib%ngroup, bnext, matinv)
+        bnext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(fhat_this, matinv), fhat_next)
+
+        pn_next_source(:,i,n) = matmul(bprev, phi_block(:,i-1,n+1)) &
+          - matmul(bprev + bnext, phi_block(:,i,n+1)) &
+          + matmul(bnext, phi_block(:,i+1,n+1))
       enddo
     enddo ! i = 2,nx-1
+
+    ! BC at x=L, i=N
+    mprev = mat_map(nx-1)
+    mthis = mat_map(nx)
+    do n = 1,neven-1
+      idxn = 2*(n-1)
+      xn = real(idxn, rk)
+      xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+      call transport_invtransmat(xslib%mat(mprev), idxn+1, trans_prev)
+      call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
+      fhat_prev = xmul*trans_prev
+      fhat_this = xmul*trans_this
+      bprev = fhat_prev/dx(nx-1) + fhat_this/dx(nx)
+      call inv(xslib%ngroup, bprev, matinv)
+      bnext = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(fhat_this, matinv), fhat_prev)
+      select case (boundary_right)
+        case ('mirror')
+          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,n+1)) - matmul(bprev, phi_block(:,nx,n+1)) 
+        case ('zero')
+          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,n+1)) - matmul(bprev, phi_block(:,nx,n+1)) &
+            - 2.0_rk/dx(nx) * matmul(fhat_this, phi_block(:,nx,n+1))
+        case default
+          call exception_fatal('unknown boundary_right in next_source: ' // trim(adjustl(boundary_right)))
+      endselect
+    enddo ! n = 1,neven
 
     deallocate(matinv)
     deallocate(bnext, bprev)
@@ -272,6 +320,7 @@ contains
 
   subroutine transport_block_build_prev_source(nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
     use xs, only : XSLibrary
+    use linalg, only : inv
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -280,7 +329,100 @@ contains
     integer(ik), intent(in) :: idxn
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,neven)
     real(rk), intent(out) :: pn_prev_source(:,:) ! (ngroup,nx)
-    pn_prev_source = 0d0
+
+    integer(ik) :: i, n
+    integer(ik) :: mprev, mthis, mnext
+
+    real(rk) :: xn, xmul
+    
+    real(rk), allocatable :: ghat_prev(:,:), ghat_this(:,:), ghat_next(:,:)
+    real(rk), allocatable :: trans_prev(:,:), trans_this(:,:), trans_next(:,:)
+    real(rk), allocatable :: cnext(:,:), cprev(:,:)
+    real(rk), allocatable :: matinv(:,:)
+
+    allocate(&
+      ghat_prev(xslib%ngroup,xslib%ngroup),&
+      ghat_this(xslib%ngroup,xslib%ngroup),&
+      ghat_next(xslib%ngroup,xslib%ngroup),&
+    )
+    allocate(&
+      trans_prev(xslib%ngroup,xslib%ngroup),&
+      trans_this(xslib%ngroup,xslib%ngroup),&
+      trans_next(xslib%ngroup,xslib%ngroup),&
+    )
+    allocate(cnext(xslib%ngroup,xslib%ngroup), cprev(xslib%ngroup,xslib%ngroup))
+    allocate(matinv(xslib%ngroup,xslib%ngroup))
+
+    pn_prev_source(1:xslib%ngroup,1:nx) = 0d0
+    if (idxn < 2) then
+      return
+    endif
+
+    xn = real(idxn, rk)
+    xmul = (xn**2-xn)/(4.0_rk*xn**2 - 1.0_rk)
+    n = idxn/2 + 1
+
+    ! BC at x=0, i=1
+    mthis = mat_map(1)
+    mnext = mat_map(2)
+    call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
+    call transport_invtransmat(xslib%mat(mnext), idxn-1, trans_next)
+    ghat_this = xmul*trans_this
+    ghat_next = xmul*trans_next
+    cnext = ghat_next/dx(2) + ghat_this/dx(1)
+    call inv(xslib%ngroup, cnext, matinv)
+    cnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(ghat_this, matinv), ghat_next)
+    pn_prev_source(:,1) = -matmul(cnext, phi_block(:,1,n-1)) + matmul(cnext, phi_block(:,2,n-1))
+
+    do i = 2,nx-1
+      mprev = mat_map(i-1)
+      mthis = mat_map(i)
+      mnext = mat_map(i+1)
+
+      call transport_invtransmat(xslib%mat(mprev), idxn-1, trans_prev)
+      call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
+      call transport_invtransmat(xslib%mat(mnext), idxn-1, trans_next)
+      ghat_prev = xmul * trans_prev
+      ghat_this = xmul * trans_this
+      ghat_next = xmul * trans_next
+
+      cprev = ghat_prev/dx(i-1) + ghat_this/dx(i)
+      call inv(xslib%ngroup, cprev, matinv)
+      cprev = 2.0_rk/dx(i)/dx(i-1) * matmul(matmul(ghat_this, matinv), ghat_prev)
+
+      cnext = ghat_next/dx(i+1) + ghat_this/dx(i)
+      call inv(xslib%ngroup, cnext, matinv)
+      cnext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(ghat_this, matinv), ghat_next)
+
+      pn_prev_source(:,i) = matmul(cprev, phi_block(:,i-1,n-1)) &
+        - matmul(cprev + cnext, phi_block(:,i,n-1)) &
+        + matmul(cnext, phi_block(:,i+1,n-1))
+    enddo ! i = 2,nx-1
+
+    ! BC at x=L, i=N
+    mprev = mat_map(nx-1)
+    mthis = mat_map(nx)
+    call transport_invtransmat(xslib%mat(mprev), idxn-1, trans_prev)
+    call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
+    ghat_prev = xmul*trans_prev
+    ghat_this = xmul*trans_this
+    cprev = ghat_prev/dx(nx-1) + ghat_this/dx(nx)
+    call inv(xslib%ngroup, cprev, matinv)
+    cprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(ghat_this, matinv), ghat_prev)
+    select case (boundary_right)
+      case ('mirror')
+        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,n-1)) - matmul(cprev, phi_block(:,nx,n-1))
+      case ('zero')
+        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,n-1)) - matmul(cprev, phi_block(:,nx,n-1)) &
+          - 2.0_rk/dx(nx) * matmul(ghat_this, phi_block(:,nx,n-1))
+      case default
+        call exception_fatal('unknown boundary_right in prev_source: ' // trim(adjustl(boundary_right)))
+    endselect
+
+    deallocate(matinv)
+    deallocate(cnext, cprev)
+    deallocate(trans_prev, trans_this, trans_next)
+    deallocate(ghat_prev, ghat_this, ghat_next)
   endsubroutine transport_block_build_prev_source
 
   subroutine transport_block_build_fsource(nx, dx, mat_map, xslib, phi_block, fsource)
@@ -385,7 +527,6 @@ contains
 
     phi_block(:,:,1) = 1d0
     phi_block(:,:,2:neven) = 0d0
-
     keff = 1d0
     fsum = 1d0
 
@@ -437,7 +578,7 @@ contains
       delta_phi = maxval(abs(phi_block - phi_old)) / maxval(phi_block)
       call timer_stop('transport_convergence')
 
-      if ((keff < 0.0_rk) .or. (keff > 2.0_rk) .or. (keff /= keff)) then
+      if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
         write(*,*) 'invalid keff', keff
         stop
       endif
@@ -467,6 +608,9 @@ contains
       enddo ! g = 1,xslib%ngroup
     enddo ! i = 1,nx
     ! TODO need to compute odd moments and transport xs as an edit
+      do n = 2,pnorder,2
+      phi(:,:,n) = 0d0
+    enddo
 
     deallocate(fsource, pn_prev_source, pn_next_source, q)
     deallocate(phi_block, phi_old)
