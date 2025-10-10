@@ -92,8 +92,8 @@ contains
       if (idxn > 1) then
         call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
         call transport_invtransmat(xslib%mat(mnext), idxn-1, trans_next)
-        dhat_this = dhat_next + xmul_prev * trans_this
-        dhat_next = dhat_this + xmul_prev * trans_next
+        dhat_this = dhat_this + xmul_prev * trans_this
+        dhat_next = dhat_next + xmul_prev * trans_next
       endif
       anext = dhat_next/dx(2) + dhat_this/dx(1)
       call inv(xslib%ngroup, anext, matinv)
