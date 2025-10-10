@@ -16,7 +16,10 @@ contains
   ! x1    x2    x3
   ! h_left|h_right
   !
-  ! See: 
+  ! See:
+  ! - numpy.gradient https://numpy.org/doc/stable/reference/generated/numpy.gradient.html
+  ! - Forgnberg, Bengt. "Generation of Finite Difference Formulas on Aribtrarily Spaced Grids."
+  !   Mathematics of Computation. Volume 51, Number 184. October 1988.
   real(rk) pure function deriv(x1, x2, x3, f1, f2, f3)
     real(rk), intent(in) :: x1, x2, x3 ! x-coordinate
     real(rk), intent(in) :: f1, f2, f3 ! function value
