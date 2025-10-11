@@ -129,7 +129,7 @@ contains
 
         anext = dhat_next/dx(i+1) + dhat_this/dx(i)
         call inv(xslib%ngroup, anext, matinv)
-        anext = 2.0_rk/dx(i)/dx(i-1) * matmul(matmul(dhat_this, matinv), dhat_next)
+        anext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(dhat_this, matinv), dhat_next)
 
         sub(:,:,i-1,n) = -aprev
         dia(:,:,i,n) = aprev + anext
