@@ -6,6 +6,8 @@ implicit none
 private
 public :: transport_block_power_iteration
 
+real(rk), allocatable :: invtransmat(:,:,:,:) ! (ngroup,ngroup,pnorder+1,xslib%niso)
+
 contains
 
   subroutine transport_invtransmat(xsmat, idxn, mat)
@@ -84,16 +86,12 @@ contains
       xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
       xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
       ! XNEXT
-      call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
-      call transport_invtransmat(xslib%mat(mnext), idxn+1, trans_next)
-      dhat_this = xmul_next * trans_this
-      dhat_next = xmul_next * trans_next
+      dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
+      dhat_next = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
       ! XPREV
       if (idxn > 1) then
-        call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
-        call transport_invtransmat(xslib%mat(mnext), idxn-1, trans_next)
-        dhat_this = dhat_this + xmul_prev * trans_this
-        dhat_next = dhat_next + xmul_prev * trans_next
+        dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
+        dhat_next = dhat_next + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
       endif
       anext = dhat_next/dx(2) + dhat_this/dx(1)
       call inv(xslib%ngroup, anext, matinv)
@@ -114,21 +112,15 @@ contains
         xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
 
         ! XNEXT
-        call transport_invtransmat(xslib%mat(mprev), idxn+1, trans_prev)
-        call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
-        call transport_invtransmat(xslib%mat(mnext), idxn+1, trans_next)
-        dhat_prev = xmul_next * trans_prev
-        dhat_this = xmul_next * trans_this
-        dhat_next = xmul_next * trans_next
+        dhat_prev = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
+        dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
+        dhat_next = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
 
         ! XPREV
         if (idxn > 1) then
-          call transport_invtransmat(xslib%mat(mprev), idxn-1, trans_prev)
-          call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
-          call transport_invtransmat(xslib%mat(mnext), idxn-1, trans_next)
-          dhat_prev = dhat_prev + xmul_prev * trans_prev
-          dhat_this = dhat_this + xmul_prev * trans_this
-          dhat_next = dhat_next + xmul_prev * trans_next
+          dhat_prev = dhat_prev + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
+          dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
+          dhat_next = dhat_next + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
         endif
 
         aprev = dhat_prev/dx(i-1) + dhat_this/dx(i)
@@ -155,16 +147,12 @@ contains
       xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
       xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
       ! XNEXT
-      call transport_invtransmat(xslib%mat(mprev), idxn+1, trans_prev)
-      call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
-      dhat_prev = xmul_next * trans_prev
-      dhat_this = xmul_next * trans_this
+      dhat_prev = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
+      dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
       ! XPREV
       if (idxn > 1) then
-        call transport_invtransmat(xslib%mat(mprev), idxn-1, trans_prev)
-        call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
-        dhat_prev = dhat_prev + xmul_prev * trans_prev
-        dhat_this = dhat_this + xmul_prev * trans_this
+        dhat_prev = dhat_prev + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
+        dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
       endif
       aprev = dhat_prev/dx(nx-1) + dhat_this/dx(nx)
       call inv(xslib%ngroup, aprev, matinv)
@@ -246,10 +234,8 @@ contains
       idxn = 2*(n-1)
       xn = real(idxn, rk)
       xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-      call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
-      call transport_invtransmat(xslib%mat(mnext), idxn+1, trans_next)
-      fhat_this = xmul*trans_this
-      fhat_next = xmul*trans_next
+      fhat_this = xmul * invtransmat(:,:,idxn+1+1,mthis)
+      fhat_next = xmul * invtransmat(:,:,idxn+1+1,mnext)
       bnext = fhat_next/dx(2) + fhat_this/dx(1)
       call inv(xslib%ngroup, bnext, matinv)
       bnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(fhat_this, matinv), fhat_next)
@@ -266,13 +252,9 @@ contains
         xn = real(idxn, rk)
         xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
 
-        call transport_invtransmat(xslib%mat(mprev), idxn+1, trans_prev)
-        call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
-        call transport_invtransmat(xslib%mat(mnext), idxn+1, trans_next)
-
-        fhat_prev = xmul*trans_prev
-        fhat_this = xmul*trans_this
-        fhat_next = xmul*trans_next
+        fhat_prev = xmul * invtransmat(:,:,idxn+1+1,mprev)
+        fhat_this = xmul * invtransmat(:,:,idxn+1+1,mthis)
+        fhat_next = xmul * invtransmat(:,:,idxn+1+1,mnext)
 
         bprev = fhat_prev/dx(i-1) + fhat_this/dx(i)
         call inv(xslib%ngroup, bprev, matinv)
@@ -295,10 +277,8 @@ contains
       idxn = 2*(n-1)
       xn = real(idxn, rk)
       xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-      call transport_invtransmat(xslib%mat(mprev), idxn+1, trans_prev)
-      call transport_invtransmat(xslib%mat(mthis), idxn+1, trans_this)
-      fhat_prev = xmul*trans_prev
-      fhat_this = xmul*trans_this
+      fhat_prev = xmul * invtransmat(:,:,idxn+1+1,mprev)
+      fhat_this = xmul * invtransmat(:,:,idxn+1+1,mthis)
       bprev = fhat_prev/dx(nx-1) + fhat_this/dx(nx)
       call inv(xslib%ngroup, bprev, matinv)
       bprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(fhat_this, matinv), fhat_prev)
@@ -368,10 +348,8 @@ contains
     ! BC at x=0, i=1
     mthis = mat_map(1)
     mnext = mat_map(2)
-    call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
-    call transport_invtransmat(xslib%mat(mnext), idxn-1, trans_next)
-    ghat_this = xmul*trans_this
-    ghat_next = xmul*trans_next
+    ghat_this = xmul * invtransmat(:,:,idxn+1-1,mthis)
+    ghat_next = xmul * invtransmat(:,:,idxn+1-1,mnext)
     cnext = ghat_next/dx(2) + ghat_this/dx(1)
     call inv(xslib%ngroup, cnext, matinv)
     cnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(ghat_this, matinv), ghat_next)
@@ -383,12 +361,9 @@ contains
       mthis = mat_map(i)
       mnext = mat_map(i+1)
 
-      call transport_invtransmat(xslib%mat(mprev), idxn-1, trans_prev)
-      call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
-      call transport_invtransmat(xslib%mat(mnext), idxn-1, trans_next)
-      ghat_prev = xmul * trans_prev
-      ghat_this = xmul * trans_this
-      ghat_next = xmul * trans_next
+      ghat_prev = xmul * invtransmat(:,:,idxn+1-1,mprev)
+      ghat_this = xmul * invtransmat(:,:,idxn+1-1,mthis)
+      ghat_next = xmul * invtransmat(:,:,idxn+1-1,mnext)
 
       cprev = ghat_prev/dx(i-1) + ghat_this/dx(i)
       call inv(xslib%ngroup, cprev, matinv)
@@ -406,10 +381,8 @@ contains
     ! BC at x=L, i=N
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    call transport_invtransmat(xslib%mat(mprev), idxn-1, trans_prev)
-    call transport_invtransmat(xslib%mat(mthis), idxn-1, trans_this)
-    ghat_prev = xmul*trans_prev
-    ghat_this = xmul*trans_this
+    ghat_prev = xmul * invtransmat(:,:,idxn+1-1,mprev)
+    ghat_this = xmul * invtransmat(:,:,idxn+1-1,mthis)
     cprev = ghat_prev/dx(nx-1) + ghat_this/dx(nx)
     call inv(xslib%ngroup, cprev, matinv)
     cprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(ghat_this, matinv), ghat_prev)
@@ -540,16 +513,28 @@ contains
 
     call output_write('=== PN TRANSPORT BLOCK POWER ITERATION ===')
 
+    call timer_start('transport_invtransmat')
+    allocate(invtransmat(xslib%ngroup,xslib%ngroup,pnorder+1,xslib%niso))
+    do i = 1,xslib%niso
+      do n = 1,pnorder+1
+        call transport_invtransmat(xslib%mat(i), n-1, invtransmat(:,:,n,i))
+      enddo ! n = 1,pnorder+1
+    enddo ! i = 1,xslib%niso
+    call timer_stop('transport_invtransmat')
+
+    call output_write('  building transport matrix')
     call timer_start('transport_build_matrix')
     call transport_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
+    call output_write('  beginning iterations')
     do iter = 1,max_iter
+
       k_old = keff
       phi_old = phi_block
       fsum_old = fsum
 
-      call timer_stop('transport_pn_source')
+      call timer_start('transport_pn_source')
       call transport_block_build_next_source(nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
       call timer_stop('transport_pn_source')
 
@@ -607,9 +592,13 @@ contains
       call exception_warning('failed to converge')
     endif
 
+    call timer_start('calc_odd')
     call transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
+    call timer_stop('calc_odd')
+    call timer_start('calc_transportxs')
     call transport_block_calc_transportxs(nx, mat_map, xslib, pnorder, phi_block, sigma_tr)
-    ! copy before exit
+    call timer_stop('calc_transportxs')
+    ! copy before exit to reorder
     do i = 1,nx
       do g = 1,xslib%ngroup
         do n = 1,pnorder+1
@@ -617,6 +606,8 @@ contains
         enddo ! n = 1,neven
       enddo ! g = 1,xslib%ngroup
     enddo ! i = 1,nx
+
+    deallocate(invtransmat)
 
     deallocate(fsource, pn_prev_source, pn_next_source, q)
     deallocate(phi_block, phi_old)
