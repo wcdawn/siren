@@ -132,6 +132,7 @@ contains
         case ('scatter')
           if (.not. allocated(xslib%mat(pnt)%scatter)) then
             allocate(xslib%mat(pnt)%scatter(xslib%ngroup, xslib%ngroup, xslib%nmoment))
+            xslib%mat(pnt)%scatter = 0.0_rk
           endif
           read(line, *) card, mom
           do i = 1,xslib%ngroup
