@@ -43,6 +43,7 @@ contains
   subroutine transport_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
     use linalg, only : inv
+    use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -59,24 +60,27 @@ contains
 
     real(rk) :: xn, xmul_next, xmul_prev
 
-    real(rk), allocatable :: dhat_prev(:,:), dhat_this(:,:), dhat_next(:,:)
-    real(rk), allocatable :: trans_prev(:,:), trans_this(:,:), trans_next(:,:)
-    real(rk), allocatable :: anext(:,:), aprev(:,:)
-    real(rk), allocatable :: matinv(:,:)
+    real(rk), allocatable :: dhat_prev(:,:,:), dhat_this(:,:,:), dhat_next(:,:,:)
+    real(rk), allocatable :: anext(:,:,:), aprev(:,:,:)
+    real(rk), allocatable :: matinv(:,:,:)
+
+    integer :: nthread, myid
+
+    !$omp parallel default(none) shared(nthread) private(myid)
+    nthread = omp_get_num_threads()
+    !$omp end parallel
 
     allocate(&
-      dhat_prev(xslib%ngroup,xslib%ngroup), &
-      dhat_this(xslib%ngroup,xslib%ngroup), &
-      dhat_next(xslib%ngroup,xslib%ngroup)&
+      dhat_prev(xslib%ngroup,xslib%ngroup,nthread), &
+      dhat_this(xslib%ngroup,xslib%ngroup,nthread), &
+      dhat_next(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(&
-      trans_prev(xslib%ngroup,xslib%ngroup), &
-      trans_this(xslib%ngroup,xslib%ngroup), &
-      trans_next(xslib%ngroup,xslib%ngroup)&
-    )
-    allocate(anext(xslib%ngroup,xslib%ngroup), aprev(xslib%ngroup,xslib%ngroup))
-    allocate(matinv(xslib%ngroup,xslib%ngroup))
+      anext(xslib%ngroup,xslib%ngroup,nthread), &
+      aprev(xslib%ngroup,xslib%ngroup,nthread))
+    allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
 
+    myid = 1
     ! BC at x=0, i=1
     mthis = mat_map(1)
     mnext = mat_map(2)
@@ -86,59 +90,74 @@ contains
       xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
       xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
       ! XNEXT
-      dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
-      dhat_next = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
+      dhat_this(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
+      dhat_next(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
       ! XPREV
       if (idxn > 1) then
-        dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
-        dhat_next = dhat_next + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
+        dhat_this(:,:,myid) = dhat_this(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
+        dhat_next(:,:,myid) = dhat_next(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
       endif
-      anext = dhat_next/dx(2) + dhat_this/dx(1)
-      call inv(xslib%ngroup, anext, matinv)
-      anext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(dhat_this, matinv), dhat_next)
-      dia(:,:,1,n) = anext
-      sup(:,:,1,n) = -anext
+      anext(:,:,myid) = dhat_next(:,:,myid)/dx(2) + dhat_this(:,:,myid)/dx(1)
+      call inv(xslib%ngroup, anext(:,:,myid), matinv(:,:,myid))
+      anext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
+        * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_next(:,:,myid))
+      dia(:,:,1,n) = anext(:,:,myid)
+      sup(:,:,1,n) = -anext(:,:,myid)
     enddo ! n = 1,neven
 
+    !$omp parallel do default(none) &
+    !$omp shared(nx, neven) &
+    !$omp private(myid, i, mprev, mthis, mnext) &
+    !$omp shared (dx, mat_map, xslib) &
+    !$omp private(n, idxn, xn, xmul_next, xmul_prev) &
+    !$omp shared (dhat_prev, dhat_this, dhat_next, aprev, anext, matinv, invtransmat) &
+    !$omp shared (sub, sup, dia)
     do i = 2,nx-1
+      myid = omp_get_thread_num() + 1
+
       mprev = mat_map(i-1)
       mthis = mat_map(i)
       mnext = mat_map(i+1)
 
       do n = 1,neven
         idxn = 2*(n-1)
+
         xn = real(idxn, rk)
         xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
         xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
 
         ! XNEXT
-        dhat_prev = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
-        dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
-        dhat_next = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
+        dhat_prev(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
+        dhat_this(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
+        dhat_next(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
 
         ! XPREV
         if (idxn > 1) then
-          dhat_prev = dhat_prev + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
-          dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
-          dhat_next = dhat_next + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
+          dhat_prev(:,:,myid) = dhat_prev(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
+          dhat_this(:,:,myid) = dhat_this(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
+          dhat_next(:,:,myid) = dhat_next(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
         endif
 
-        aprev = dhat_prev/dx(i-1) + dhat_this/dx(i)
-        call inv(xslib%ngroup, aprev, matinv)
-        aprev = 2.0_rk/dx(i)/dx(i-1) * matmul(matmul(dhat_this, matinv), dhat_prev)
+        aprev(:,:,myid) = dhat_prev(:,:,myid)/dx(i-1) + dhat_this(:,:,myid)/dx(i)
+        call inv(xslib%ngroup, aprev(:,:,myid), matinv(:,:,myid))
+        aprev(:,:,myid) = 2.0_rk/dx(i)/dx(i-1) &
+          * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_prev(:,:,myid))
 
-        anext = dhat_next/dx(i+1) + dhat_this/dx(i)
-        call inv(xslib%ngroup, anext, matinv)
-        anext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(dhat_this, matinv), dhat_next)
+        anext(:,:,myid) = dhat_next(:,:,myid)/dx(i+1) + dhat_this(:,:,myid)/dx(i)
+        call inv(xslib%ngroup, anext(:,:,myid), matinv(:,:,myid))
+        anext(:,:,myid) = 2.0_rk/dx(i)/dx(i+1) &
+          * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_next(:,:,myid))
 
-        sub(:,:,i-1,n) = -aprev
-        dia(:,:,i,n) = aprev + anext
-        sup(:,:,i,n) = -anext
+        sub(:,:,i-1,n) = -aprev(:,:,myid)
+        dia(:,:,i,n) = aprev(:,:,myid) + anext(:,:,myid)
+        sup(:,:,i,n) = -anext(:,:,myid)
 
       enddo ! n = 1,neven
     enddo ! i = 2,nx-1
+    !$omp end parallel do
 
     ! BC at x=L, i=N
+    myid = 1
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
     do n = 1,neven
@@ -147,23 +166,24 @@ contains
       xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
       xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
       ! XNEXT
-      dhat_prev = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
-      dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
+      dhat_prev(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
+      dhat_this(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
       ! XPREV
       if (idxn > 1) then
-        dhat_prev = dhat_prev + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
-        dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
+        dhat_prev(:,:,myid) = dhat_prev(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
+        dhat_this(:,:,myid) = dhat_this(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
       endif
-      aprev = dhat_prev/dx(nx-1) + dhat_this/dx(nx)
-      call inv(xslib%ngroup, aprev, matinv)
-      aprev = 2.0_rk/dx(nx)/dx(nx-1) * matmul(matmul(dhat_this, matinv), dhat_prev)
+      aprev(:,:,myid) = dhat_prev(:,:,myid)/dx(nx-1) + dhat_this(:,:,myid)/dx(nx)
+      call inv(xslib%ngroup, aprev(:,:,myid), matinv(:,:,myid))
+      aprev(:,:,myid) = 2.0_rk/dx(nx)/dx(nx-1) &
+        * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_prev(:,:,myid))
       select case (boundary_right)
         case ('mirror')
-          sub(:,:,nx-1,n) = -aprev
-          dia (:,:,nx,n) = aprev
+          sub(:,:,nx-1,n) = -aprev(:,:,myid)
+          dia (:,:,nx,n) = aprev(:,:,myid)
         case ('zero')
-          sub(:,:,nx-1,n) = -aprev
-          dia(:,:,nx,n) = aprev + 2 * dhat_this/dx(nx)
+          sub(:,:,nx-1,n) = -aprev(:,:,myid)
+          dia(:,:,nx,n) = aprev(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(nx)
         case default
           call exception_fatal('unknown boundary_right: ' // trim(adjustl(boundary_right)))
       endselect
@@ -185,7 +205,6 @@ contains
 
     deallocate(matinv)
     deallocate(anext, aprev)
-    deallocate(trans_prev, trans_this, trans_next)
     deallocate(dhat_prev, dhat_this, dhat_next)
   endsubroutine transport_block_build_matrix
 
@@ -207,7 +226,6 @@ contains
     real(rk) :: xn, xmul
 
     real(rk), allocatable :: fhat_prev(:,:), fhat_this(:,:), fhat_next(:,:)
-    real(rk), allocatable :: trans_prev(:,:), trans_this(:,:), trans_next(:,:)
     real(rk), allocatable :: bnext(:,:), bprev(:,:)
     real(rk), allocatable :: matinv(:,:)
 
@@ -215,11 +233,6 @@ contains
       fhat_prev(xslib%ngroup,xslib%ngroup),&
       fhat_this(xslib%ngroup,xslib%ngroup),&
       fhat_next(xslib%ngroup,xslib%ngroup),&
-    )
-    allocate(&
-      trans_prev(xslib%ngroup,xslib%ngroup),&
-      trans_this(xslib%ngroup,xslib%ngroup),&
-      trans_next(xslib%ngroup,xslib%ngroup),&
     )
     allocate(bnext(xslib%ngroup,xslib%ngroup), bprev(xslib%ngroup,xslib%ngroup))
     allocate(matinv(xslib%ngroup,xslib%ngroup))
@@ -297,7 +310,6 @@ contains
 
     deallocate(matinv)
     deallocate(bnext, bprev)
-    deallocate(trans_prev, trans_this, trans_next)
     deallocate(fhat_prev, fhat_this, fhat_next)
   endsubroutine transport_block_build_next_source
 
@@ -319,7 +331,6 @@ contains
     real(rk) :: xn, xmul
     
     real(rk), allocatable :: ghat_prev(:,:), ghat_this(:,:), ghat_next(:,:)
-    real(rk), allocatable :: trans_prev(:,:), trans_this(:,:), trans_next(:,:)
     real(rk), allocatable :: cnext(:,:), cprev(:,:)
     real(rk), allocatable :: matinv(:,:)
 
@@ -327,11 +338,6 @@ contains
       ghat_prev(xslib%ngroup,xslib%ngroup),&
       ghat_this(xslib%ngroup,xslib%ngroup),&
       ghat_next(xslib%ngroup,xslib%ngroup),&
-    )
-    allocate(&
-      trans_prev(xslib%ngroup,xslib%ngroup),&
-      trans_this(xslib%ngroup,xslib%ngroup),&
-      trans_next(xslib%ngroup,xslib%ngroup),&
     )
     allocate(cnext(xslib%ngroup,xslib%ngroup), cprev(xslib%ngroup,xslib%ngroup))
     allocate(matinv(xslib%ngroup,xslib%ngroup))
@@ -400,7 +406,6 @@ contains
 
     deallocate(matinv)
     deallocate(cnext, cprev)
-    deallocate(trans_prev, trans_this, trans_next)
     deallocate(ghat_prev, ghat_this, ghat_next)
   endsubroutine transport_block_build_prev_source
 
@@ -450,7 +455,7 @@ contains
   subroutine transport_block_power_iteration(&
     nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr,phi)
     use xs, only : XSLibrary
-    use linalg, only : trid_block
+    use linalg, only : trid_block, count_inv
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     integer(ik), intent(in) :: nx
@@ -591,6 +596,9 @@ contains
     if (iter > max_iter) then
       call exception_warning('failed to converge')
     endif
+
+    write(line, '(a,i0)') 'number of dense matrix inversions: ', count_inv
+    call output_write(line)
 
     call timer_start('calc_odd')
     call transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)

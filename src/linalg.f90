@@ -6,6 +6,8 @@ private
 
 public :: trid, norm, trid_block, inv
 
+integer(ik) , public :: count_inv = 0
+
 contains
 
   real(rk) function norm(ell, x)
@@ -61,6 +63,8 @@ contains
     ! scratch space used by LAPACK
     integer, allocatable :: ipiv(:)
     real(rk), allocatable :: work(:)
+
+    count_inv = count_inv + 1
 
     allocate(ipiv(n))
     allocate(work(n))
