@@ -66,14 +66,14 @@ contains
 
     integer :: nthread, myid
 
-    !$omp parallel default(none) shared(nthread) private(myid)
+    !$omp parallel
     nthread = omp_get_num_threads()
     !$omp end parallel
 
     allocate(&
-      dhat_prev(xslib%ngroup,xslib%ngroup,nthread), &
-      dhat_this(xslib%ngroup,xslib%ngroup,nthread), &
-      dhat_next(xslib%ngroup,xslib%ngroup,nthread)&
+      dhat_prev(xslib%ngroup,xslib%ngroup,nthread),&
+      dhat_this(xslib%ngroup,xslib%ngroup,nthread),&
+      dhat_next(xslib%ngroup,xslib%ngroup,nthread),&
     )
     allocate(&
       anext(xslib%ngroup,xslib%ngroup,nthread), &
@@ -211,6 +211,7 @@ contains
   subroutine transport_block_build_next_source(nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
     use xs, only : XSLibrary
     use linalg, only : inv
+    use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -225,38 +226,57 @@ contains
     integer(ik) :: mprev, mthis, mnext
     real(rk) :: xn, xmul
 
-    real(rk), allocatable :: fhat_prev(:,:), fhat_this(:,:), fhat_next(:,:)
-    real(rk), allocatable :: bnext(:,:), bprev(:,:)
-    real(rk), allocatable :: matinv(:,:)
+    real(rk), allocatable :: fhat_prev(:,:,:), fhat_this(:,:,:), fhat_next(:,:,:)
+    real(rk), allocatable :: bnext(:,:,:), bprev(:,:,:)
+    real(rk), allocatable :: matinv(:,:,:)
+
+    integer :: nthread, myid
+
+    !$omp parallel
+    nthread = omp_get_num_threads()
+    !$omp end parallel
 
     allocate(&
-      fhat_prev(xslib%ngroup,xslib%ngroup),&
-      fhat_this(xslib%ngroup,xslib%ngroup),&
-      fhat_next(xslib%ngroup,xslib%ngroup),&
+      fhat_prev(xslib%ngroup,xslib%ngroup,nthread),&
+      fhat_this(xslib%ngroup,xslib%ngroup,nthread),&
+      fhat_next(xslib%ngroup,xslib%ngroup,nthread),&
     )
-    allocate(bnext(xslib%ngroup,xslib%ngroup), bprev(xslib%ngroup,xslib%ngroup))
-    allocate(matinv(xslib%ngroup,xslib%ngroup))
+    allocate(&
+      bnext(xslib%ngroup,xslib%ngroup,nthread),&
+      bprev(xslib%ngroup,xslib%ngroup,nthread),&
+    )
+    allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
 
     ! NOTE: there is no "next" source after the last moment
     pn_next_source(1:xslib%ngroup,1:nx,neven) = 0d0
 
     ! BC at x=0, i=1
+    myid = 1
     mthis = mat_map(1)
     mnext = mat_map(2)
     do n = 1,neven-1
       idxn = 2*(n-1)
       xn = real(idxn, rk)
       xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-      fhat_this = xmul * invtransmat(:,:,idxn+1+1,mthis)
-      fhat_next = xmul * invtransmat(:,:,idxn+1+1,mnext)
-      bnext = fhat_next/dx(2) + fhat_this/dx(1)
-      call inv(xslib%ngroup, bnext, matinv)
-      bnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(fhat_this, matinv), fhat_next)
-      pn_next_source(:,1,n) = -matmul(bnext, phi_block(:,1,idxn+1+2)) &
-        + matmul(bnext, phi_block(:,2,idxn+1+2))
+      fhat_this(:,:,myid) = xmul * invtransmat(:,:,idxn+1+1,mthis)
+      fhat_next(:,:,myid) = xmul * invtransmat(:,:,idxn+1+1,mnext)
+      bnext(:,:,myid) = fhat_next(:,:,myid)/dx(2) + fhat_this(:,:,myid)/dx(1)
+      call inv(xslib%ngroup, bnext(:,:,myid), matinv(:,:,myid))
+      bnext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
+        * matmul(matmul(fhat_this(:,:,myid), matinv(:,:,myid)), fhat_next(:,:,myid))
+      pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
+        + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2))
     enddo ! n = 1,neven-1
 
+    !$omp parallel do default(none) &
+    !$omp shared(nx, neven) &
+    !$omp private(myid, i, mprev, mthis, mnext) &
+    !$omp shared(dx, mat_map, xslib) &
+    !$omp private(n, idxn, xn, xmul) &
+    !$omp shared(fhat_prev, fhat_this, fhat_next, bprev, bnext, matinv, invtransmat) &
+    !$omp shared(phi_block, pn_next_source)
     do i = 2,nx-1
+      myid = omp_get_thread_num() + 1
       mprev = mat_map(i-1)
       mthis = mat_map(i)
       mnext = mat_map(i+1)
@@ -265,44 +285,49 @@ contains
         xn = real(idxn, rk)
         xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
 
-        fhat_prev = xmul * invtransmat(:,:,idxn+1+1,mprev)
-        fhat_this = xmul * invtransmat(:,:,idxn+1+1,mthis)
-        fhat_next = xmul * invtransmat(:,:,idxn+1+1,mnext)
+        fhat_prev(:,:,myid) = xmul * invtransmat(:,:,idxn+1+1,mprev)
+        fhat_this(:,:,myid) = xmul * invtransmat(:,:,idxn+1+1,mthis)
+        fhat_next(:,:,myid) = xmul * invtransmat(:,:,idxn+1+1,mnext)
 
-        bprev = fhat_prev/dx(i-1) + fhat_this/dx(i)
-        call inv(xslib%ngroup, bprev, matinv)
-        bprev = 2.0_rk/dx(i)/dx(i-1) * matmul(matmul(fhat_this, matinv), fhat_prev)
+        bprev(:,:,myid) = fhat_prev(:,:,myid)/dx(i-1) + fhat_this(:,:,myid)/dx(i)
+        call inv(xslib%ngroup, bprev(:,:,myid), matinv(:,:,myid))
+        bprev(:,:,myid) = 2.0_rk/dx(i)/dx(i-1) &
+          * matmul(matmul(fhat_this(:,:,myid), matinv(:,:,myid)), fhat_prev(:,:,myid))
 
-        bnext = fhat_next/dx(i+1) + fhat_this/dx(i)
-        call inv(xslib%ngroup, bnext, matinv)
-        bnext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(fhat_this, matinv), fhat_next)
+        bnext(:,:,myid) = fhat_next(:,:,myid)/dx(i+1) + fhat_this(:,:,myid)/dx(i)
+        call inv(xslib%ngroup, bnext(:,:,myid), matinv(:,:,myid))
+        bnext(:,:,myid) = 2.0_rk/dx(i)/dx(i+1) * &
+          matmul(matmul(fhat_this(:,:,myid), matinv(:,:,myid)), fhat_next(:,:,myid))
 
-        pn_next_source(:,i,n) = matmul(bprev, phi_block(:,i-1,idxn+1+2)) &
-          - matmul(bprev + bnext, phi_block(:,i,idxn+1+2)) &
-          + matmul(bnext, phi_block(:,i+1,idxn+1+2))
+        pn_next_source(:,i,n) = matmul(bprev(:,:,myid), phi_block(:,i-1,idxn+1+2)) &
+          - matmul(bprev(:,:,myid) + bnext(:,:,myid), phi_block(:,i,idxn+1+2)) &
+          + matmul(bnext(:,:,myid), phi_block(:,i+1,idxn+1+2))
       enddo
     enddo ! i = 2,nx-1
+    !$omp end parallel do
 
     ! BC at x=L, i=N
+    myid = 1
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
     do n = 1,neven-1
       idxn = 2*(n-1)
       xn = real(idxn, rk)
       xmul = (xn+1.0_rk)*(xn+2.0_rk)/((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-      fhat_prev = xmul * invtransmat(:,:,idxn+1+1,mprev)
-      fhat_this = xmul * invtransmat(:,:,idxn+1+1,mthis)
-      bprev = fhat_prev/dx(nx-1) + fhat_this/dx(nx)
-      call inv(xslib%ngroup, bprev, matinv)
-      bprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(fhat_this, matinv), fhat_prev)
+      fhat_prev(:,:,myid) = xmul * invtransmat(:,:,idxn+1+1,mprev)
+      fhat_this(:,:,myid) = xmul * invtransmat(:,:,idxn+1+1,mthis)
+      bprev(:,:,myid) = fhat_prev(:,:,myid)/dx(nx-1) + fhat_this(:,:,myid)/dx(nx)
+      call inv(xslib%ngroup, bprev(:,:,myid), matinv(:,:,myid))
+      bprev(:,:,myid) = 2.0_rk/dx(nx-1)/dx(nx) &
+        * matmul(matmul(fhat_this(:,:,myid), matinv(:,:,myid)), fhat_prev(:,:,myid))
       select case (boundary_right)
         case ('mirror')
-          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,idxn+1+2)) &
-            - matmul(bprev, phi_block(:,nx,idxn+1+2)) 
+          pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
+            - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) 
         case ('zero')
-          pn_next_source(:,nx,n) = matmul(bprev, phi_block(:,nx-1,idxn+1+2)) &
-            - matmul(bprev, phi_block(:,nx,idxn+1+2)) &
-            - 2.0_rk/dx(nx) * matmul(fhat_this, phi_block(:,nx,idxn+1+2))
+          pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
+            - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
+            - 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_block(:,nx,idxn+1+2))
         case default
           call exception_fatal('unknown boundary_right in next_source: ' // trim(adjustl(boundary_right)))
       endselect
@@ -316,6 +341,7 @@ contains
   subroutine transport_block_build_prev_source(nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
     use xs, only : XSLibrary
     use linalg, only : inv
+    use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -330,17 +356,26 @@ contains
 
     real(rk) :: xn, xmul
     
-    real(rk), allocatable :: ghat_prev(:,:), ghat_this(:,:), ghat_next(:,:)
-    real(rk), allocatable :: cnext(:,:), cprev(:,:)
-    real(rk), allocatable :: matinv(:,:)
+    real(rk), allocatable :: ghat_prev(:,:,:), ghat_this(:,:,:), ghat_next(:,:,:)
+    real(rk), allocatable :: cnext(:,:,:), cprev(:,:,:)
+    real(rk), allocatable :: matinv(:,:,:)
+
+    integer :: nthread, myid
+
+    !$omp parallel
+    nthread = omp_get_num_threads()
+    !$omp end parallel
 
     allocate(&
-      ghat_prev(xslib%ngroup,xslib%ngroup),&
-      ghat_this(xslib%ngroup,xslib%ngroup),&
-      ghat_next(xslib%ngroup,xslib%ngroup),&
+      ghat_prev(xslib%ngroup,xslib%ngroup,nthread),&
+      ghat_this(xslib%ngroup,xslib%ngroup,nthread),&
+      ghat_next(xslib%ngroup,xslib%ngroup,nthread),&
     )
-    allocate(cnext(xslib%ngroup,xslib%ngroup), cprev(xslib%ngroup,xslib%ngroup))
-    allocate(matinv(xslib%ngroup,xslib%ngroup))
+    allocate(&
+      cnext(xslib%ngroup,xslib%ngroup,nthread),&
+      cprev(xslib%ngroup,xslib%ngroup,nthread),&
+    )
+    allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
 
     pn_prev_source(1:xslib%ngroup,1:nx) = 0d0
     if (idxn < 2) then
@@ -352,54 +387,69 @@ contains
     n = idxn/2 + 1
 
     ! BC at x=0, i=1
+    myid = 1
     mthis = mat_map(1)
     mnext = mat_map(2)
-    ghat_this = xmul * invtransmat(:,:,idxn+1-1,mthis)
-    ghat_next = xmul * invtransmat(:,:,idxn+1-1,mnext)
-    cnext = ghat_next/dx(2) + ghat_this/dx(1)
-    call inv(xslib%ngroup, cnext, matinv)
-    cnext = 2.0_rk/dx(1)/dx(2) * matmul(matmul(ghat_this, matinv), ghat_next)
-    pn_prev_source(:,1) = -matmul(cnext, phi_block(:,1,idxn+1-2)) &
-      + matmul(cnext, phi_block(:,2,idxn+1-2))
+    ghat_this(:,:,myid) = xmul * invtransmat(:,:,idxn+1-1,mthis)
+    ghat_next(:,:,myid) = xmul * invtransmat(:,:,idxn+1-1,mnext)
+    cnext(:,:,myid) = ghat_next(:,:,myid)/dx(2) + ghat_this(:,:,myid)/dx(1)
+    call inv(xslib%ngroup, cnext(:,:,myid), matinv(:,:,myid))
+    cnext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
+      * matmul(matmul(ghat_this(:,:,myid), matinv(:,:,myid)), ghat_next(:,:,myid))
+    pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
+      + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2))
 
+    !$omp parallel do default(none) &
+    !$omp shared (nx) &
+    !$omp private(myid, i, mprev, mthis, mnext) &
+    !$omp shared(dx, mat_map, xslib) &
+    !$omp shared(idxn, n, xn, xmul) &
+    !$omp shared(ghat_prev, ghat_this, ghat_next, cprev, cnext, matinv, invtransmat) &
+    !$omp shared(phi_block, pn_prev_source)
     do i = 2,nx-1
+      myid = omp_get_thread_num() + 1
       mprev = mat_map(i-1)
       mthis = mat_map(i)
       mnext = mat_map(i+1)
 
-      ghat_prev = xmul * invtransmat(:,:,idxn+1-1,mprev)
-      ghat_this = xmul * invtransmat(:,:,idxn+1-1,mthis)
-      ghat_next = xmul * invtransmat(:,:,idxn+1-1,mnext)
+      ghat_prev(:,:,myid) = xmul * invtransmat(:,:,idxn+1-1,mprev)
+      ghat_this(:,:,myid) = xmul * invtransmat(:,:,idxn+1-1,mthis)
+      ghat_next(:,:,myid) = xmul * invtransmat(:,:,idxn+1-1,mnext)
 
-      cprev = ghat_prev/dx(i-1) + ghat_this/dx(i)
-      call inv(xslib%ngroup, cprev, matinv)
-      cprev = 2.0_rk/dx(i)/dx(i-1) * matmul(matmul(ghat_this, matinv), ghat_prev)
+      cprev(:,:,myid) = ghat_prev(:,:,myid)/dx(i-1) + ghat_this(:,:,myid)/dx(i)
+      call inv(xslib%ngroup, cprev(:,:,myid), matinv(:,:,myid))
+      cprev(:,:,myid) = 2.0_rk/dx(i)/dx(i-1) * &
+        matmul(matmul(ghat_this(:,:,myid), matinv(:,:,myid)), ghat_prev(:,:,myid))
 
-      cnext = ghat_next/dx(i+1) + ghat_this/dx(i)
-      call inv(xslib%ngroup, cnext, matinv)
-      cnext = 2.0_rk/dx(i)/dx(i+1) * matmul(matmul(ghat_this, matinv), ghat_next)
+      cnext(:,:,myid) = ghat_next(:,:,myid)/dx(i+1) + ghat_this(:,:,myid)/dx(i)
+      call inv(xslib%ngroup, cnext(:,:,myid), matinv(:,:,myid))
+      cnext(:,:,myid) = 2.0_rk/dx(i)/dx(i+1) &
+        * matmul(matmul(ghat_this(:,:,myid), matinv(:,:,myid)), ghat_next(:,:,myid))
 
-      pn_prev_source(:,i) = matmul(cprev, phi_block(:,i-1,idxn+1-2)) &
-        - matmul(cprev + cnext, phi_block(:,i,idxn+1-2)) &
-        + matmul(cnext, phi_block(:,i+1,idxn+1-2))
+      pn_prev_source(:,i) = matmul(cprev(:,:,myid), phi_block(:,i-1,idxn+1-2)) &
+        - matmul(cprev(:,:,myid) + cnext(:,:,myid), phi_block(:,i,idxn+1-2)) &
+        + matmul(cnext(:,:,myid), phi_block(:,i+1,idxn+1-2))
     enddo ! i = 2,nx-1
+    !$omp end parallel do
 
     ! BC at x=L, i=N
+    myid = 1
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    ghat_prev = xmul * invtransmat(:,:,idxn+1-1,mprev)
-    ghat_this = xmul * invtransmat(:,:,idxn+1-1,mthis)
-    cprev = ghat_prev/dx(nx-1) + ghat_this/dx(nx)
-    call inv(xslib%ngroup, cprev, matinv)
-    cprev = 2.0_rk/dx(nx-1)/dx(nx) * matmul(matmul(ghat_this, matinv), ghat_prev)
+    ghat_prev(:,:,myid) = xmul * invtransmat(:,:,idxn+1-1,mprev)
+    ghat_this(:,:,myid) = xmul * invtransmat(:,:,idxn+1-1,mthis)
+    cprev(:,:,myid) = ghat_prev(:,:,myid)/dx(nx-1) + ghat_this(:,:,myid)/dx(nx)
+    call inv(xslib%ngroup, cprev(:,:,myid), matinv(:,:,myid))
+    cprev(:,:,myid) = 2.0_rk/dx(nx-1)/dx(nx) &
+      * matmul(matmul(ghat_this(:,:,myid), matinv(:,:,myid)), ghat_prev(:,:,myid))
     select case (boundary_right)
       case ('mirror')
-        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,idxn+1-2)) &
-          - matmul(cprev, phi_block(:,nx,idxn+1-2))
+        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
+          - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2))
       case ('zero')
-        pn_prev_source(:,nx) = matmul(cprev, phi_block(:,nx-1,n-1)) &
-          - matmul(cprev, phi_block(:,nx,idxn+1-2)) &
-          - 2.0_rk/dx(nx) * matmul(ghat_this, phi_block(:,nx,idxn+1-2))
+        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,n-1)) &
+          - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
+          - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2))
       case default
         call exception_fatal('unknown boundary_right in prev_source: ' // trim(adjustl(boundary_right)))
     endselect
