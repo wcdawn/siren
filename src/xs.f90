@@ -165,8 +165,7 @@ contains
     write(line, '(a,i0)') 'nmoment = ', xslib%nmoment
     call output_write(line)
     do i = 1,xslib%niso
-      if ((xslib%mat(i)%is_fiss) .and. &
-        ((xslib%ngroup == 2) .or. (xslib%ngroup == 1))) then
+      if (xslib%mat(i)%is_fiss) then
         write(line, '(a,a,a,i0,a,l1,a,f8.6)') &
           'name = "', trim(adjustl(xslib%mat(i)%name)), '" , idx = ', i, &
           ' , fiss = ', xslib%mat(i)%is_fiss, ' , kinf = ', calc_kinf(xslib%mat(i))
