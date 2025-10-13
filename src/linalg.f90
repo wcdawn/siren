@@ -121,12 +121,11 @@ contains
 
     integer(ik) :: i
 
-    real(rk), allocatable :: ahat_mat(:,:,:), gmat(:,:,:) ! (nprime, nprime, n)
+    real(rk), allocatable :: gmat(:,:,:) ! (nprime, nprime, n)
     real(rk), allocatable :: yvec(:,:) ! (nprime, n)
 
     real(rk), allocatable :: invmat(:,:), auxmat(:,:) ! (nprime, nprime)
 
-    allocate(ahat_mat(nprime,nprime,n))
     allocate(gmat(nprime,nprime,n))
     allocate(yvec(nprime,n))
     allocate(invmat(nprime,nprime), auxmat(nprime,nprime))
@@ -153,9 +152,9 @@ contains
       x(:,i) = yvec(:,i) - matmul(gmat(:,:,i), x(:,i+1))
     enddo
 
-    deallocate(gmat)
-    deallocate(yvec)
     deallocate(invmat, auxmat)
+    deallocate(yvec)
+    deallocate(gmat)
   endsubroutine trid_block
 
 endmodule linalg
