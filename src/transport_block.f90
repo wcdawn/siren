@@ -323,7 +323,7 @@ contains
       select case (boundary_right)
         case ('mirror')
           pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
-            - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) 
+            - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2))
         case ('zero')
           pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
             - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
@@ -355,7 +355,7 @@ contains
     integer(ik) :: mprev, mthis, mnext
 
     real(rk) :: xn, xmul
-    
+
     real(rk), allocatable :: ghat_prev(:,:,:), ghat_this(:,:,:), ghat_next(:,:,:)
     real(rk), allocatable :: cnext(:,:,:), cprev(:,:,:)
     real(rk), allocatable :: matinv(:,:,:)
@@ -782,7 +782,7 @@ contains
 
     integer(ik) :: i, g, n
     integer(ik) :: mthis
-    
+
     do n = 1,pnorder+1
       if (n < xslib%nmoment) then
         do i = 1,nx
