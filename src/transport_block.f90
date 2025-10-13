@@ -505,7 +505,7 @@ contains
   subroutine transport_block_power_iteration(&
     nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr,phi)
     use xs, only : XSLibrary
-    use linalg, only : trid_block, count_inv
+    use linalg, only : trid_block
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     integer(ik), intent(in) :: nx
@@ -646,9 +646,6 @@ contains
     if (iter > max_iter) then
       call exception_warning('failed to converge')
     endif
-
-    write(line, '(a,i0)') 'number of dense matrix inversions: ', count_inv
-    call output_write(line)
 
     call timer_start('calc_odd')
     call transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
