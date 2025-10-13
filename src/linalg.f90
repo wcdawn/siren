@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: trid, norm, trid_block, inv, solve
+public :: trid, norm, trid_block, inv, solve, geneig
 
 contains
 
@@ -156,5 +156,53 @@ contains
     deallocate(yvec)
     deallocate(gmat)
   endsubroutine trid_block
+
+  subroutine geneig(n, a, b, eigval, eigvec)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: a(:,:), b(:,:)
+    complex(rk), intent(out) :: eigval(:)
+    real(rk), intent(out) :: eigvec(:,:)
+
+    real(rk), allocatable :: acpy(:,:), bcpy(:,:)
+    real(rk), allocatable :: alphar(:), alphai(:)
+    real(rk), allocatable :: beta(:)
+    real(rk), allocatable :: vr(:,:), vl(:,:)
+
+    integer(ik) :: lwork
+    integer(ik), parameter :: lwork_factor = 10
+    real(rk), allocatable :: work(:)
+    integer :: info
+
+    integer(ik) :: i
+
+    allocate(acpy(n,n), bcpy(n,n))
+    allocate(alphar(n), alphai(n))
+    allocate(beta(n))
+    allocate(vr(n,n), vl(n,n))
+    acpy = a
+    bcpy = b
+
+    lwork = lwork_factor * n
+    allocate(work(lwork))
+
+    call dggev('N', 'V', n, acpy, n, bcpy, n, alphar, alphai, beta, &
+      vl, n, vr, n, work, lwork, info)
+    if (info /= 0) then
+      stop 'failure in dgeev'
+    endif
+
+    do i = 1,n
+      if (abs(beta(i)) > epsilon(1.0_rk)) then
+        eigval(i) = cmplx(alphar(i), alphai(i), rk)/beta(i)
+      endif
+    enddo
+    eigvec = vr
+
+    deallocate(work)
+    deallocate(vr, vl)
+    deallocate(beta)
+    deallocate(alphar, alphai)
+    deallocate(acpy, bcpy)
+  endsubroutine geneig
 
 endmodule linalg

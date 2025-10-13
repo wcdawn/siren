@@ -62,4 +62,4 @@ power.o : kind.o xs.o
 timer.o : kind.o output.o
 transport.o : exception_handler.o kind.o linalg.o numeric.o output.o timer.o xs.o
 transport_block.o : exception_handler.o kind.o linalg.o numeric.o output.o timer.o xs.o
-xs.o : exception_handler.o fileio.o kind.o output.o
+xs.o : exception_handler.o fileio.o kind.o linalg.o output.o

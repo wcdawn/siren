@@ -180,23 +180,51 @@ contains
 
   endsubroutine xs_summary
 
-  real(rk) pure function calc_kinf(xsmat)
+  real(rk) function calc_kinf(xsmat)
+    use linalg, only : geneig
     type(XSMaterial), intent(in) :: xsmat
 
-    real(rk) :: ratio
-    real(rk) :: rem1, rem2
+    real(rk), allocatable :: a(:,:), f(:,:)
+    complex(rk), allocatable :: eigval(:)
+    real(rk), allocatable :: eigvec(:,:)
+    real(rk), allocatable :: phi(:)
+    integer(ik) :: g, gprime
 
     if (.not. xsmat%is_fiss) then
       calc_kinf = -1.0_rk
-    else if (xsmat%ngroup == 1) then
-      calc_kinf = xsmat%nusf(1) / (xsmat%sigma_t(1) - xsmat%scatter(1,1,1))
-    else if (xsmat%ngroup == 2) then
-      rem1 = xsmat%sigma_t(1) - xsmat%scatter(1,1,1)
-      rem2 = xsmat%sigma_t(2) - xsmat%scatter(2,2,1)
-      ratio = xsmat%scatter(1,2,1) / rem2
-      calc_kinf = (xsmat%nusf(1) + xsmat%nusf(2)*ratio) / rem1
     else
-      calc_kinf = -1.0_rk
+      allocate(a(xsmat%ngroup,xsmat%ngroup), f(xsmat%ngroup,xsmat%ngroup))
+      allocate(eigval(xsmat%ngroup), eigvec(xsmat%ngroup,xsmat%ngroup))
+
+      do g = 1,xsmat%ngroup
+        a(g,g) = xsmat%sigma_t(g)
+      enddo ! g = 1,xsmat%ngroup
+      a = a - transpose(xsmat%scatter(:,:,1))
+
+      do g = 1,xsmat%ngroup
+        do gprime = 1,xsmat%ngroup
+          f(gprime,g) = xsmat%chi(gprime) * xsmat%nusf(g)
+        enddo ! gprime = 1,xsmat%ngroup
+      enddo ! g = 1,xsmat%ngroup
+
+      call geneig(xsmat%ngroup, a, f, eigval, eigvec)
+
+      calc_kinf = huge(1.0_rk)
+      gprime = -1
+      do g = 1,xsmat%ngroup
+        if ((abs(eigval(g)) < calc_kinf) .and. (abs(eigval(g)) > epsilon(1.0_rk))) then
+          gprime = g
+          calc_kinf = 1.0_rk/abs(eigval(g))
+        endif
+      enddo
+
+      ! NOTE: this isn't used now, but may be useful in the future
+      allocate(phi(xsmat%ngroup))
+      phi = eigvec(:,gprime)
+      deallocate(phi)
+
+      deallocate(a, f)
+      deallocate(eigval, eigvec)
     endif
   endfunction calc_kinf
 
