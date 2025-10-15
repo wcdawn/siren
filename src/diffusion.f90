@@ -1,7 +1,6 @@
 module diffusion
-use kind
-use exception_handler
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 
@@ -11,6 +10,7 @@ contains
 
   subroutine diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
     use xs, only : XSLibrary
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -50,7 +50,8 @@ contains
           / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mnext)%diffusion(g) / dx(i+1))
 
         sub(i-1,g) = -dprev
-        dia(i,g) = dprev + dnext + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(i)
+        dia(i,g) = dprev + dnext &
+          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(i)
         sup(i,g) = -dnext
 
       enddo
@@ -66,7 +67,8 @@ contains
             * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
             / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
           sub(nx-1,g) = -dprev
-          dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+          dia(nx,g) = dprev &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
         enddo
       case ('mirror')
@@ -75,10 +77,12 @@ contains
             * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
             / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
           sub(nx-1,g) = -dprev
-          dia(nx,g) = dprev + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
+          dia(nx,g) = dprev &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
         enddo
       case default
-        call exception_fatal('unknown boundary_right in diffusion_build_matrix' // trim(adjustl(boundary_right)))
+        call exception_fatal(&
+          'unknown boundary_right in diffusion_build_matrix' // trim(adjustl(boundary_right)))
     endselect
 
   endsubroutine diffusion_build_matrix
@@ -121,7 +125,9 @@ contains
     do i = 1,nx
       mthis = mat_map(i)
       do g = 1,xslib%ngroup
-        qup(i,g) = sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,1) * flux(i,g+1:xslib%ngroup)) * dx(i)
+        qup(i,g) = &
+          sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,1) &
+          * flux(i,g+1:xslib%ngroup)) * dx(i)
       enddo
     enddo ! i = 1,nx
 
@@ -168,11 +174,13 @@ contains
     diffusion_fission_summation = xsum
   endfunction diffusion_fission_summation
 
-  subroutine diffusion_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
+  subroutine diffusion_power_iteration( &
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
     use timer, only : timer_start, timer_stop
+    use exception_handler, only : exception_warning
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)

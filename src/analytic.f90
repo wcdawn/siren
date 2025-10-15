@@ -1,6 +1,6 @@
 module analytic
-use kind
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 public :: analytic_error
@@ -22,7 +22,7 @@ contains
     use xs, only : XSLibrary
     use linalg, only : norm
     use output, only : output_write
-    use exception_handler
+    use exception_handler, only : exception_fatal
     character(*), intent(in) :: analytic_name
     character(*), intent(in) :: fname
     integer(ik), intent(in) :: nx, ngroup, pnorder
@@ -270,7 +270,8 @@ contains
     use xs, only : XSLibrary
     type(XSLibrary), intent(in) :: xslib
     analytic_keff_tworeg = xslib%mat(1)%nusf(1) &
-      / (xslib%mat(1)%diffusion(1) * Bf_tworeg**2 + (xslib%mat(1)%sigma_t(1) - xslib%mat(1)%scatter(1,1,1)))
+      / (xslib%mat(1)%diffusion(1) * Bf_tworeg**2 &
+      + (xslib%mat(1)%sigma_t(1) - xslib%mat(1)%scatter(1,1,1)))
   endfunction analytic_keff_tworeg
 
   subroutine analytic_fun_p3(x, xslib, exact)
@@ -287,9 +288,13 @@ contains
     ratio = analytic_ratio_p3(xslib)
 
     exact(:,1,1) = phi0 * cos(pi * x / Lx_p3) ! p0
-    exact(:,1,2) = (1.0_rk/3.0_rk) * phi0 * pi/Lx_p3 * (1.0_rk + 2.0_rk*ratio) * sin(pi * x / Lx_p3) / xslib%mat(1)%sigma_t(1)
+    exact(:,1,2) = &
+      (1.0_rk/3.0_rk) * phi0 * pi/Lx_p3 * (1.0_rk + 2.0_rk*ratio) * sin(pi * x / Lx_p3) &
+      / xslib%mat(1)%sigma_t(1)
     exact(:,1,3) = ratio * exact(:,1,1) ! p2
-    exact(:,1,4) = (3.0_rk/7.0_rk) * phi0 * pi/Lx_p3 * ratio * sin(pi * x / Lx_p3) / xslib%mat(1)%sigma_t(1)
+    exact(:,1,4) = &
+      (3.0_rk/7.0_rk) * phi0 * pi/Lx_p3 * ratio * sin(pi * x / Lx_p3) &
+      / xslib%mat(1)%sigma_t(1)
   endsubroutine analytic_fun_p3
 
   real(rk) pure function analytic_ratio_p3(xslib)

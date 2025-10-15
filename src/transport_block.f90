@@ -1,7 +1,6 @@
 module transport_block
-use kind
-use exception_handler
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 public :: transport_block_power_iteration
@@ -40,10 +39,12 @@ contains
     endif
   endsubroutine transport_invtransmat
 
-  subroutine transport_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+  subroutine transport_block_build_matrix( &
+    nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -73,7 +74,7 @@ contains
     allocate(&
       dhat_prev(xslib%ngroup,xslib%ngroup,nthread),&
       dhat_this(xslib%ngroup,xslib%ngroup,nthread),&
-      dhat_next(xslib%ngroup,xslib%ngroup,nthread),&
+      dhat_next(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(&
       anext(xslib%ngroup,xslib%ngroup,nthread), &
@@ -208,10 +209,12 @@ contains
     deallocate(dhat_prev, dhat_this, dhat_next)
   endsubroutine transport_block_build_matrix
 
-  subroutine transport_block_build_next_source(nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
+  subroutine transport_block_build_next_source(&
+    nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -239,11 +242,11 @@ contains
     allocate(&
       fhat_prev(xslib%ngroup,xslib%ngroup,nthread),&
       fhat_this(xslib%ngroup,xslib%ngroup,nthread),&
-      fhat_next(xslib%ngroup,xslib%ngroup,nthread),&
+      fhat_next(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(&
       bnext(xslib%ngroup,xslib%ngroup,nthread),&
-      bprev(xslib%ngroup,xslib%ngroup,nthread),&
+      bprev(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
 
@@ -329,7 +332,8 @@ contains
             - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
             - 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_block(:,nx,idxn+1+2))
         case default
-          call exception_fatal('unknown boundary_right in next_source: ' // trim(adjustl(boundary_right)))
+          call exception_fatal(&
+            'unknown boundary_right in next_source: ' // trim(adjustl(boundary_right)))
       endselect
     enddo ! n = 1,neven
 
@@ -338,10 +342,12 @@ contains
     deallocate(fhat_prev, fhat_this, fhat_next)
   endsubroutine transport_block_build_next_source
 
-  subroutine transport_block_build_prev_source(nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
+  subroutine transport_block_build_prev_source( &
+    nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -369,11 +375,11 @@ contains
     allocate(&
       ghat_prev(xslib%ngroup,xslib%ngroup,nthread),&
       ghat_this(xslib%ngroup,xslib%ngroup,nthread),&
-      ghat_next(xslib%ngroup,xslib%ngroup,nthread),&
+      ghat_next(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(&
       cnext(xslib%ngroup,xslib%ngroup,nthread),&
-      cprev(xslib%ngroup,xslib%ngroup,nthread),&
+      cprev(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
 
@@ -451,7 +457,8 @@ contains
           - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
           - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2))
       case default
-        call exception_fatal('unknown boundary_right in prev_source: ' // trim(adjustl(boundary_right)))
+        call exception_fatal( &
+          'unknown boundary_right in prev_source: ' // trim(adjustl(boundary_right)))
     endselect
 
     deallocate(matinv)
@@ -508,6 +515,7 @@ contains
     use linalg, only : trid_block
     use output, only : output_write
     use timer, only : timer_start, timer_stop
+    use exception_handler, only : exception_fatal, exception_warning
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -590,7 +598,8 @@ contains
       fsum_old = fsum
 
       call timer_start('transport_pn_source')
-      call transport_block_build_next_source(nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
+      call transport_block_build_next_source( &
+        nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
       call timer_stop('transport_pn_source')
 
       do n = 1,neven
@@ -606,7 +615,8 @@ contains
           call timer_stop('transport_fsource')
         else
           call timer_start('transport_pn_source')
-          call transport_block_build_prev_source(nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
+          call transport_block_build_prev_source( &
+            nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
           q = q + pn_prev_source
           call timer_stop('transport_pn_source')
         endif
@@ -615,7 +625,8 @@ contains
         sub_copy = sub(:,:,:,n)
         dia_copy = dia(:,:,:,n)
         sup_copy = sup(:,:,:,n)
-        call trid_block(nx, xslib%ngroup, sub_copy, dia_copy, sup_copy, q, phi_block(:,:,idxn+1))
+        call trid_block( &
+          nx, xslib%ngroup, sub_copy, dia_copy, sup_copy, q, phi_block(:,:,idxn+1))
         call timer_stop('transport_block_tridiagonal')
       enddo ! n = 1,neven
 
@@ -673,6 +684,7 @@ contains
   subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
     use xs, only : XSLibrary
     use numeric, only : deriv
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -718,15 +730,19 @@ contains
           enddo ! g = 1,xslib%ngroup
         elseif (mat_map(i) ==  mat_map(i+1)) then
           ! forward difference (first-order)
-          dphi_prev = (phi_block(:,i+1,idxn+1-1) - phi_block(:,i,idxn+1-1))/(0.5_rk*(dx(i)+dx(i+1)))
+          dphi_prev = &
+            (phi_block(:,i+1,idxn+1-1) - phi_block(:,i,idxn+1-1))/(0.5_rk*(dx(i)+dx(i+1)))
           if (n < pnorder + 1) then
-            dphi_next = (phi_block(:,i+1,idxn+1+1) - phi_block(:,i,idxn+1+1))/(0.5_rk*(dx(i)+dx(i+1)))
+            dphi_next = &
+              (phi_block(:,i+1,idxn+1+1) - phi_block(:,i,idxn+1+1))/(0.5_rk*(dx(i)+dx(i+1)))
           endif
         elseif (mat_map(i) == mat_map(i-1)) then
           ! backward difference (first-order)
-          dphi_prev = (phi_block(:,i,idxn+1-1) - phi_block(:,i-1,idxn+1-1))/(0.5_rk*(dx(i)+dx(i-1)))
+          dphi_prev = &
+            (phi_block(:,i,idxn+1-1) - phi_block(:,i-1,idxn+1-1))/(0.5_rk*(dx(i)+dx(i-1)))
           if (n < pnorder + 1) then
-            dphi_next = (phi_block(:,i,idxn+1+1) - phi_block(:,i-1,idxn+1+1))/(0.5_rk*(dx(i)+dx(i-1)))
+            dphi_next = &
+              (phi_block(:,i,idxn+1+1) - phi_block(:,i-1,idxn+1+1))/(0.5_rk*(dx(i)+dx(i-1)))
           endif
         else
           ! take a guess at central difference

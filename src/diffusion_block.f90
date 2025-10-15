@@ -1,7 +1,6 @@
 module diffusion_block
-use kind
-use exception_handler
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 public :: diffusion_block_power_iteration
@@ -69,7 +68,8 @@ contains
             * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
             / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
           sub(g,g,nx-1) = -dprev
-          dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) + 2 * xslib%mat(mthis)%diffusion(g)/dx(nx)
+          dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
+            + 2 * xslib%mat(mthis)%diffusion(g)/dx(nx)
         enddo ! g = 1,xslib%ngroup
       case ('mirror')
         do g = 1,xslib%ngroup
@@ -132,11 +132,13 @@ contains
     diffusion_block_fission_summation = xsum
   endfunction diffusion_block_fission_summation
 
-  subroutine diffusion_block_power_iteration(nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
+  subroutine diffusion_block_power_iteration( &
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
     use timer, only : timer_start, timer_stop
+    use exception_handler, only : exception_warning
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -164,7 +166,11 @@ contains
 
     character(1024) :: line
 
-    allocate(sub(xslib%ngroup,xslib%ngroup,nx-1), dia(xslib%ngroup,xslib%ngroup,nx), sup(xslib%ngroup,xslib%ngroup,nx-1))
+    allocate(&
+      sub(xslib%ngroup,xslib%ngroup,nx-1),&
+      dia(xslib%ngroup,xslib%ngroup,nx),&
+      sup(xslib%ngroup,xslib%ngroup,nx-1)&
+    )
     allocate(sub_copy(xslib%ngroup,xslib%ngroup,nx-1), dia_copy(xslib%ngroup,xslib%ngroup,nx), &
       sup_copy(xslib%ngroup,xslib%ngroup,nx-1))
 

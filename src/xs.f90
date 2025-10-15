@@ -1,7 +1,7 @@
 module xs
-use kind
-use exception_handler
-implicit none
+use kind, only : rk, ik
+use exception_handler, only : exception_fatal
+implicit none (external)
 private
 
 public :: XSMaterial, XSLibrary, xs_read_library, xs_cleanup
@@ -171,7 +171,8 @@ contains
           ' , fiss = ', xslib%mat(i)%is_fiss, ' , kinf = ', calc_kinf(xslib%mat(i))
       else
         write(line, '(a,a,a,i0,a,l1)') &
-          'name = "', trim(adjustl(xslib%mat(i)%name)), '" , idx = ', i, ' , fiss = ', xslib%mat(i)%is_fiss
+          'name = "', trim(adjustl(xslib%mat(i)%name)), '" , idx = ', i, &
+          ' , fiss = ', xslib%mat(i)%is_fiss
       endif
       call output_write(line)
     enddo

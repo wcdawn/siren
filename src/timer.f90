@@ -1,5 +1,6 @@
 module timer
-use kind
+use kind, only : rk, ik
+implicit none (external)
 
 public :: timer_init, timer_start, timer_stop, timer_summary
 
@@ -129,7 +130,8 @@ contains
     format_str = trim(adjustl(format_str)) // ', 1x, f6.2)'
 
     do i = 1,size(timer_arr)
-      write(line, format_str) timer_arr(i)%name, timer_arr(i)%elapsed, timer_arr(i)%elapsed/total*1e2_rk
+      write(line, format_str) &
+        timer_arr(i)%name, timer_arr(i)%elapsed, timer_arr(i)%elapsed/total*1e2_rk
       call output_write(line)
     enddo
 

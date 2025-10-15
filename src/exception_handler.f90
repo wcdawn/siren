@@ -1,5 +1,6 @@
 module exception_handler
-use kind
+use kind, only : rk, ik
+implicit none (external)
 
 public :: exception_note, exception_warning, exception_fatal, exception_summary
 

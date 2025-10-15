@@ -1,6 +1,6 @@
 module constant
-use kind
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 

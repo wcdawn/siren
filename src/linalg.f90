@@ -1,6 +1,6 @@
 module linalg
-use kind
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 
@@ -62,6 +62,9 @@ contains
     integer, allocatable :: ipiv(:)
     real(rk), allocatable :: work(:)
 
+    external :: dgetrf
+    external :: dgetri
+
     allocate(ipiv(n))
     allocate(work(n))
 
@@ -89,6 +92,8 @@ contains
 
     real(rk), allocatable :: acpy(:,:)
     real(rk), allocatable :: bcpy(:)
+
+    external :: dgesv
 
     allocate(acpy(n,n))
     allocate(bcpy(n))
@@ -174,6 +179,8 @@ contains
     integer :: info
 
     integer(ik) :: i
+
+    external :: dggev
 
     allocate(acpy(n,n), bcpy(n,n))
     allocate(alphar(n), alphai(n))

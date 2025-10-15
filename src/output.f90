@@ -1,9 +1,9 @@
 module output
-use kind
+use kind, only : rk, ik
 use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
                                           stdout=>output_unit, &
                                           stderr=>error_unit
-implicit none
+implicit none (external)
 
 private
 

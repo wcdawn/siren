@@ -1,6 +1,6 @@
 module kind
 use iso_fortran_env, only : real64, real128, int32, int64
-implicit none
+implicit none (external)
 
 private
 

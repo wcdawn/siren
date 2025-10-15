@@ -1,7 +1,6 @@
 module input
-use kind
-use exception_handler
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 
@@ -47,6 +46,7 @@ contains
 
   subroutine input_read(fname)
     use fileio, only : fileio_open_read
+    use exception_handler, only : exception_fatal
     character(*), intent(in) :: fname
 
     integer, parameter :: iounit = 15
@@ -122,10 +122,12 @@ contains
 
   subroutine input_check()
     use output, only : output_write
+    use exception_handler, only : exception_fatal, exception_warning
     if (trim(adjustl(boundary_left)) /= 'mirror') then
       call exception_fatal('boundary_left must be set to mirror (for now)')
     elseif ((pnorder /= 0) .and. (trim(adjustl(boundary_right)) == 'zero')) then
-      call exception_warning('Zero-flux boundary condition with PN transport is probably not what you want. ' // &
+      call exception_warning('Zero-flux boundary condition with PN transport ' // &
+        'is probably not what you want. ' // &
         'This will set the scalar flux to identically zero at the boundary. ' // &
         'It is intended only for numerical benchmarking.')
     endif

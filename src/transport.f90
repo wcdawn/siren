@@ -1,7 +1,6 @@
 module transport
-use kind
-use exception_handler
-implicit none
+use kind, only : rk, ik
+implicit none (external)
 
 private
 
@@ -9,8 +8,10 @@ public :: transport_power_iteration, transport_power_iteration_flip
 
 contains
 
-  subroutine transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+  subroutine transport_build_matrix( &
+    nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -134,7 +135,9 @@ contains
           enddo ! g = 1,xslib%ngroup
         enddo ! n = 1,neven
       case default
-        call exception_fatal('unknown boundary_right in transport_build_matrix: ' // trim(adjustl(boundary_right)))
+        call exception_fatal( &
+          'unknown boundary_right in transport_build_matrix: ' // &
+          trim(adjustl(boundary_right)))
     endselect
   endsubroutine transport_build_matrix
 
@@ -188,7 +191,8 @@ contains
           do i = 1,nx
             mthis = mat_map(i)
             do g = 1,xslib%ngroup
-              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
+              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) &
+                - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
             enddo ! g = 1,xslib%ngroup
           enddo ! i = 1,nx
         else
@@ -197,7 +201,8 @@ contains
           do i = 1,nx
             mthis = mat_map(i)
             do g = 1,xslib%ngroup
-              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
+              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) &
+                - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
             enddo ! xslib%ngroup
           enddo ! i = 1,nx
         endif
@@ -214,6 +219,7 @@ contains
 
   subroutine transport_odd_update(nx, dx, mat_map, ng, boundary_right, pnorder, sigma_tr, phi)
     use numeric, only : deriv
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -279,7 +285,8 @@ contains
                 - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
                 / sigma_tr(nx,g,idxn+1)
             case default
-              call exception_fatal('unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
+              call exception_fatal(&
+                'unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
           endselect
         enddo ! g = 1,ng
       else
@@ -317,7 +324,8 @@ contains
               dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
               phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
             case default
-              call exception_fatal('unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right)))
+              call exception_fatal(&
+                'unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right)))
           endselect
         enddo ! g = 1,ng
       endif
@@ -347,7 +355,8 @@ contains
           mthis = mat_map(i)
           do g = 1,xslib%ngroup
             qup(i,g,n) = &
-              sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,idxn+1) * phi(i,g+1:xslib%ngroup,idxn+1)) * dx(i)
+              sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,idxn+1) &
+              * phi(i,g+1:xslib%ngroup,idxn+1)) * dx(i)
           enddo
         enddo ! i = 1,nx
       endif
@@ -374,7 +383,8 @@ contains
         mthis = mat_map(i)
         do g = 1,xslib%ngroup
           qup(i,g) = &
-            sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,idxn+1) * phi(i,g+1:xslib%ngroup,idxn+1)) * dx(i)
+            sum(xslib%mat(mthis)%scatter(g+1:xslib%ngroup,g,idxn+1) &
+            * phi(i,g+1:xslib%ngroup,idxn+1)) * dx(i)
         enddo
       enddo ! i = 1,nx
     endif
@@ -429,7 +439,9 @@ contains
 
   endsubroutine transport_build_fsource
 
-  subroutine transport_build_next_source(nx, dx, ngroup, boundary_right, neven, sigma_tr, phi, qnext)
+  subroutine transport_build_next_source( &
+    nx, dx, ngroup, boundary_right, neven, sigma_tr, phi, qnext)
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
@@ -467,7 +479,10 @@ contains
           daprev = 2 * kathis / dx(i) * kaprev / dx(i-1) / (kathis / dx(i) + kaprev / dx(i-1))
           danext = 2 * kathis / dx(i) * kanext / dx(i+1) / (kathis / dx(i) + kanext / dx(i+1))
 
-          qnext(i, g, n) = phi(i-1,g,idxn+1+2) * daprev - phi(i,g,idxn+1+2) * (daprev + danext) + phi(i+1,g,idxn+1+2) * danext
+          qnext(i, g, n) = &
+            phi(i-1,g,idxn+1+2) * daprev &
+            - phi(i,g,idxn+1+2) * (daprev + danext) &
+            + phi(i+1,g,idxn+1+2) * danext
 
         enddo
 
@@ -477,15 +492,20 @@ contains
             kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
             kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
             daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
-            qnext(nx,g,n) = phi(nx-1,g,idxn+1+2)*daprev - phi(nx,g,idxn+1+2)*daprev
+            qnext(nx,g,n) = &
+              phi(nx-1,g,idxn+1+2)*daprev &
+              - phi(nx,g,idxn+1+2)*daprev
           case ('zero')
             kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
             kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
             daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
-            qnext(nx,g,n) = phi(nx-1,g,idxn+1+2)*daprev - phi(nx,g,idxn+1+2)*daprev &
+            qnext(nx,g,n) = &
+              phi(nx-1,g,idxn+1+2)*daprev &
+              - phi(nx,g,idxn+1+2)*daprev &
               - 2 * kathis / dx(nx) * phi(nx,g,idxn+1+2)
           case default
-            call exception_fatal('unknown boundary in next_source: ' // trim(adjustl(boundary_right)))
+            call exception_fatal(&
+              'unknown boundary in next_source: ' // trim(adjustl(boundary_right)))
         endselect
 
       enddo ! g = 1,ngroup
@@ -494,15 +514,16 @@ contains
   endsubroutine transport_build_next_source
 
   subroutine transport_build_prev_source_flip(nx, dx, boundary_right, sigma_tr, phi, idxn, g, qprev)
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     character(*), intent(in) :: boundary_right
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
-    integer(ik), intent(in) :: idxn
+    integer(ik), intent(in) :: idxn, g
     real(rk), intent(out) :: qprev(:) ! (nx)
 
-    integer(ik) :: g, i
+    integer(ik) :: i
     real(rk) :: xn, xmul
     real(rk) :: kbprev, kbthis, kbnext
     real(rk) :: dbprev, dbnext
@@ -525,7 +546,10 @@ contains
       dbprev = 2 * kbthis / dx(i) * kbprev / dx(i-1) / (kbthis / dx(i) + kbprev / dx(i-1))
       dbnext = 2 * kbthis / dx(i) * kbnext / dx(i+1) / (kbthis / dx(i) + kbnext / dx(i+1))
 
-      qprev(i) = phi(i-1,g,idxn+1-2) * dbprev - phi(i,g,idxn+1-2) * (dbprev + dbnext) + phi(i+1,g,idxn+1-2) * dbnext
+      qprev(i) = &
+        phi(i-1,g,idxn+1-2) * dbprev &
+        - phi(i,g,idxn+1-2) * (dbprev + dbnext) &
+        + phi(i+1,g,idxn+1-2) * dbnext
 
     enddo ! i = 2,nx-1
 
@@ -535,20 +559,26 @@ contains
         kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
         kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
         dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
-        qprev(nx) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev
+        qprev(nx) = &
+          phi(nx-1,g,idxn+1-2)*dbprev &
+          - phi(nx,g,idxn+1-2)*dbprev
       case ('zero')
         kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
         kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
         dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
-        qprev(nx) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev &
+        qprev(nx) = &
+          phi(nx-1,g,idxn+1-2)*dbprev &
+          - phi(nx,g,idxn+1-2)*dbprev &
           - 2 * kbthis / dx(nx) * phi(nx,g,idxn+1-2)
       case default
-        call exception_fatal('unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
+        call exception_fatal( &
+          'unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
     endselect
 
   endsubroutine transport_build_prev_source_flip
 
   subroutine transport_build_prev_source(nx, dx, ngroup, boundary_right, sigma_tr, phi, idxn, qprev)
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
@@ -583,7 +613,10 @@ contains
         dbprev = 2 * kbthis / dx(i) * kbprev / dx(i-1) / (kbthis / dx(i) + kbprev / dx(i-1))
         dbnext = 2 * kbthis / dx(i) * kbnext / dx(i+1) / (kbthis / dx(i) + kbnext / dx(i+1))
 
-        qprev(i,g) = phi(i-1,g,idxn+1-2) * dbprev - phi(i,g,idxn+1-2) * (dbprev + dbnext) + phi(i+1,g,idxn+1-2) * dbnext
+        qprev(i,g) = &
+          phi(i-1,g,idxn+1-2) * dbprev &
+          - phi(i,g,idxn+1-2) * (dbprev + dbnext) &
+          + phi(i+1,g,idxn+1-2) * dbnext
 
       enddo ! i = 2,nx-1
 
@@ -593,16 +626,20 @@ contains
           kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
           kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
           dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
-          qprev(nx,g) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev
+          qprev(nx,g) = &
+            phi(nx-1,g,idxn+1-2)*dbprev &
+            - phi(nx,g,idxn+1-2)*dbprev
         case ('zero')
           kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
           kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
           dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
-          qprev(nx,g) = phi(nx-1,g,idxn+1-2)*dbprev - phi(nx,g,idxn+1-2)*dbprev &
+          qprev(nx,g) = &
+            phi(nx-1,g,idxn+1-2)*dbprev &
+            - phi(nx,g,idxn+1-2)*dbprev &
             - 2 * kbthis / dx(nx) * phi(nx,g,idxn+1-2)
-
         case default
-          call exception_fatal('unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
+          call exception_fatal( &
+            'unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
       endselect
 
     enddo ! g = 1,ngroup
@@ -612,6 +649,7 @@ contains
   ! NOTE: this is an exact copy of diffusion_fission_sumation ...
   real(rk) function transport_fission_summation(nx, dx, mat_map, xslib, phi0)
     use xs, only : XSLibrary
+    use exception_handler, only : exception_warning, exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx) type(XSLibrary), intent(in) :: xslib
@@ -638,6 +676,7 @@ contains
     use linalg, only : trid
     use output, only : output_write
     use timer, only : timer_start, timer_stop
+    use exception_handler, only : exception_warning, exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -713,14 +752,16 @@ contains
       if (iter > 1) then
         ! update odd moments -> use odd moments for transport xs -> reconstruct transport matrices
         call timer_start('transport_odd_update')
-        call transport_odd_update(nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call transport_odd_update( &
+          nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
         call timer_stop('transport_odd_update')
         call timer_start('transport_build_transportxs')
         call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
         call timer_stop('transport_build_transportxs')
       endif
       call timer_start('transport_build_matrix')
-      call transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+      call transport_build_matrix( &
+        nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
       call timer_stop('transport_build_matrix')
 
       ! groups are coupled together by fission and upscattering
@@ -731,14 +772,16 @@ contains
       call timer_stop('transport_scatter_source')
 
       ! by solving all moments for one group at-a-time, this is analagous to converging the
-      ! "within group" scattering source in discrete ordinates before proceeding to the next group
+      ! "within group" scattering source in discrete ordinates before proceeding
+      ! to the next group
 
       ! the PN "next" source does not have group-to-group transfer, only moment-to-moment
       ! so we may precompute it only once
       ! NOTE that computing it once per group would save memory
       ! may be worth considering for 586g ...
       call timer_start('transport_pn_source')
-      call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
+      call transport_build_next_source( &
+        nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
       call timer_stop('transport_pn_source')
 
       do g = 1,xslib%ngroup
@@ -749,7 +792,8 @@ contains
 
           if (n > 1) then
             call timer_start('transport_pn_source')
-            call transport_build_prev_source_flip(nx, dx, boundary_right, sigma_tr, phi, idxn, g, pn_prev_source)
+            call transport_build_prev_source_flip( &
+              nx, dx, boundary_right, sigma_tr, phi, idxn, g, pn_prev_source)
             call timer_stop('transport_pn_source')
           endif
 
@@ -785,8 +829,10 @@ contains
       if (iter > 1) keff = keff * fsum / fsum_old
       delta_k = abs(keff - k_old)
       ! NOTE: we look at convergence in all space, all groups, all moments!
-      ! This is seriously overkill, but necessary to demonstrate that the odd moments are second-order convergent as well.
-      ! Furthermore, we may expect that the higher-order moments are important for anisotropic scattering.
+      ! This is seriously overkill, but necessary to demonstrate that the odd moments
+      ! are second-order convergent as well.
+      ! Furthermore, we may expect that the higher-order moments are important for
+      ! anisotropic scattering.
       delta_phi = maxval(abs(phi - phi_old)) / maxval(phi)
       call timer_stop('transport_convergence')
 
@@ -825,6 +871,7 @@ contains
     use linalg, only : trid
     use output, only : output_write
     use timer, only : timer_start, timer_stop
+    use exception_handler, only : exception_warning, exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -893,7 +940,8 @@ contains
 
     isotropic = .true.
     call timer_start('transport_build_matrix')
-    call transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+    call transport_build_matrix( &
+      nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
     do iter = 1,max_iter
@@ -904,18 +952,21 @@ contains
 
       if (.not. isotropic) then
         call timer_start('transport_odd_update')
-        call transport_odd_update(nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        call transport_odd_update( &
+          nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
         call timer_stop('transport_odd_update')
         call timer_start('transport_build_transportxs')
         call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
         call timer_stop('transport_build_transportxs')
         call timer_start('transport_build_matrix')
-        call transport_build_matrix(nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+        call transport_build_matrix( &
+          nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
         call timer_stop('transport_build_matrix')
       endif
 
       call timer_start('transport_pn_source')
-      call transport_build_next_source(nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
+      call transport_build_next_source( &
+        nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
       call timer_stop('transport_pn_source')
 
       do n = 1,neven
@@ -928,7 +979,8 @@ contains
           call timer_stop('transport_fission_source')
         else ! (n > 1)
           call timer_start('transport_pn_source')
-          call transport_build_prev_source(nx, dx, xslib%ngroup, boundary_right, sigma_tr, phi, idxn, pn_prev_source)
+          call transport_build_prev_source( &
+            nx, dx, xslib%ngroup, boundary_right, sigma_tr, phi, idxn, pn_prev_source)
           call timer_stop('transport_pn_source')
         endif
 

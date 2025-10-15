@@ -1,5 +1,5 @@
 program siren
-use kind
+use kind, only : rk, ik
 use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
@@ -13,9 +13,9 @@ use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, output_matmap_csv
 use power, only : power_calculate
 use analytic, only : analytic_error
-use exception_handler
-use timer
-implicit none
+use exception_handler, only : exception_fatal, exception_summary
+use timer, only : timer_init, timer_start, timer_stop, timer_summary
+implicit none (external)
 
 integer(ik) :: i
 character(1024) :: input_fname
@@ -69,7 +69,9 @@ call xs_read_library(xslib_fname, xs)
 call timer_stop('xs_read')
 
 if ((pnorder /= 0) .and. (xs%nmoment /= 1) .and. (trim(adjustl(energy_solver_opt)) /= 'block')) then
-  call exception_fatal('The onegroup PN solver is unstable for true anisotropic scattering. You must use "energy_solver_opt block"')
+  call exception_fatal(&
+    'The onegroup PN solver is unstable for true anisotropic scattering. ' // &
+    'You must use "energy_solver_opt block"')
 endif
 
 if (refine > 0) then
@@ -87,9 +89,11 @@ allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
   select case (energy_solver_opt)
     case ('block')
-      call diffusion_block_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+      call diffusion_block_power_iteration( &
+        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case ('onegroup')
-      call diffusion_power_iteration(nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+      call diffusion_power_iteration( &
+        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case default
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
   endselect
@@ -97,16 +101,19 @@ else
   allocate(sigma_tr(nx, xs%ngroup, pnorder+1))
   select case (energy_solver_opt)
     case ('block')
-      call transport_block_power_iteration(&
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+      call transport_block_power_iteration( &
+        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+        keff, sigma_tr, phi)
     case ('onegroup')
       select case (pn_solver_opt)
         case ('flip')
-          call transport_power_iteration_flip(&
-            nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+          call transport_power_iteration_flip( &
+            nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+            keff, sigma_tr, phi)
         case ('lupine')
           call transport_power_iteration(&
-            nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+            nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+            keff, sigma_tr, phi)
         case default
           call exception_fatal('unknown pn_solver_opt: ' // trim(adjustl(pn_solver_opt)))
       endselect
@@ -138,7 +145,8 @@ call output_power_csv(trim(adjustl(fname_power)), nx, dx, power)
 
 if (allocated(sigma_tr)) then
   call output_write('writing ' // trim(adjustl(fname_transportxs)))
-  call output_transportxs_csv(trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, dx, sigma_tr)
+  call output_transportxs_csv( &
+    trim(adjustl(fname_transportxs)), nx, xs%ngroup, pnorder, dx, sigma_tr)
   deallocate(sigma_tr)
 endif
 
