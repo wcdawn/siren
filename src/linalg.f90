@@ -4,7 +4,8 @@ implicit none (external)
 
 private
 
-public :: trid, norm, trid_block, inv, solve, geneig
+public :: trid, norm, trid_block, inv, solve, geneig, &
+  trid_conjugate_gradient
 
 contains
 
@@ -211,5 +212,44 @@ contains
     deallocate(alphar, alphai)
     deallocate(acpy, bcpy)
   endsubroutine geneig
+
+  subroutine axpy(n, alpha, x, y, z)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: alpha
+    real(rk), intent(in) :: x(:), y(:) ! (n)
+    real(rk), intent(out) :: z(:) ! (n)
+    integer(ik) :: i
+    do i = 1,n
+      z(i) = alpha*x(i) + y(i)
+    enddo ! i = 1,n
+  endsubroutine axpy
+
+  subroutine trid_matvec(n, sub, dia, sup, x, z)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: x(:) ! (n)
+    real(rk), intent(out) :: z(:) ! (n)
+    integer(ik) :: i
+    z(1) = dia(1)*x(1) + sup(1)*dia(2)
+    do i = 2,n-1
+      z(i) = sub(i-1)*x(i-1) + dia(i)*x(i) + sup(i)*dia(i+1)
+    enddo ! i = 1,n
+    z(n) = sub(n-1)*x(n-1) + dia(n)*x(n)
+  endsubroutine trid_matvec
+
+  subroutine trid_conjugate_gradient(n, sub, dia, sup, b, maxit, atol, rtol, x)
+    integer(rk), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: atol, rtol
+    real(rk), intent(out) :: x(:) ! (n)
+
+    x(1:n) = 0d0
+  endsubroutine trid_conjugate_gradient
 
 endmodule linalg

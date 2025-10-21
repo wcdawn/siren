@@ -31,6 +31,12 @@ character(16) :: pn_solver_opt = 'lupine'
 ! choose whether to solve one-group at-a-time ("onegroup") or all at once ("block")
 character(16) :: energy_solver_opt = 'onegroup'
 
+! optional krylov solver options
+character(16) :: linear_solver_opt = 'direct' ! direct, cg, pcg, gmres, pgmres
+integer(ik) :: krylov_max_iter = 1000 ! maximum Krylov iterations
+integer(ik) :: krylov_restart = 1000 ! optional restart capability for GMRES, by default, this would not restart
+real(rk) :: krylov_atol = 1d-10, krylov_rtol = 1d-8 ! absolute and relative solver tolerances
+
 public :: input_read, input_cleanup
 
 public :: nx, dx, xslib_fname, mat_map
@@ -41,6 +47,7 @@ public :: boundary_left, boundary_right
 public :: analytic_reference
 public :: pn_solver_opt
 public :: energy_solver_opt
+public :: linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, krylov_restart
 
 contains
 
@@ -108,6 +115,18 @@ contains
           read(line, *) card, pn_solver_opt
         case ('energy_solver_opt')
           read(line, *) card, energy_solver_opt
+        !
+        case ('linear_solver_opt')
+          read(line, *) card, linear_solver_opt
+        case ('krylov_max_iter')
+          read(line, *) card, krylov_max_iter
+        case ('krylov_restart')
+          read(line, *) card, krylov_restart
+        case ('krylov_atol')
+          read(line, *) card, krylov_atol
+        case ('krylov_rtol')
+          read(line, *) card, krylov_rtol
+        !
         case default
           call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect

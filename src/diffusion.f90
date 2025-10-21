@@ -175,12 +175,14 @@ contains
   endfunction diffusion_fission_summation
 
   subroutine diffusion_power_iteration( &
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, &
+    linear_solver_opt, inner_max_iter, inner_abstol, inner_reltol, &
+    keff, flux)
     use xs, only : XSLibrary
-    use linalg, only : trid
+    use linalg, only : trid, trid_conjugate_gradient
     use output, only : output_write
     use timer, only : timer_start, timer_stop
-    use exception_handler, only : exception_warning
+    use exception_handler, only : exception_warning, exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -188,15 +190,19 @@ contains
     character(*), intent(in) :: boundary_right
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
+    character(*), intent(in) :: linear_solver_opt
+    integer(ik), intent(in) :: inner_max_iter
+    real(rk), intent(in) :: inner_abstol, inner_reltol
     real(rk), intent(out) :: keff
     real(rk), intent(out) :: flux(:,:) ! (nx,ngroup)
 
     real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:)
     real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
+    real(rk), allocatable :: inv_dia(:,:) ! (nx,ngorup)
     real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:)
     real(rk), allocatable :: q(:)
 
-    integer(ik) :: g
+    integer(ik) :: i, g
     integer(ik) :: iter
     real(rk) :: k_old, fsum, fsum_old
     real(rk), allocatable :: flux_old(:,:)
@@ -205,9 +211,29 @@ contains
     character(1024) :: line
 
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
-    allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+
+    select case (linear_solver_opt)
+      case ('direct')
+        allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+      case ('cg')
+        ! do nothing
+        continue
+      case ('pcg')
+        allocate(inv_dia(nx,ngroup))
+      case default
+        call exception_fatal('Incompatible linear_solver_opt in diffusion solution: ' &
+          // trim(adjustl(linear_solver_opt)))
+    endselect
+
     call timer_start('diffusion_build_matrix')
     call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+    if (allocated(inv_dia)) then
+      do g = 1,xslib%ngroup
+        do i = 1,n
+          inv_dia(i,g) = 1.0_rk / dia(i,g)
+        enddo ! i = 1,n
+      enddo ! g = 1,xslib%ngroup
+    endif
     call timer_stop('diffusion_build_matrix')
 
     allocate(fsource(nx,xslib%ngroup))
@@ -241,14 +267,17 @@ contains
         q = fsource(:,g)/keff + upsource(:,g) + downsource
         call timer_stop('diffusion_source')
 
-        call timer_start('diffusion_tridiagonal')
+        call timer_start('diffusion_linear_solve')
         ! SOLVE
-        ! need to store copies, trid uses them as scratch space
-        sub_copy = sub(:,g)
-        dia_copy = dia(:,g)
-        sup_copy = sup(:,g)
-        call trid(nx, sup_copy, dia_copy, sup_copy, q, flux(:,g))
-        call timer_stop('diffusion_tridiagonal')
+        select case (linear_solver_opt)
+          case ('direct')
+            ! need to store copies, trid uses them as scratch space
+            sub_copy = sub(:,g)
+            dia_copy = dia(:,g)
+            sup_copy = sup(:,g)
+            call trid(nx, sup_copy, dia_copy, sup_copy, q, flux(:,g))
+        endselect
+        call timer_stop('diffusion_linear_solve')
 
       enddo
 
@@ -274,7 +303,12 @@ contains
 
     deallocate(flux_old)
     deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
+    if (allocated(sub_copy)) then
+      deallocate(sub_copy, dia_copy, sup_copy)
+    endif
+    if (allocated(inv_dia)) then
+      deallocate(inv_dia)
+    endif
     deallocate(fsource, upsource, downsource)
     deallocate(q)
 
