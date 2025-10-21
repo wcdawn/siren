@@ -16,7 +16,7 @@ use power, only : power_calculate
 use analytic, only : analytic_error
 use exception_handler, only : exception_fatal, exception_summary
 use timer, only : timer_init, timer_start, timer_stop, timer_summary
-implicit none (external)
+implicit none
 
 integer(ik) :: i
 character(1024) :: input_fname
@@ -91,7 +91,8 @@ if (pnorder == 0) then
   select case (energy_solver_opt)
     case ('block')
       call diffusion_block_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, &
+        keff, phi(:,:,1))
     case ('onegroup')
       call diffusion_power_iteration( &
         nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, &

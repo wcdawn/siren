@@ -1,6 +1,6 @@
 module diffusion
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 
@@ -219,7 +219,7 @@ contains
         ! do nothing
         continue
       case ('pcg')
-        allocate(inv_dia(nx,ngroup))
+        allocate(inv_dia(nx,xslib%ngroup))
       case default
         call exception_fatal('Incompatible linear_solver_opt in diffusion solution: ' &
           // trim(adjustl(linear_solver_opt)))
@@ -229,7 +229,7 @@ contains
     call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
     if (allocated(inv_dia)) then
       do g = 1,xslib%ngroup
-        do i = 1,n
+        do i = 1,nx
           inv_dia(i,g) = 1.0_rk / dia(i,g)
         enddo ! i = 1,n
       enddo ! g = 1,xslib%ngroup
@@ -276,6 +276,10 @@ contains
             dia_copy = dia(:,g)
             sup_copy = sup(:,g)
             call trid(nx, sup_copy, dia_copy, sup_copy, q, flux(:,g))
+          case ('cg')
+            call trid_conjugate_gradient(nx, sub(:,g), dia(:,g), sup(:,g), q, &
+              inner_max_iter, inner_abstol, inner_reltol, &
+              flux(:,g))
         endselect
         call timer_stop('diffusion_linear_solve')
 

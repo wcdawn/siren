@@ -1,6 +1,6 @@
 module linalg
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 
@@ -16,18 +16,35 @@ contains
     real(rk) :: xsum
     select case(ell)
       case (-1) ! infinity norm
-        norm = maxval(abs(x))
+        xsum = 0.0_rk
+        !$omp parallel do default(none) private(i) shared(x) reduction(max:xsum)
+        do i = 1,size(x)
+          xsum = max(xsum, abs(x(i)))
+        enddo ! i = 1,size(x)
+        !$omp end parallel do
+        norm = xsum
       case (1)
-        norm = sum(abs(x))
+        xsum = 0.0_rk
+        !$omp parallel do default(none) private(i) shared(x) reduction(+:xsum)
+        do i = 1,size(x)
+          xsum = xsum + abs(x(i))
+        enddo
+        !$omp end parallel do
+        norm = xsum
       case (2)
-        norm = sqrt(sum(abs(x)*abs(x)))
+        xsum = 0.0_rk
+        !$omp parallel do default(none) private(i) shared(x) reduction(+:xsum)
+        do i = 1,size(x)
+          xsum = xsum + abs(x(i))**2
+        enddo ! i = 1,size(x)
+        !$omp end parallel do
+        norm = sqrt(xsum)
       case default
-        xsum = 0_rk
+        xsum = 0.0_rk
         do i = 1,size(x)
           xsum = xsum + abs(x(i))**ell
         enddo ! i = 1,size(x)
-        xsum = xsum**(1_rk/ell)
-        norm = xsum
+        norm = xsum**(1_rk/ell)
     endselect
   endfunction norm
 
@@ -219,9 +236,11 @@ contains
     real(rk), intent(in) :: x(:), y(:) ! (n)
     real(rk), intent(out) :: z(:) ! (n)
     integer(ik) :: i
+    !$omp parallel do default(none) private(i) shared(alpha, x, y, z)
     do i = 1,n
       z(i) = alpha*x(i) + y(i)
     enddo ! i = 1,n
+    !$omp end parallel do
   endsubroutine axpy
 
   subroutine trid_matvec(n, sub, dia, sup, x, z)
@@ -232,15 +251,21 @@ contains
     real(rk), intent(in) :: x(:) ! (n)
     real(rk), intent(out) :: z(:) ! (n)
     integer(ik) :: i
-    z(1) = dia(1)*x(1) + sup(1)*dia(2)
-    do i = 2,n-1
-      z(i) = sub(i-1)*x(i-1) + dia(i)*x(i) + sup(i)*dia(i+1)
-    enddo ! i = 1,n
-    z(n) = sub(n-1)*x(n-1) + dia(n)*x(n)
+    if (n == 1) then
+      z(1) = dia(1)*x(1)
+    else
+      z(1) = dia(1)*x(1) + sup(1)*dia(2)
+      !$omp parallel do default(none) private(i) shared(sub, dia, sup, x, z)
+      do i = 2,n-1
+        z(i) = sub(i-1)*x(i-1) + dia(i)*x(i) + sup(i)*dia(i+1)
+      enddo ! i = 1,n
+      !$omp end parallel do
+      z(n) = sub(n-1)*x(n-1) + dia(n)*x(n)
+    endif
   endsubroutine trid_matvec
 
   subroutine trid_conjugate_gradient(n, sub, dia, sup, b, maxit, atol, rtol, x)
-    integer(rk), intent(in) :: n
+    integer(ik), intent(in) :: n
     real(rk), intent(in) :: sub(:) ! (n-1)
     real(rk), intent(in) :: dia(:) ! (n)
     real(rk), intent(in) :: sup(:) ! (n-1)
@@ -249,7 +274,25 @@ contains
     real(rk), intent(in) :: atol, rtol
     real(rk), intent(out) :: x(:) ! (n)
 
+    real(rk) :: rho_k1, rho_k2
+    real(rk) :: beta
+
+    real(rk), allocatable :: r(:)
+    real(rk), allocatable :: w(:), p(:)
+
+    allocate(r(n))
+    call trid_matvec(n, sub, dia, sup, b, r)
+    r = b - r ! r = b - A*x
+    rho_k2 = 0.0_rk
+    rho_k1 = norm(2, r)
+
     x(1:n) = 0d0
+
+    deallocate(r)
+    if (allocated(w)) then
+      deallocate(w)
+      deallocate(p)
+    endif
   endsubroutine trid_conjugate_gradient
 
 endmodule linalg

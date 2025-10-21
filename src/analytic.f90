@@ -1,6 +1,6 @@
 module analytic
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 public :: analytic_error

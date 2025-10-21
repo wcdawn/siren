@@ -1,6 +1,6 @@
 module input
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 
