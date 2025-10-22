@@ -2,7 +2,7 @@
 
 FC = gfortran
 FFLAGS = -O3 -Wall -Wextra -std=f2018 -pedantic -fopenmp
-#FFLAGS = -O0 -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fcheck=all -Wall -Wextra -std=f2018 -pedantic -fopenmp
+FFLAGS = -O0 -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fcheck=all -Wall -Wextra -std=f2018 -pedantic -fopenmp
 
 OBJ = \
 	  analytic.o \
@@ -54,7 +54,7 @@ fileio.o :
 geometry.o : output.o kind.o
 input.o : exception_handler.o fileio.o kind.o output.o
 kind.o :
-linalg.o : kind.o
+linalg.o : exception_handler.o kind.o
 main.o : kind.o xs.o input.o geometry.o diffusion.o diffusion_block.o transport.o transport_block.o output.o power.o analytic.o exception_handler.o timer.o
 numeric.o : kind.o
 output.o : fileio.o kind.o

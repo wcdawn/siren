@@ -176,10 +176,10 @@ contains
 
   subroutine diffusion_power_iteration( &
     nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, &
-    linear_solver_opt, inner_max_iter, inner_abstol, inner_reltol, &
+    linear_solver_opt, inner_max_iter, inner_abstol, inner_reltol, sor_omega, &
     keff, flux)
     use xs, only : XSLibrary
-    use linalg, only : trid, trid_conjugate_gradient
+    use linalg, only : trid, trid_conjugate_gradient, trid_sor
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning, exception_fatal
@@ -192,7 +192,7 @@ contains
     integer(ik), intent(in) :: max_iter
     character(*), intent(in) :: linear_solver_opt
     integer(ik), intent(in) :: inner_max_iter
-    real(rk), intent(in) :: inner_abstol, inner_reltol
+    real(rk), intent(in) :: inner_abstol, inner_reltol, sor_omega
     real(rk), intent(out) :: keff
     real(rk), intent(out) :: flux(:,:) ! (nx,ngroup)
 
@@ -215,8 +215,7 @@ contains
     select case (linear_solver_opt)
       case ('direct')
         allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
-      case ('cg')
-        ! do nothing
+      case ('cg', 'sor')
         continue
       case ('pcg')
         allocate(inv_dia(nx,xslib%ngroup))
@@ -276,10 +275,14 @@ contains
             dia_copy = dia(:,g)
             sup_copy = sup(:,g)
             call trid(nx, sup_copy, dia_copy, sup_copy, q, flux(:,g))
+          case ('sor')
+            call trid_sor(nx, sub(:,g), dia(:,g), sup(:,g), q, &
+              inner_max_iter, inner_reltol, sor_omega, &
+              flux(:,g))
           case ('cg')
             call trid_conjugate_gradient(nx, sub(:,g), dia(:,g), sup(:,g), q, &
               inner_max_iter, inner_abstol, inner_reltol, &
-              flux(:,g))
+              flux(:,g), verbose=.false.)
         endselect
         call timer_stop('diffusion_linear_solve')
 
