@@ -715,7 +715,7 @@ contains
     real(rk) :: delta_k, delta_phi
 
     integer(ik) :: neven, idxn
-    integer(ik) :: n, g
+    integer(ik) :: i, n, g
 
     character(1024) :: line
 
@@ -761,6 +761,15 @@ contains
     call timer_start('transport_build_matrix')
     call transport_build_matrix( &
       nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+    if (allocated(inv_dia)) then
+      do n = 1,neven
+        do g = 1,xslib%ngroup
+          do i = 1,nx
+            inv_dia(i,g,n) = 1.0_rk / dia(i,g,n)
+          enddo ! i = 1,nx
+        enddo ! g = 1,xslib%ngroup
+      enddo ! n = 1,neven
+    endif
     call timer_stop('transport_build_matrix')
 
     call output_write('=== PN TRANSPORT POWER ITERATION (FLIP) ===')
