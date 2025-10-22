@@ -179,7 +179,7 @@ contains
     linear_solver_opt, inner_max_iter, inner_abstol, inner_reltol, sor_omega, &
     keff, flux)
     use xs, only : XSLibrary
-    use linalg, only : trid, trid_conjugate_gradient, trid_sor
+    use linalg, only : trid, trid_conjugate_gradient, trid_sor, trid_prec_conjugate_gradient
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning, exception_fatal
@@ -282,7 +282,11 @@ contains
           case ('cg')
             call trid_conjugate_gradient(nx, sub(:,g), dia(:,g), sup(:,g), q, &
               inner_max_iter, inner_abstol, inner_reltol, &
-              flux(:,g), verbose=.false.)
+              flux(:,g))
+          case ('pcg')
+            call trid_prec_conjugate_gradient(nx, sub(:,g), dia(:,g), sup(:,g), inv_dia(:,g), q, &
+              inner_max_iter, inner_abstol, inner_reltol, &
+              flux(:,g))
         endselect
         call timer_stop('diffusion_linear_solve')
 

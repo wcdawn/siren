@@ -5,7 +5,7 @@ implicit none
 private
 
 public :: trid, norm, trid_block, inv, solve, geneig, &
-  trid_sor, trid_conjugate_gradient
+  trid_sor, trid_conjugate_gradient, trid_prec_conjugate_gradient
 
 contains
 
@@ -85,6 +85,18 @@ contains
     enddo
     !$omp end parallel do
   endsubroutine set
+
+  subroutine multiply(n, x, y, z)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: x(:), y(:) ! (n)
+    real(rk), intent(inout) :: z(:) ! (n)
+    integer(ik) :: i
+    !$omp parallel do default(none) private(i) shared(n, x, y, z)
+    do i = 1,n
+      z(i) = x(i)*y(i)
+    enddo ! i = 1,n
+    !$omp end parallel do
+  endsubroutine multiply
 
   subroutine trid(n, sub, dia, sup, b, x)
     integer(ik), intent(in) :: n
@@ -332,7 +344,7 @@ contains
     call axpy(n, -1.0_rk, r, b, r)
 
     nom = norm(r, 2)
-    nom_old = nom * 1d1
+    nom_old = nom
     initial_norm = nom
     if (nom < atol) then
       ! if the initial residual is sufficiently small, then return x0 as the result
@@ -354,10 +366,11 @@ contains
       alpha = norm(r, 2)**2 / dot(n, p, w)
       call axpy(n, alpha, p, x, x)
       call axpy(n, -alpha, w, r, r)
-      nom = norm(r,2)
+      nom = norm(r, 2)
       if (present(verbose)) then
         if (verbose) then
-          write(*,'(a,i0,a,es13.6,a,es13.6)') 'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
+          write(*,'(a,i0,a,es13.6,a,es13.6)') &
+            'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
         endif
       endif
       if ((nom < rtol*initial_norm) .or. (nom < atol)) then
@@ -379,6 +392,90 @@ contains
     deallocate(r)
     deallocate(w, p)
   endsubroutine trid_conjugate_gradient
+
+  subroutine trid_prec_conjugate_gradient(n, sub, dia, sup, inv_dia, b, maxit, atol, rtol, x, verbose)
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: inv_dia(:) ! (n) ! inverse of the diagonal to use as the preconditioner
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: atol, rtol
+    real(rk), intent(inout) :: x(:) ! (n)
+    logical, intent(in), optional :: verbose
+
+    integer(ik) :: iter
+    real(rk) :: alpha, beta
+    real(rk) :: initial_norm, nom, nom_old
+    real(rk) :: den, den_old
+
+    real(rk), allocatable :: r(:)
+    real(rk), allocatable :: w(:), p(:), z(:)
+
+    character(1024) :: line
+
+    allocate(r(n))
+
+    call trid_matvec(n, sub, dia, sup, x, r)
+    call axpy(n, -1.0_rk, r, b, r)
+
+    nom = norm(r, 2)
+    nom_old = nom
+    initial_norm = nom
+    if (nom < atol) then
+      ! if the initial residual is sufficiently small, then return x0 as the result
+      deallocate(r)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,*) 'quitting early'
+        endif
+      endif
+      return
+    endif
+
+    allocate(w(n), p(n), z(n))
+
+    call multiply(n, inv_dia, r, z)
+    call copy(n, z, p)
+
+    den = dot(n, r, z)
+    den_old = den
+
+    do iter = 1,maxit
+      call trid_matvec(n, sub, dia, sup, p, w)
+      alpha = dot(n, r, z) / dot(n, p, w)
+      call axpy(n, alpha, p, x, x)
+      call axpy(n, -alpha, w, r, r)
+      nom = norm(r, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,i0,a,es13.6,a,es13.6)') &
+            'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        exit
+      endif
+      call multiply(n, inv_dia, r, z)
+      den = dot(n, r, z)
+      beta = den / den_old
+      den_old = den
+      call axpy(n, beta, p, z, p)
+    enddo ! iter = 1,maxit
+
+    if (iter > maxit) then
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,es8.1,a,es8.1)') &
+        'Failed to converge PCG after ', maxit, ' iterations.', &
+        ' rtol_target=', rtol, ' rtol_achieved=', nom/initial_norm, &
+        ' atol_target=', atol, ' atol_achieved', nom
+      call exception_fatal(line)
+    endif
+
+    deallocate(r)
+    deallocate(w, p, z)
+  endsubroutine trid_prec_conjugate_gradient
 
   subroutine trid_sor(n, sub, dia, sup, b, maxit, rtol, omega, x)
     use exception_handler, only : exception_fatal
