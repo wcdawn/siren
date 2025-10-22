@@ -180,7 +180,7 @@ contains
     keff, flux)
     use xs, only : XSLibrary
     use linalg, only : trid, trid_conjugate_gradient, trid_sor, trid_prec_conjugate_gradient, &
-      trid_bicgstab
+      trid_bicgstab, trid_prec_bicgstab
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning, exception_fatal
@@ -291,7 +291,11 @@ contains
           case ('bicgstab')
             call trid_bicgstab(nx, sub(:,g), dia(:,g), sup(:,g), q, &
               inner_max_iter, inner_abstol, inner_reltol, &
-              flux(:,g), verbose=.false.)
+              flux(:,g))
+          case ('pbicgstab')
+            call trid_prec_bicgstab(nx, sub(:,g), dia(:,g), sup(:,g), inv_dia(:,g), q, &
+              inner_max_iter, inner_abstol, inner_reltol, &
+              flux(:,g))
         endselect
         call timer_stop('diffusion_linear_solve')
 

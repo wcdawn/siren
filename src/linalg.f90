@@ -5,7 +5,8 @@ implicit none
 private
 
 public :: trid, norm, trid_block, inv, solve, geneig, &
-  trid_sor, trid_conjugate_gradient, trid_prec_conjugate_gradient, trid_bicgstab
+  trid_sor, trid_conjugate_gradient, trid_prec_conjugate_gradient, &
+  trid_bicgstab, trid_prec_bicgstab
 
 contains
 
@@ -607,7 +608,6 @@ contains
             'it=', iter-0.5, ' norm=', nom, ' improvement=', nom/initial_norm
         endif
       endif
-
       if ((nom < rtol*initial_norm) .or. (nom < atol)) then
         call copy(n, h, x)
         exit
@@ -619,20 +619,17 @@ contains
       call axpy(n, -omega, t, s, r)
 
       nom = norm(r, 2)
-
       if (present(verbose)) then
         if (verbose) then
           write(*,'(a,f8.1,a,es13.6,a,es13.6)') &
             'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
         endif
       endif
-
       if ((nom < rtol*initial_norm) .or. (nom < atol)) then
         exit
       endif
 
       rho_k0 = dot(n, r0, r)
-
       if (abs(rho_k0) < breakdown_tol) then
         ! try to protect from breakdown
         if (present(verbose)) then
@@ -661,5 +658,124 @@ contains
     deallocate(r, r0)
     deallocate(v, h, s, t, p)
   endsubroutine trid_bicgstab
+
+  subroutine trid_prec_bicgstab(n, sub, dia, sup, inv_dia, b, maxit, atol, rtol, x, verbose)
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: inv_dia(:) ! (n)
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: atol, rtol
+    real(rk), intent(inout) :: x(:) ! (n)
+    logical, intent(in), optional :: verbose
+
+    integer :: iter
+    real(rk) :: alpha, beta, omega
+    real(rk) :: rho_k0, rho_k1
+    real(rk) :: initial_norm, nom
+
+    real(rk), allocatable :: r(:), r0(:)
+    real(rk), allocatable :: v(:), h(:), s(:), t(:), p(:), y(:), z(:)
+
+    real(rk), parameter :: breakdown_tol = sqrt(epsilon(1.0_rk))
+
+    character(1024) :: line
+
+    allocate(r(n))
+
+    call trid_matvec(n, sub, dia, sup, x, r)
+    call axpy(n, -1.0_rk, r, b, r)
+    nom = norm(r, 2)
+    initial_norm = nom
+
+    if (initial_norm < atol) then
+      deallocate(r)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,*) 'quitting early'
+        endif
+      endif
+      return
+    endif
+
+    allocate(r0(n))
+    allocate(v(n), h(n), s(n), t(n), p(n), y(n), z(n))
+
+    ! NOTE: r0 is arbitrary as long as dot(r0, r) /= 0
+    call copy(n, r, r0)
+    rho_k0 = dot(n, r0, r)
+
+    call copy(n, p, r0)
+
+    do iter = 1,maxit
+      
+      rho_k1 = rho_k0
+
+      call multiply(n, inv_dia, p, y)
+      call trid_matvec(n, sub, dia, sup, y, v)
+      alpha = rho_k1 / dot(n, r0, v)
+      call axpy(n, alpha, y, x, h)
+      call axpy(n, -alpha, v, r, s)
+
+      nom = norm(s, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,f8.1,a,es13.6,a,es13.6)') &
+            'it=', iter-0.5, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        call copy(n, h, x)
+        exit
+      endif
+
+      call multiply(n, inv_dia, s, z)
+      call trid_matvec(n, sub, dia, sup, z, t)
+      omega = dot(n, t, s) / dot(n, t, t)
+      call axpy(n, omega, z, h, x)
+      call axpy(n, -omega, t, s, r)
+
+      nom = norm(r, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,f8.1,a,es13.6,a,es13.6)') &
+            'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        exit
+      endif
+
+      rho_k0 = dot(n, r0, r)
+      if (abs(rho_k0) < breakdown_tol) then
+        ! try to protect from breakdown
+        if (present(verbose)) then
+          if (verbose) then
+            write(*,*) 'breakdown detected'
+          endif
+        endif
+        call copy(n, r, r0)
+        call copy(n, r, p)
+      endif
+
+      beta = (rho_k0/rho_k1) * (alpha/omega)
+      call axpy(n, -omega, v, p, p)
+      call axpy(n, beta, p, r, p)
+    enddo ! iter = 1,maxit
+
+    if (iter > maxit) then
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,es8.1,a,es8.1)') &
+        'Failed to converge PBiCGSTAB after ', maxit, ' iterations.', &
+        ' rtol_target=', rtol, ' rtol_achieved=', nom/initial_norm, &
+        ' atol_target=', atol, ' atol_achieved', nom
+      call exception_fatal(line)
+    endif
+
+    deallocate(r, r0)
+    deallocate(v, h, s, t, p, z)
+  endsubroutine trid_prec_bicgstab
 
 endmodule linalg
