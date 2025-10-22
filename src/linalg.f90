@@ -314,12 +314,12 @@ contains
     real(rk), intent(in) :: b(:) ! (n)
     integer(ik), intent(in) :: maxit
     real(rk), intent(in) :: atol, rtol
-    real(rk), intent(out) :: x(:) ! (n)
+    real(rk), intent(inout) :: x(:) ! (n)
     logical, intent(in), optional :: verbose
 
     integer(ik) :: iter
     real(rk) :: alpha, beta
-    real(rk) :: initial_norm, nom
+    real(rk) :: initial_norm, nom, nom_old
 
     real(rk), allocatable :: r(:)
     real(rk), allocatable :: w(:), p(:)
@@ -332,6 +332,7 @@ contains
     call axpy(n, -1.0_rk, r, b, r)
 
     nom = norm(r, 2)
+    nom_old = nom * 1d1
     initial_norm = nom
     if (nom < atol) then
       ! if the initial residual is sufficiently small, then return x0 as the result
@@ -362,6 +363,8 @@ contains
       if ((nom < rtol*initial_norm) .or. (nom < atol)) then
         exit
       endif
+      beta = (nom / nom_old)**2
+      nom_old = nom
       call axpy(n, beta, p, r, p)
     enddo ! iter = 1,max_iter
 
@@ -387,7 +390,7 @@ contains
     integer(ik), intent(in) :: maxit
     real(rk), intent(in) :: rtol
     real(rk), intent(in) :: omega
-    real(rk), intent(out) :: x(:) ! (n)
+    real(rk), intent(inout) :: x(:) ! (n)
 
     integer(ik) :: i, iter
     real(rk) :: xdif, xmax, xold, xnew
