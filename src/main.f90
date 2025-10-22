@@ -113,6 +113,7 @@ else
         case ('flip')
           call transport_power_iteration_flip( &
             nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+            linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, sor_omega, &
             keff, sigma_tr, phi)
         case ('lupine')
           call transport_power_iteration(&
