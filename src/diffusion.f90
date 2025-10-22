@@ -179,7 +179,8 @@ contains
     linear_solver_opt, inner_max_iter, inner_abstol, inner_reltol, sor_omega, &
     keff, flux)
     use xs, only : XSLibrary
-    use linalg, only : trid, trid_conjugate_gradient, trid_sor, trid_prec_conjugate_gradient
+    use linalg, only : trid, trid_conjugate_gradient, trid_sor, trid_prec_conjugate_gradient, &
+      trid_bicgstab
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning, exception_fatal
@@ -215,9 +216,9 @@ contains
     select case (linear_solver_opt)
       case ('direct')
         allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
-      case ('cg', 'sor')
+      case ('cg', 'sor', 'bicgstab')
         continue
-      case ('pcg')
+      case ('pcg', 'pbicgstab')
         allocate(inv_dia(nx,xslib%ngroup))
       case default
         call exception_fatal('Incompatible linear_solver_opt in diffusion solution: ' &
@@ -287,6 +288,10 @@ contains
             call trid_prec_conjugate_gradient(nx, sub(:,g), dia(:,g), sup(:,g), inv_dia(:,g), q, &
               inner_max_iter, inner_abstol, inner_reltol, &
               flux(:,g))
+          case ('bicgstab')
+            call trid_bicgstab(nx, sub(:,g), dia(:,g), sup(:,g), q, &
+              inner_max_iter, inner_abstol, inner_reltol, &
+              flux(:,g), verbose=.false.)
         endselect
         call timer_stop('diffusion_linear_solve')
 
