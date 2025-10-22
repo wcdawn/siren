@@ -366,7 +366,7 @@ contains
     enddo ! iter = 1,max_iter
 
     if (iter > maxit) then
-      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,f5.2)') &
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,es8.1,a,es8.1)') &
         'Failed to converge CG after ', maxit, ' iterations.', &
         ' rtol_target=', rtol, ' rtol_achieved=', nom/initial_norm, &
         ' atol_target=', atol, ' atol_achieved', nom
@@ -393,6 +393,9 @@ contains
     real(rk) :: xdif, xmax, xold, xnew
 
     character(1024) :: line
+
+    xdif = 0.0_rk
+    xmax = 0.0_rk
 
     do iter = 1,maxit
       xdif = 0.0_rk
