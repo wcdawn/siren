@@ -181,7 +181,7 @@ contains
     use xs, only : XSLibrary
     use linalg, only : trid, trid_conjugate_gradient, trid_sor, trid_prec_conjugate_gradient, &
       trid_bicgstab, trid_prec_bicgstab
-    use output, only : output_write
+    use output, only : output_write, output_trid_matrix_csv, output_vec
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning, exception_fatal
     integer(ik), intent(in) :: nx
@@ -211,6 +211,8 @@ contains
 
     character(1024) :: line
 
+    logical, parameter :: dump = .true.
+
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
 
     select case (linear_solver_opt)
@@ -232,6 +234,12 @@ contains
         do i = 1,nx
           inv_dia(i,g) = 1.0_rk / dia(i,g)
         enddo ! i = 1,n
+      enddo ! g = 1,xslib%ngroup
+    endif
+    if (dump) then
+      do g = 1,xslib%ngroup
+        write(line, '(a,i0,a)') 'diffusion_matrix_g', g, '.csv'
+        call output_trid_matrix_csv(trim(adjustl(line)), nx, sub(:,g), dia(:,g), sup(:,g))
       enddo ! g = 1,xslib%ngroup
     endif
     call timer_stop('diffusion_build_matrix')
@@ -266,6 +274,11 @@ contains
         call diffusion_build_downscatter(nx, dx, mat_map, xslib, flux, g, downsource)
         q = fsource(:,g)/keff + upsource(:,g) + downsource
         call timer_stop('diffusion_source')
+
+        if (dump) then
+          write(line, '(a,i0,a)') 'diffusion_source_g', g, '.csv'
+          call output_vec(trim(adjustl(line)), nx, q)
+        endif
 
         call timer_start('diffusion_linear_solve')
         ! SOLVE
