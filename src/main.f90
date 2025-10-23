@@ -118,6 +118,7 @@ else
         case ('lupine')
           call transport_power_iteration(&
             nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+            linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, sor_omega, &
             keff, sigma_tr, phi)
         case default
           call exception_fatal('unknown pn_solver_opt: ' // trim(adjustl(pn_solver_opt)))

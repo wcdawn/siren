@@ -739,7 +739,7 @@ contains
       case ('pcg', 'pbicgstab')
         allocate(inv_dia(nx,xslib%ngroup,neven))
       case default
-        call exception_fatal('Incompatible linear_solver_opt in transport solution: ' &
+        call exception_fatal('Incompatible linear_solver_opt in transport_flip solution: ' &
           // trim(adjustl(linear_solver_opt)))
     endselect
 
@@ -911,9 +911,12 @@ contains
   endsubroutine transport_power_iteration_flip
 
   subroutine transport_power_iteration(&
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+    linear_solver_opt, inner_max_iter, inner_abstol, inner_reltol, sor_omega, &
+    keff, sigma_tr, phi)
     use xs, only : XSLibrary
-    use linalg, only : trid
+    use linalg, only : trid, trid_conjugate_gradient, trid_sor, trid_prec_conjugate_gradient, &
+      trid_bicgstab, trid_prec_bicgstab
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning, exception_fatal
@@ -925,6 +928,9 @@ contains
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
+    character(*), intent(in) :: linear_solver_opt
+    integer(ik), intent(in) :: inner_max_iter
+    real(rk), intent(in) :: inner_abstol, inner_reltol, sor_omega
     real(rk), intent(inout) :: keff
     real(rk), intent(inout) :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
     real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, nmoment)
@@ -932,6 +938,7 @@ contains
     ! matrix
     real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
     real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
+    real(rk), allocatable :: inv_dia(:,:,:)
     ! neutron source
     real(rk), allocatable :: fsource(:,:) ! (nx, ngroup) -- all p0
     real(rk), allocatable :: upsource(:,:) ! (nx, ngroup) -- just this moment
@@ -948,7 +955,7 @@ contains
     real(rk) :: delta_k, delta_phi
 
     integer(ik) :: neven, idxn
-    integer(ik) :: n, g
+    integer(ik) :: i, n, g
 
     character(1024) :: line
 
@@ -958,8 +965,23 @@ contains
 
     neven = max((pnorder + 1) / 2, 1)
 
-    allocate(sub(nx-1,xslib%ngroup,neven), dia(nx,xslib%ngroup,neven), sup(nx-1,xslib%ngroup,neven))
-    allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+    allocate( &
+      sub(nx-1,xslib%ngroup,neven), &
+      dia(nx  ,xslib%ngroup,neven), &
+      sup(nx-1,xslib%ngroup,neven)  &
+    )
+
+    select case (linear_solver_opt)
+      case ('direct')
+        allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+      case ('sor', 'cg', 'bicgstab')
+        continue
+      case ('pcg', 'pbicgstab')
+        allocate(inv_dia(nx,xslib%ngroup,neven))
+      case default
+        call exception_fatal('Incompatible linear_solver_opt in transport solution: ' &
+          // trim(adjustl(linear_solver_opt)))
+    endselect
 
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
@@ -984,6 +1006,15 @@ contains
     call timer_start('transport_build_matrix')
     call transport_build_matrix( &
       nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+    if (allocated(inv_dia)) then
+      do n = 1,neven
+        do g = 1,xslib%ngroup
+          do i = 1,nx
+            inv_dia(i,g,n) = 1.0_rk / dia(i,g,n)
+          enddo ! i = 1,nx
+        enddo ! g = 1,xslib%ngroup
+      enddo ! n = 1,neven
+    endif
     call timer_stop('transport_build_matrix')
 
     do iter = 1,max_iter
@@ -1033,14 +1064,32 @@ contains
             q = q + pn_next_source(:,g,n)
           endif
 
-          call timer_start('transport_tridiagonal')
+          call timer_start('transport_linear_solve')
           ! SOLVE
-          ! need to store copies, trid uses them as scratch space
-          sub_copy = sub(:,g,n)
-          dia_copy = dia(:,g,n)
-          sup_copy = sup(:,g,n)
-          call trid(nx, sub_copy, dia_copy, sup_copy, q, phi(:,g,idxn+1))
-          call timer_stop('transport_tridiagonal')
+          select case (linear_solver_opt)
+            case ('direct')
+              ! need to store copies, trid uses them as scratch space
+              sub_copy = sub(:,g,n)
+              dia_copy = dia(:,g,n)
+              sup_copy = sup(:,g,n)
+              call trid(nx, sub_copy, dia_copy, sup_copy, q, phi(:,g,idxn+1))
+            case ('sor')
+              call trid_sor(nx, sub(:,g,n), dia(:,g,n), sup(:,g,n), q, &
+                inner_max_iter, inner_reltol, sor_omega, phi(:,g,idxn+1))
+            case ('cg')
+              call trid_conjugate_gradient(nx, sub(:,g,n), dia(:,g,n), sup(:,g,n), q, &
+                inner_max_iter, inner_abstol, inner_reltol, phi(:,g,idxn+1))
+            case ('pcg')
+              call trid_prec_conjugate_gradient(nx, sub(:,g,n), dia(:,g,n), sup(:,g,n), inv_dia(:,g,n), q, &
+                inner_max_iter, inner_abstol, inner_reltol, phi(:,g,idxn+1))
+            case ('bicgstab')
+              call trid_bicgstab(nx, sub(:,g,n), dia(:,g,n), sup(:,g,n), q, &
+                inner_max_iter, inner_abstol, inner_reltol, phi(:,g,idxn+1))
+            case ('pbicgstab')
+              call trid_prec_bicgstab(nx, sub(:,g,n), dia(:,g,n), inv_dia(:,g,n), sup(:,g,n), q, &
+                inner_max_iter, inner_abstol, inner_reltol, phi(:,g,idxn+1))
+        endselect
+        call timer_stop('transport_linear_solve')
 
         enddo ! g = 1,ngroup
       enddo ! n = 1,neven
@@ -1082,7 +1131,12 @@ contains
     call timer_stop('transport_build_transportxs')
 
     deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
+    if (allocated(sub_copy)) then
+      deallocate(sub_copy, dia_copy, sup_copy)
+    endif
+    if (allocated(inv_dia)) then
+      deallocate(inv_dia)
+    endif
     deallocate(fsource, upsource, downsource, q)
     deallocate(pn_next_source, pn_prev_source)
     deallocate(phi_old)
