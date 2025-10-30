@@ -800,7 +800,7 @@ contains
     integer(ik) :: mthis
 
     do n = 1,pnorder+1
-      if (n < xslib%nmoment) then
+      if (n <= xslib%nmoment) then
         do i = 1,nx
           mthis = mat_map(i)
           do g = 1,xslib%ngroup
