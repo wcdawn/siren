@@ -37,19 +37,15 @@ if __name__ == "__main__":
 
     for i in range(nx):
         material_name = mat_list[mat_map[i]]
-        print("i=", i, "material=", material_name)
+        xsmat = xs[material_name]
         for n in range(1, pnorder, 2):
-            print("  n=", n)
 
             if n < nmoment:
-                trans = (
-                    np.diag(xs[material_name]["sigma_t"])
-                    - xs[material_name]["scatter"][n, :, :]
-                )
+                trans = np.diag(xsmat["sigma_t"]) - xsmat["scatter"][n, :, :]
                 itrans = scipy.linalg.inv(trans)
             else:
-                trans = np.diag(xs[material_name]["sigma_t"])
-                itrans = np.diag(1.0 / xs[material_name]["sigma_t"])
+                trans = np.diag(xsmat["sigma_t"])
+                itrans = np.diag(1.0 / xsmat["sigma_t"])
 
             xmul_next = (n + 1.0) / (2.0 * n + 1.0)
             xmul_prev = n / (2.0 * n + 1.0)
@@ -60,7 +56,7 @@ if __name__ == "__main__":
             else:
                 dphi_next = np.zeros(ngroup)
 
-            phi[n, :, i] = itrans @ (xmul_next * dphi_next + xmul_prev * dphi_prev)
+            phi[n, :, i] = -itrans @ (xmul_next * dphi_next + xmul_prev * dphi_prev)
 
     for n in range(pnorder):
 
@@ -69,6 +65,7 @@ if __name__ == "__main__":
             plt.plot(x, phi[n, g, :], label="g={:d}".format(g + 1))
         if ngroup <= 10:
             plt.legend()
+        plt.ylim((-0.6, 0.4))
         plt.xlabel("x [cm]")
         plt.ylabel("$\\phi(x)$ (arb. units)")
         plt.title("Siren $\\phi$ {:d}".format(n))
