@@ -1,6 +1,6 @@
 module diffusion_block
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 public :: diffusion_block_power_iteration

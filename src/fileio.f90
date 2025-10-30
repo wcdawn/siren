@@ -1,5 +1,5 @@
 module fileio
-implicit none (external)
+implicit none
 
 private
 

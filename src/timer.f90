@@ -1,6 +1,6 @@
 module timer
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 public :: timer_init, timer_start, timer_stop, timer_summary
 

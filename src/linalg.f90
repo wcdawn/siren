@@ -1,34 +1,103 @@
 module linalg
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 
-public :: trid, norm, trid_block, inv, solve, geneig
+public :: trid, norm, trid_block, inv, solve, geneig, &
+  trid_sor, trid_conjugate_gradient, trid_prec_conjugate_gradient, &
+  trid_bicgstab, trid_prec_bicgstab
 
 contains
 
-  real(rk) function norm(ell, x)
-    integer(ik), intent(in) :: ell
+  real(rk) function norm(x, ell)
     real(rk), intent(in) :: x(:)
+    integer(ik), intent(in) :: ell
     integer(ik) :: i
     real(rk) :: xsum
     select case(ell)
       case (-1) ! infinity norm
-        norm = maxval(abs(x))
+        xsum = 0.0_rk
+        !$omp parallel do default(none) private(i) shared(x) reduction(max:xsum)
+        do i = 1,size(x)
+          xsum = max(xsum, abs(x(i)))
+        enddo ! i = 1,size(x)
+        !$omp end parallel do
+        norm = xsum
       case (1)
-        norm = sum(abs(x))
+        xsum = 0.0_rk
+        !$omp parallel do default(none) private(i) shared(x) reduction(+:xsum)
+        do i = 1,size(x)
+          xsum = xsum + abs(x(i))
+        enddo
+        !$omp end parallel do
+        norm = xsum
       case (2)
-        norm = sqrt(sum(abs(x)*abs(x)))
+        xsum = 0.0_rk
+        !$omp parallel do default(none) private(i) shared(x) reduction(+:xsum)
+        do i = 1,size(x)
+          xsum = xsum + abs(x(i))**2
+        enddo ! i = 1,size(x)
+        !$omp end parallel do
+        norm = sqrt(xsum)
       case default
-        xsum = 0_rk
+        xsum = 0.0_rk
         do i = 1,size(x)
           xsum = xsum + abs(x(i))**ell
         enddo ! i = 1,size(x)
-        xsum = xsum**(1_rk/ell)
-        norm = xsum
+        norm = xsum**(1_rk/ell)
     endselect
   endfunction norm
+
+  real(rk) function dot(n, x, y)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: x(:), y(:) ! (n)
+    integer(ik) :: i
+    real(rk) :: xsum
+    xsum = 0.0_rk
+    !$omp parallel do default(none) private(i) shared(n, x, y) reduction(+:xsum)
+    do i = 1,n
+      xsum = xsum + x(i)*y(i)
+    enddo
+    !$omp end parallel do
+    dot = xsum
+  endfunction dot
+
+  subroutine copy(n, x, y)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: x(*) ! (n)
+    real(rk), intent(out) :: y(*) ! (n)
+    integer(ik) :: i
+    !$omp parallel do default(none) private(i) shared(n, x, y)
+    do i = 1,n
+      y(i) = x(i)
+    enddo ! i = 1,n
+    !$omp endparallel do
+  endsubroutine copy
+
+  subroutine set(n, xx, x)
+    integer, intent(in) :: n
+    real(rk), intent(in) :: xx
+    real(rk), intent(out) :: x(:) ! (n)
+    integer(ik) :: i
+    !$omp parallel do default(none) private(i) shared(n, x, xx)
+    do i = 1,n
+      x(i) = xx
+    enddo
+    !$omp end parallel do
+  endsubroutine set
+
+  subroutine multiply(n, x, y, z)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: x(:), y(:) ! (n)
+    real(rk), intent(inout) :: z(:) ! (n)
+    integer(ik) :: i
+    !$omp parallel do default(none) private(i) shared(n, x, y, z)
+    do i = 1,n
+      z(i) = x(i)*y(i)
+    enddo ! i = 1,n
+    !$omp end parallel do
+  endsubroutine multiply
 
   subroutine trid(n, sub, dia, sup, b, x)
     integer(ik), intent(in) :: n
@@ -52,6 +121,7 @@ contains
   endsubroutine trid
 
   subroutine inv(n, a, ainv)
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: n
     real(rk), intent(in) :: a(:,:) ! (n,n)
     real(rk), intent(out) :: ainv(:,:) ! (n,n)
@@ -68,20 +138,21 @@ contains
     allocate(ipiv(n))
     allocate(work(n))
 
-    ainv = a
+    call copy(n*n, a, ainv)
     call dgetrf(n, n, ainv, n, ipiv, info)
     if (info /= 0) then
-      stop 'failure from dgetrf'
+      call exception_fatal('Failure from DGETRF.')
     endif
     call dgetri(n, ainv, n, ipiv, work, n, info)
     if (info /= 0) then
-      stop 'failure from dgetri'
+      call exception_fatal('Failure from DGETRI.')
     endif
 
     deallocate(ipiv, work)
   endsubroutine inv
 
   subroutine solve(n, a, b, x)
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: n
     real(rk), intent(in) :: a(:,:) ! (n,n)
     real(rk), intent(in) :: b(:) ! (n)
@@ -99,14 +170,15 @@ contains
     allocate(bcpy(n))
     allocate(ipiv(n))
 
-    acpy = a
-    bcpy = b
+    call copy(n*n, a, acpy)
+    call copy(n, b, bcpy)
 
     call dgesv(n, 1, acpy, n, ipiv, bcpy, n, info)
     if (info /= 0) then
-      stop 'failure from dgesv'
+      call exception_fatal('Failure from DGESV.')
     endif
-    x = bcpy
+
+    call copy(n, bcpy, x)
 
     deallocate(ipiv)
     deallocate(acpy)
@@ -163,6 +235,7 @@ contains
   endsubroutine trid_block
 
   subroutine geneig(n, a, b, eigval, eigvec)
+    use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: n
     real(rk), intent(in) :: a(:,:), b(:,:)
     complex(rk), intent(out) :: eigval(:)
@@ -195,7 +268,7 @@ contains
     call dggev('N', 'V', n, acpy, n, bcpy, n, alphar, alphai, beta, &
       vl, n, vr, n, work, lwork, info)
     if (info /= 0) then
-      stop 'failure in dgeev'
+      call exception_fatal('Failure in DGGEV.')
     endif
 
     do i = 1,n
@@ -211,5 +284,498 @@ contains
     deallocate(alphar, alphai)
     deallocate(acpy, bcpy)
   endsubroutine geneig
+
+  subroutine axpy(n, alpha, x, y, z)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: alpha
+    real(rk), intent(in) :: x(:), y(:) ! (n)
+    real(rk), intent(inout) :: z(:) ! (n)
+    integer(ik) :: i
+    !$omp parallel do default(none) private(i) shared(alpha, x, y, z)
+    do i = 1,n
+      z(i) = alpha*x(i) + y(i)
+    enddo ! i = 1,n
+    !$omp end parallel do
+  endsubroutine axpy
+
+  subroutine trid_matvec(n, sub, dia, sup, x, z)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: x(:) ! (n)
+    real(rk), intent(out) :: z(:) ! (n)
+    integer(ik) :: i
+    if (n == 1) then
+      z(1) = dia(1)*x(1)
+    else
+      z(1) = dia(1)*x(1) + sup(1)*x(2)
+      !$omp parallel do default(none) private(i) shared(sub, dia, sup, x, z)
+      do i = 2,n-1
+        z(i) = sub(i-1)*x(i-1) + dia(i)*x(i) + sup(i)*x(i+1)
+      enddo ! i = 1,n
+      !$omp end parallel do
+      z(n) = sub(n-1)*x(n-1) + dia(n)*x(n)
+    endif
+  endsubroutine trid_matvec
+
+  subroutine trid_conjugate_gradient(n, sub, dia, sup, b, maxit, atol, rtol, x, verbose)
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: atol, rtol
+    real(rk), intent(inout) :: x(:) ! (n)
+    logical, intent(in), optional :: verbose
+
+    integer(ik) :: iter
+    real(rk) :: alpha, beta
+    real(rk) :: initial_norm, nom, nom_old
+
+    real(rk), allocatable :: r(:)
+    real(rk), allocatable :: w(:), p(:)
+
+    character(1024) :: line
+
+    allocate(r(n))
+
+    call trid_matvec(n, sub, dia, sup, x, r) ! r = A*x
+    call axpy(n, -1.0_rk, r, b, r)
+
+    nom = norm(r, 2)
+    nom_old = nom
+    initial_norm = nom
+    if (nom < atol) then
+      ! if the initial residual is sufficiently small, then return x0 as the result
+      deallocate(r)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,*) 'quitting early'
+        endif
+      endif
+      return
+    endif
+
+    allocate(w(n), p(n))
+
+    call copy(n, r, p)
+    
+    do iter = 1,maxit
+      call trid_matvec(n, sub, dia, sup, p, w)
+      alpha = norm(r, 2)**2 / dot(n, p, w)
+      call axpy(n, alpha, p, x, x)
+      call axpy(n, -alpha, w, r, r)
+      nom = norm(r, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,i0,a,es13.6,a,es13.6)') &
+            'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        exit
+      endif
+      beta = (nom / nom_old)**2
+      nom_old = nom
+      call axpy(n, beta, p, r, p)
+    enddo ! iter = 1,max_iter
+
+    if (iter > maxit) then
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,es8.1,a,es8.1)') &
+        'Failed to converge CG after ', maxit, ' iterations.', &
+        ' rtol_target=', rtol, ' rtol_achieved=', nom/initial_norm, &
+        ' atol_target=', atol, ' atol_achieved', nom
+      call exception_fatal(line)
+    endif
+
+    deallocate(r)
+    deallocate(w, p)
+  endsubroutine trid_conjugate_gradient
+
+  subroutine trid_prec_conjugate_gradient(n, sub, dia, sup, inv_dia, b, maxit, atol, rtol, x, verbose)
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: inv_dia(:) ! (n) ! inverse of the diagonal to use as the preconditioner
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: atol, rtol
+    real(rk), intent(inout) :: x(:) ! (n)
+    logical, intent(in), optional :: verbose
+
+    integer(ik) :: iter
+    real(rk) :: alpha, beta
+    real(rk) :: initial_norm, nom, nom_old
+    real(rk) :: den, den_old
+
+    real(rk), allocatable :: r(:)
+    real(rk), allocatable :: w(:), p(:), z(:)
+
+    character(1024) :: line
+
+    allocate(r(n))
+
+    call trid_matvec(n, sub, dia, sup, x, r)
+    call axpy(n, -1.0_rk, r, b, r)
+
+    nom = norm(r, 2)
+    nom_old = nom
+    initial_norm = nom
+    if (nom < atol) then
+      ! if the initial residual is sufficiently small, then return x0 as the result
+      deallocate(r)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,*) 'quitting early'
+        endif
+      endif
+      return
+    endif
+
+    allocate(w(n), p(n), z(n))
+
+    call multiply(n, inv_dia, r, z)
+    call copy(n, z, p)
+
+    den = dot(n, r, z)
+    den_old = den
+
+    do iter = 1,maxit
+      call trid_matvec(n, sub, dia, sup, p, w)
+      alpha = dot(n, r, z) / dot(n, p, w)
+      call axpy(n, alpha, p, x, x)
+      call axpy(n, -alpha, w, r, r)
+      nom = norm(r, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,i0,a,es13.6,a,es13.6)') &
+            'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        exit
+      endif
+      call multiply(n, inv_dia, r, z)
+      den = dot(n, r, z)
+      beta = den / den_old
+      den_old = den
+      call axpy(n, beta, p, z, p)
+    enddo ! iter = 1,maxit
+
+    if (iter > maxit) then
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,es8.1,a,es8.1)') &
+        'Failed to converge PCG after ', maxit, ' iterations.', &
+        ' rtol_target=', rtol, ' rtol_achieved=', nom/initial_norm, &
+        ' atol_target=', atol, ' atol_achieved', nom
+      call exception_fatal(line)
+    endif
+
+    deallocate(r)
+    deallocate(w, p, z)
+  endsubroutine trid_prec_conjugate_gradient
+
+  subroutine trid_sor(n, sub, dia, sup, b, maxit, rtol, omega, x)
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: rtol
+    real(rk), intent(in) :: omega
+    real(rk), intent(inout) :: x(:) ! (n)
+
+    integer(ik) :: i, iter
+    real(rk) :: xdif, xmax, xold, xnew
+
+    character(1024) :: line
+
+    xdif = 0.0_rk
+    xmax = 0.0_rk
+
+    do iter = 1,maxit
+      xdif = 0.0_rk
+      xmax = 0.0_rk
+      
+      xold = x(1)
+      xnew = sup(1)*x(2)
+      xnew = (b(1) - xnew) / dia(1)
+      x(1) = xold + omega * (xnew - xold)
+      xdif = max(xdif, abs(x(1) - xold))
+      xmax = max(xmax, abs(x(1)))
+
+      ! NOTE: this cannot be parallelized or else it approaches a Jacobi iteration
+      ! as the key to the Gauss-Siedel iteration (and thereby SOR) is using the
+      ! updated vector from the previous step
+      do i = 2,n-1
+        xold = x(i)
+        xnew = sub(i-1)*x(i-1) + sup(i)*x(i+1)
+        xnew = (b(i) - xnew) / dia(i)
+        x(i) = xold + omega * (xnew - xold)
+        xdif = max(xdif, abs(x(i) - xold))
+        xmax = max(xmax, abs(x(i)))
+      enddo ! i = 2,n-1
+
+      xold = x(n)
+      xnew = sub(n-1)*x(n-1)
+      xnew = (b(n) - xnew) / dia(n)
+      x(n) = xold + omega * (xnew - xold)
+      xdif = max(xdif, abs(x(n) - xold))
+      xmax = max(xmax, abs(x(n)))
+
+      if (xdif/xmax < rtol) then
+        exit
+      endif
+    enddo ! iter = 1,maxit
+
+    if (iter > maxit) then
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,f5.2)') &
+        'Failed to converge SOR after ', maxit, ' iterations.', &
+        ' target=', rtol, ' achieved=', xdif/xmax, ' omega=', omega
+      call exception_fatal(line)
+    endif
+  endsubroutine trid_sor
+
+  subroutine trid_bicgstab(n, sub, dia, sup, b, maxit, atol, rtol, x, verbose)
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: atol, rtol
+    real(rk), intent(inout) :: x(:) ! (n)
+    logical, intent(in), optional :: verbose
+
+    integer(ik) :: iter
+    real(rk) :: alpha, beta, omega
+    real(rk) :: rho_k0, rho_k1
+    real(rk) :: initial_norm, nom
+
+    real(rk), allocatable :: r(:), r0(:)
+    real(rk), allocatable :: v(:), h(:), s(:), t(:), p(:)
+
+    real(rk), parameter :: breakdown_tol = sqrt(epsilon(1.0_rk))
+
+    character(1024) :: line
+
+    allocate(r(n))
+
+    call trid_matvec(n, sub, dia, sup, x, r)
+    call axpy(n, -1.0_rk, r, b, r)
+    nom = norm(r, 2)
+    initial_norm = nom
+
+    if (initial_norm < atol) then
+      deallocate(r)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,*) 'quitting early'
+        endif
+      endif
+      return
+    endif
+
+    allocate(r0(n))
+    allocate(v(n), h(n), s(n), t(n), p(n))
+
+    ! NOTE: r0 is abitrary as long as dot(r0, r) /= 0
+    call copy(n, r, r0)
+    rho_k0 = dot(n, r0, r)
+
+    call copy(n, r, p)
+
+    do iter = 1,maxit
+
+      rho_k1 = rho_k0
+      
+      call trid_matvec(n, sub, dia, sup, p, v)
+      alpha = rho_k1 / dot(n, r0, v)
+      call axpy(n, alpha, p, x, h)
+      call axpy(n, -alpha, v, r, s)
+
+      nom = norm(s, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,f8.1,a,es13.6,a,es13.6)') &
+            'it=', iter-0.5, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        call copy(n, h, x)
+        exit
+      endif
+
+      call trid_matvec(n, sub, dia, sup, s, t)
+      omega = dot(n, t, s) / dot(n, t, t)
+      call axpy(n, omega, s, h, x)
+      call axpy(n, -omega, t, s, r)
+
+      nom = norm(r, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,f8.1,a,es13.6,a,es13.6)') &
+            'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        exit
+      endif
+
+      rho_k0 = dot(n, r0, r)
+      if (abs(rho_k0) < breakdown_tol) then
+        ! try to protect from breakdown
+        if (present(verbose)) then
+          if (verbose) then
+            write(*,*) 'breakdown detected'
+          endif
+        endif
+        call copy(n, r, r0)
+        call copy(n, r, p)
+      endif
+
+      beta = (rho_k0/rho_k1) * (alpha/omega)
+
+      call axpy(n, -omega, v, p, p)
+      call axpy(n, beta, p, r, p)
+    enddo ! iter = 1,maxit
+    
+    if (iter > maxit) then
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,es8.1,a,es8.1)') &
+        'Failed to converge BiCGSTAB after ', maxit, ' iterations.', &
+        ' rtol_target=', rtol, ' rtol_achieved=', nom/initial_norm, &
+        ' atol_target=', atol, ' atol_achieved', nom
+      call exception_fatal(line)
+    endif
+
+    deallocate(r, r0)
+    deallocate(v, h, s, t, p)
+  endsubroutine trid_bicgstab
+
+  subroutine trid_prec_bicgstab(n, sub, dia, sup, inv_dia, b, maxit, atol, rtol, x, verbose)
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+    real(rk), intent(in) :: inv_dia(:) ! (n)
+    real(rk), intent(in) :: b(:) ! (n)
+    integer(ik), intent(in) :: maxit
+    real(rk), intent(in) :: atol, rtol
+    real(rk), intent(inout) :: x(:) ! (n)
+    logical, intent(in), optional :: verbose
+
+    integer :: iter
+    real(rk) :: alpha, beta, omega
+    real(rk) :: rho_k0, rho_k1
+    real(rk) :: initial_norm, nom
+
+    real(rk), allocatable :: r(:), r0(:)
+    real(rk), allocatable :: v(:), h(:), s(:), t(:), p(:), y(:), z(:)
+
+    real(rk), parameter :: breakdown_tol = sqrt(epsilon(1.0_rk))
+
+    character(1024) :: line
+
+    allocate(r(n))
+
+    call trid_matvec(n, sub, dia, sup, x, r)
+    call axpy(n, -1.0_rk, r, b, r)
+    nom = norm(r, 2)
+    initial_norm = nom
+
+    if (initial_norm < atol) then
+      deallocate(r)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,*) 'quitting early'
+        endif
+      endif
+      return
+    endif
+
+    allocate(r0(n))
+    allocate(v(n), h(n), s(n), t(n), p(n), y(n), z(n))
+
+    ! NOTE: r0 is arbitrary as long as dot(r0, r) /= 0
+    call copy(n, r, r0)
+    rho_k0 = dot(n, r0, r)
+
+    call copy(n, p, r0)
+
+    do iter = 1,maxit
+      
+      rho_k1 = rho_k0
+
+      call multiply(n, inv_dia, p, y)
+      call trid_matvec(n, sub, dia, sup, y, v)
+      alpha = rho_k1 / dot(n, r0, v)
+      call axpy(n, alpha, y, x, h)
+      call axpy(n, -alpha, v, r, s)
+
+      nom = norm(s, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,f8.1,a,es13.6,a,es13.6)') &
+            'it=', iter-0.5, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        call copy(n, h, x)
+        exit
+      endif
+
+      call multiply(n, inv_dia, s, z)
+      call trid_matvec(n, sub, dia, sup, z, t)
+      omega = dot(n, t, s) / dot(n, t, t)
+      call axpy(n, omega, z, h, x)
+      call axpy(n, -omega, t, s, r)
+
+      nom = norm(r, 2)
+      if (present(verbose)) then
+        if (verbose) then
+          write(*,'(a,f8.1,a,es13.6,a,es13.6)') &
+            'it=', iter, ' norm=', nom, ' improvement=', nom/initial_norm
+        endif
+      endif
+      if ((nom < rtol*initial_norm) .or. (nom < atol)) then
+        exit
+      endif
+
+      rho_k0 = dot(n, r0, r)
+      if (abs(rho_k0) < breakdown_tol) then
+        ! try to protect from breakdown
+        if (present(verbose)) then
+          if (verbose) then
+            write(*,*) 'breakdown detected'
+          endif
+        endif
+        call copy(n, r, r0)
+        call copy(n, r, p)
+      endif
+
+      beta = (rho_k0/rho_k1) * (alpha/omega)
+      call axpy(n, -omega, v, p, p)
+      call axpy(n, beta, p, r, p)
+    enddo ! iter = 1,maxit
+
+    if (iter > maxit) then
+      write(line, '(a,i0,a,a,es8.1,a,es8.1,a,es8.1,a,es8.1)') &
+        'Failed to converge PBiCGSTAB after ', maxit, ' iterations.', &
+        ' rtol_target=', rtol, ' rtol_achieved=', nom/initial_norm, &
+        ' atol_target=', atol, ' atol_achieved', nom
+      call exception_fatal(line)
+    endif
+
+    deallocate(r, r0)
+    deallocate(v, h, s, t, p, z)
+  endsubroutine trid_prec_bicgstab
 
 endmodule linalg

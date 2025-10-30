@@ -3,7 +3,8 @@ use kind, only : rk, ik
 use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
-  k_tol, phi_tol, max_iter, analytic_reference, pn_solver_opt, energy_solver_opt
+  k_tol, phi_tol, max_iter, analytic_reference, pn_solver_opt, energy_solver_opt, &
+  linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, sor_omega
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
@@ -15,7 +16,7 @@ use power, only : power_calculate
 use analytic, only : analytic_error
 use exception_handler, only : exception_fatal, exception_summary
 use timer, only : timer_init, timer_start, timer_stop, timer_summary
-implicit none (external)
+implicit none
 
 integer(ik) :: i
 character(1024) :: input_fname
@@ -90,10 +91,13 @@ if (pnorder == 0) then
   select case (energy_solver_opt)
     case ('block')
       call diffusion_block_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, &
+        keff, phi(:,:,1))
     case ('onegroup')
       call diffusion_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, &
+        linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, sor_omega, &
+        keff, phi(:,:,1))
     case default
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
   endselect
@@ -109,10 +113,12 @@ else
         case ('flip')
           call transport_power_iteration_flip( &
             nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+            linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, sor_omega, &
             keff, sigma_tr, phi)
         case ('lupine')
           call transport_power_iteration(&
             nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+            linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, sor_omega, &
             keff, sigma_tr, phi)
         case default
           call exception_fatal('unknown pn_solver_opt: ' // trim(adjustl(pn_solver_opt)))

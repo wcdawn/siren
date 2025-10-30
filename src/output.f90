@@ -3,13 +3,13 @@ use kind, only : rk, ik
 use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
                                           stdout=>output_unit, &
                                           stderr=>error_unit
-implicit none (external)
+implicit none
 
 private
 
 public :: output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, &
-  output_matmap_csv
+  output_matmap_csv, output_trid_matrix_csv, output_vec
 
 integer, parameter, private :: output_file_unit = 99
 integer, parameter, private :: output_list(2) = [ stdout, output_file_unit ]
@@ -200,5 +200,52 @@ contains
 
     close(iounit)
   endsubroutine output_matmap_csv
+
+  subroutine output_trid_matrix_csv(fname, n, sub, dia, sup)
+    use fileio, only : fileio_open_write
+    character(*), intent(in) :: fname
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: sub(:) ! (n-1)
+    real(rk), intent(in) :: dia(:) ! (n)
+    real(rk), intent(in) :: sup(:) ! (n-1)
+
+    integer(ik) :: i
+
+    integer, parameter :: iounit = 17
+
+    call fileio_open_write(fname, iounit)
+
+    write(iounit, '(a)') 'sub , dia , sup'
+    write(iounit, '(es23.16, " , ", es23.16, " , ", es23.16)') &
+      0.0_rk, dia(1), sup(1)
+    do i = 2,n-2
+      write(iounit, '(es23.16, " , ", es23.16, " , ", es23.16)') &
+        sub(i-1), dia(i), sup(i)
+    enddo ! i = 2,n-1
+    write(iounit, '(es23.16, " , ", es23.16, " , ", es23.16)') &
+      sub(n-1), dia(n), 0.0_rk
+
+    close(iounit)
+  endsubroutine output_trid_matrix_csv
+
+  subroutine output_vec(fname, n, vec)
+    use fileio, only : fileio_open_write
+    character(*), intent(in) :: fname
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: vec(:) ! (n)
+
+    integer(ik) :: i
+
+    integer, parameter :: iounit = 17
+
+    call fileio_open_write(fname, iounit)
+
+    write(iounit, '(a)') 'vec'
+    do i = 1,n
+      write(iounit, '(es23.16)') vec(i)
+    enddo ! i = 1,n
+
+    close(iounit)
+  endsubroutine output_vec
 
 endmodule output

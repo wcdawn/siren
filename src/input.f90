@@ -1,6 +1,6 @@
 module input
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 
@@ -31,6 +31,13 @@ character(16) :: pn_solver_opt = 'lupine'
 ! choose whether to solve one-group at-a-time ("onegroup") or all at once ("block")
 character(16) :: energy_solver_opt = 'onegroup'
 
+! optional krylov solver options
+character(16) :: linear_solver_opt = 'direct' ! direct, cg, pcg, gmres, pgmres
+integer(ik) :: krylov_max_iter = 1000 ! maximum Krylov iterations
+integer(ik) :: krylov_restart = 1000 ! optional restart capability for GMRES, by default, this would not restart
+real(rk) :: krylov_atol = 1d-10, krylov_rtol = 1d-8 ! absolute and relative solver tolerances
+real(rk) :: sor_omega = 1.5_rk
+
 public :: input_read, input_cleanup
 
 public :: nx, dx, xslib_fname, mat_map
@@ -41,6 +48,7 @@ public :: boundary_left, boundary_right
 public :: analytic_reference
 public :: pn_solver_opt
 public :: energy_solver_opt
+public :: linear_solver_opt, krylov_max_iter, krylov_atol, krylov_rtol, krylov_restart, sor_omega
 
 contains
 
@@ -108,6 +116,20 @@ contains
           read(line, *) card, pn_solver_opt
         case ('energy_solver_opt')
           read(line, *) card, energy_solver_opt
+        !
+        case ('linear_solver_opt')
+          read(line, *) card, linear_solver_opt
+        case ('krylov_max_iter')
+          read(line, *) card, krylov_max_iter
+        case ('krylov_restart')
+          read(line, *) card, krylov_restart
+        case ('krylov_atol')
+          read(line, *) card, krylov_atol
+        case ('krylov_rtol')
+          read(line, *) card, krylov_rtol
+        case ('sor_omega')
+          read(line, *) card, sor_omega
+        !
         case default
           call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect
@@ -148,12 +170,20 @@ contains
     call output_write('boundary_left = *' // trim(adjustl(boundary_left)) // '*')
     call output_write('boundary_right = *' // trim(adjustl(boundary_right)) // '*')
     call output_write('analytic_reference = *' // trim(adjustl(analytic_reference)) // '*')
-
-    if (pnorder /= 0) then
-      call output_write('pn_solver_opt = *' // trim(adjustl(pn_solver_opt)) // '*')
-    endif
-
+    call output_write('pn_solver_opt = *' // trim(adjustl(pn_solver_opt)) // '*')
     call output_write('energy_solver_opt = *' // trim(adjustl(energy_solver_opt)) // '*')
+    call output_write('INNER parameters')
+    call output_write('linear_solver_opt = *' // trim(adjustl(linear_solver_opt)) // '*')
+    write(line, '(a,i0)') 'krylov_max_iter = ', krylov_max_iter
+    call output_write(line)
+    write(line, '(a,i0)') 'krylov_restart = ', krylov_restart
+    call output_write(line)
+    write(line, '(a,es13.6)') 'krylov_atol = ', krylov_atol
+    call output_write(line)
+    write(line, '(a,es13.6)') 'krylov_rtol = ', krylov_rtol
+    call output_write(line)
+    write(line, '(a,es13.6)') 'sor_omega = ', sor_omega
+    call output_write(line)
 
     call output_write('')
   endsubroutine input_summary
