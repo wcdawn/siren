@@ -703,6 +703,8 @@ contains
 
     real(rk), allocatable :: dphi_prev(:), dphi_next(:) ! (ngroup)
     real(rk), allocatable :: trans(:,:) ! (ngroup,ngroup)
+    
+    logical, parameter :: force_second_order = .true.
 
     allocate(dphi_prev(xslib%ngroup), dphi_next(xslib%ngroup))
     allocate(trans(xslib%ngroup,xslib%ngroup))
@@ -776,7 +778,7 @@ contains
           call transport_invtransmat(xslib%mat(mat_map(nx)), idxn, trans)
           phi_block(:,nx,idxn+1) = -matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
         case default
-          call exception_fatal('unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
+          call exception_fatal('unknown boundary in calc_odd: ' // trim(adjustl(boundary_right)))
       endselect
     enddo
 
