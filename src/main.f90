@@ -3,7 +3,8 @@ use kind, only : rk, ik
 use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
-  k_tol, phi_tol, max_iter, analytic_reference, pn_solver_opt, energy_solver_opt
+  k_tol, phi_tol, max_iter, analytic_reference, pn_solver_opt, energy_solver_opt, &
+  high_low, force_consistent_diffusion
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
@@ -87,6 +88,11 @@ endif
 call timer_start('solver')
 allocate(phi(nx, xs%ngroup, pnorder+1))
 if (pnorder == 0) then
+  if (force_consistent_diffusion) then
+    do i = 1,xs%niso
+      xs%mat(i)%diffusion = 1.0_rk / (3.0_rk * xs%mat(i)%sigma_t)
+    enddo ! i = 1,xs%nsio
+  endif
   select case (energy_solver_opt)
     case ('block')
       call diffusion_block_power_iteration( &
@@ -104,6 +110,11 @@ else
       call transport_block_power_iteration( &
         nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
         keff, sigma_tr, phi)
+      if (high_low) then
+        call diffusion_power_iteration( &
+          nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1), &
+          transportxs = sigma_tr(:,:,2))
+      endif
     case ('onegroup')
       select case (pn_solver_opt)
         case ('flip')
