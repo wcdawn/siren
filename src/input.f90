@@ -31,6 +31,12 @@ character(16) :: pn_solver_opt = 'lupine'
 ! choose whether to solve one-group at-a-time ("onegroup") or all at once ("block")
 character(16) :: energy_solver_opt = 'onegroup'
 
+! optional high-fidelity -> low-fidelity option to run diffusion after transport
+logical :: high_low = .false.
+
+! optional recalculate diffusion coefficient to 1/(3*sigma_t) for consistency with P1
+logical :: force_consistent_diffusion = .false.
+
 public :: input_read, input_cleanup
 
 public :: nx, dx, xslib_fname, mat_map
@@ -41,6 +47,7 @@ public :: boundary_left, boundary_right
 public :: analytic_reference
 public :: pn_solver_opt
 public :: energy_solver_opt
+public :: high_low, force_consistent_diffusion
 
 contains
 
@@ -108,6 +115,10 @@ contains
           read(line, *) card, pn_solver_opt
         case ('energy_solver_opt')
           read(line, *) card, energy_solver_opt
+        case ('high_low')
+          read(line, *) card, high_low
+        case ('force_consistent_diffusion')
+          read(line, *) card, force_consistent_diffusion
         case default
           call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect
@@ -154,6 +165,11 @@ contains
     endif
 
     call output_write('energy_solver_opt = *' // trim(adjustl(energy_solver_opt)) // '*')
+
+    write(line, '(a,l2)') 'high_low = ', high_low
+    call output_write(line)
+    write(line, '(a,l2)') 'force_consistent_diffusion = ', force_consistent_diffusion
+    call output_write(line)
 
     call output_write('')
   endsubroutine input_summary

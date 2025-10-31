@@ -1,6 +1,6 @@
 module diffusion
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 
@@ -8,7 +8,7 @@ public :: diffusion_power_iteration
 
 contains
 
-  subroutine diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+  subroutine diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup, diffusion_coeff)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -19,6 +19,7 @@ contains
     real(rk), intent(out) :: sub(:,:) ! (nx,ngroup)
     real(rk), intent(out) :: dia(:,:) ! (nx,ngroup)
     real(rk), intent(out) :: sup(:,:) ! (nx,ngroup)
+    real(rk), intent(in), optional :: diffusion_coeff(:,:) ! (nx,ngroup)
 
     integer(ik) :: i, g
     integer(ik) :: mprev, mthis, mnext
@@ -28,9 +29,15 @@ contains
     mthis = mat_map(1)
     mnext = mat_map(2)
     do g = 1,xslib%ngroup
-      dnext = 2 &
-        * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
-        / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+      if (present(diffusion_coeff)) then
+        dnext = 2 &
+          * (diffusion_coeff(1,g) / dx(1) * diffusion_coeff(2,g) / dx(2)) &
+          / (diffusion_coeff(1,g) / dx(1) + diffusion_coeff(2,g) / dx(2))
+      else
+        dnext = 2 &
+          * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
+          / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+      endif
       dia(1,g) = dnext + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1)
       sup(1,g) = -dnext
     enddo
@@ -42,12 +49,21 @@ contains
         mthis = mat_map(i)
         mnext = mat_map(i+1)
 
-        dprev = 2 &
-          * (xslib%mat(mthis)%diffusion(g) / dx(i) * xslib%mat(mprev)%diffusion(g) / dx(i-1)) &
-          / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mprev)%diffusion(g) / dx(i-1))
-        dnext = 2 &
-          * (xslib%mat(mthis)%diffusion(g) / dx(i) * xslib%mat(mnext)%diffusion(g) / dx(i+1)) &
-          / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mnext)%diffusion(g) / dx(i+1))
+        if (present(diffusion_coeff)) then
+          dprev = 2 &
+            * (diffusion_coeff(i,g) / dx(i) * diffusion_coeff(i-1,g) / dx(i-1)) &
+            / (diffusion_coeff(i,g) / dx(i) + diffusion_coeff(i-1,g) / dx(i-1))
+          dnext = 2 &
+            * (diffusion_coeff(i,g) / dx(i) * diffusion_coeff(i+1,g) / dx(i+1)) &
+            / (diffusion_coeff(i,g) / dx(i) + diffusion_coeff(i+1,g) / dx(i+1))
+        else
+          dprev = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(i) * xslib%mat(mprev)%diffusion(g) / dx(i-1)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mprev)%diffusion(g) / dx(i-1))
+          dnext = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(i) * xslib%mat(mnext)%diffusion(g) / dx(i+1)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mnext)%diffusion(g) / dx(i+1))
+        endif
 
         sub(i-1,g) = -dprev
         dia(i,g) = dprev + dnext &
@@ -63,19 +79,35 @@ contains
     select case(boundary_right)
       case ('zero')
         do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          if (present(diffusion_coeff)) then
+            dprev = 2 &
+              * (diffusion_coeff(nx,g) / dx(nx) * diffusion_coeff(nx-1,g) / dx(nx-1)) &
+              / (diffusion_coeff(nx,g) / dx(nx) + diffusion_coeff(nx-1,g) / dx(nx-1))
+          else
+            dprev = 2 &
+              * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+              / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          endif
           sub(nx-1,g) = -dprev
           dia(nx,g) = dprev &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
-            + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
+          if (present(diffusion_coeff)) then
+            dia(nx,g) = dia(nx,g) + 2 * diffusion_coeff(nx,g) / dx(nx)
+          else
+            dia(nx,g) = dia(nx,g) + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
+          endif
         enddo
       case ('mirror')
         do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          if (present(diffusion_coeff)) then
+            dprev = 2 &
+              * (diffusion_coeff(nx,g) / dx(nx) * diffusion_coeff(nx-1,g) / dx(nx-1)) &
+              / (diffusion_coeff(nx,g) / dx(nx) + diffusion_coeff(nx-1,g) / dx(nx-1))
+          else
+            dprev = 2 &
+              * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+              / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          endif
           sub(nx-1,g) = -dprev
           dia(nx,g) = dprev &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
@@ -175,7 +207,7 @@ contains
   endfunction diffusion_fission_summation
 
   subroutine diffusion_power_iteration( &
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
+    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux, transportxs)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -190,6 +222,7 @@ contains
     integer(ik), intent(in) :: max_iter
     real(rk), intent(out) :: keff
     real(rk), intent(out) :: flux(:,:) ! (nx,ngroup)
+    real(rk), intent(in), optional :: transportxs(:,:) ! (nx,ngroup)
 
     real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:)
     real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
@@ -202,12 +235,24 @@ contains
     real(rk), allocatable :: flux_old(:,:)
     real(rk) :: delta_k, delta_phi
 
+    real(rk), allocatable :: diffusion_coeff(:,:) ! (nx,ngroup)
+
     character(1024) :: line
 
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
     allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+
+    if (present(transportxs)) then
+      allocate(diffusion_coeff(nx,xslib%ngroup))
+      call diffusion_populate_coeff(nx, mat_map, xslib, transportxs, diffusion_coeff)
+    endif
+
     call timer_start('diffusion_build_matrix')
-    call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+    if (allocated(diffusion_coeff)) then
+      call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup, diffusion_coeff)
+    else
+      call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+    endif
     call timer_stop('diffusion_build_matrix')
 
     allocate(fsource(nx,xslib%ngroup))
@@ -277,7 +322,40 @@ contains
     deallocate(sub_copy, dia_copy, sup_copy)
     deallocate(fsource, upsource, downsource)
     deallocate(q)
-
+    if (allocated(diffusion_coeff)) then
+      deallocate(diffusion_coeff)
+    endif
   endsubroutine diffusion_power_iteration
+
+  subroutine diffusion_populate_coeff(nx, mat_map, xslib, transportxs, diffusion_coeff)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: transportxs(:,:) ! (nx,ngroup)
+    real(rk), intent(out) :: diffusion_coeff(:,:) ! (nx,ngroup)
+
+    integer(ik) :: i, g, mthis
+    real(rk) :: xsmax, xsmin
+
+    logical, parameter :: clamp = .true.
+
+    ! copy
+    diffusion_coeff(1:nx,1:xslib%ngroup) = transportxs(1:nx,1:xslib%ngroup)
+    
+    if (clamp) then
+      do i = 1,nx
+        mthis = mat_map(i)
+        xsmax = maxval(xslib%mat(mthis)%sigma_t)
+        xsmin = minval(xslib%mat(mthis)%sigma_t)
+        do g = 1,xslib%ngroup
+          diffusion_coeff(i,g) = min(diffusion_coeff(i,g), xsmax)
+          diffusion_coeff(i,g) = max(diffusion_coeff(i,g), xsmin)
+        enddo ! g = 1,xslib%ngroup
+      enddo ! i = 1,nx
+    endif
+
+    diffusion_coeff = 1.0_rk / (3.0_rk * diffusion_coeff)
+  endsubroutine diffusion_populate_coeff
 
 endmodule diffusion
