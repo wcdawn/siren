@@ -1,6 +1,6 @@
 module analytic
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 public :: analytic_error
@@ -84,7 +84,7 @@ contains
     ! However, one would need to be careful since the mesh is not uniform.
     do n = 1,pnorder+1
       do g = 1,ngroup
-        linferr(g,n) = norm(-1, phi_diff(:,g,n))
+        linferr(g,n) = norm(phi_diff(:,g,n), -1)
       enddo ! g = 1,ngroup
     enddo ! n = 1,pnorder+1
 

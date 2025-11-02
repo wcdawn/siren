@@ -1,7 +1,7 @@
 module xs
 use kind, only : rk, ik
 use exception_handler, only : exception_fatal
-implicit none (external)
+implicit none
 private
 
 public :: XSMaterial, XSLibrary, xs_read_library, xs_cleanup
