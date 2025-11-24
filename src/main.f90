@@ -16,7 +16,7 @@ use power, only : power_calculate
 use analytic, only : analytic_error
 use exception_handler, only : exception_fatal, exception_summary
 use timer, only : timer_init, timer_start, timer_stop, timer_summary
-implicit none (external)
+implicit none
 
 integer(ik) :: i
 character(1024) :: input_fname

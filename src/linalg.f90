@@ -1,6 +1,6 @@
 module linalg
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 

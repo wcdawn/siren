@@ -1,6 +1,6 @@
 module transport_block
 use kind, only : rk, ik
-implicit none (external)
+implicit none
 
 private
 public :: transport_block_power_iteration
