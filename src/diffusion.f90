@@ -229,7 +229,7 @@ contains
     real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:)
     real(rk), allocatable :: q(:)
 
-    integer(ik) :: g
+    integer(ik) :: i, g
     integer(ik) :: iter
     real(rk) :: k_old, fsum, fsum_old
     real(rk), allocatable :: flux_old(:,:)
@@ -252,6 +252,13 @@ contains
       call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup, diffusion_coeff)
     else
       call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+      if (.false.) then
+        write(730, '(es13.6,",",es13.6,",",es13.6)') 0d0 , dia(1,1), sup(1,1)
+        do i = 2,nx-1
+          write(730, '(es13.6,",",es13.6,",",es13.6)') sub(i-1,1), dia(i,1), sup(i,1)
+        enddo
+        write(730, '(es13.6,",",es13.6,",",es13.6)') sub(nx-1,1), dia(nx,1), 0.0
+      endif
     endif
     call timer_stop('diffusion_build_matrix')
 

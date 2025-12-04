@@ -67,6 +67,8 @@ contains
     ! get phi_exact
     allocate(phi_exact(nx,ngroup,pnorder+1))
     select case (analytic_name)
+      case ('onegroup')
+        call analytic_fun_onegroup(x, phi_exact)
       case ('twogroup')
         call analytic_fun_twogroup(x, xslib, phi_exact)
       case ('tworeg')
@@ -90,6 +92,8 @@ contains
 
     ! get keff_exact
     select case (analytic_name)
+      case ('onegroup')
+        keff_exact = analytic_keff_onegroup(xslib)
       case ('twogroup')
         keff_exact = analytic_keff_twogroup(xslib)
       case ('tworeg')
@@ -318,5 +322,24 @@ contains
       + 2.0_rk/3.0_rk/xslib%mat(1)%sigma_t(1)*bsq * analytic_ratio_p3(xslib) &
       + rem)
   endfunction analytic_keff_p3
+
+  subroutine analytic_fun_onegroup(x, phi_exact)
+    use constant, only : pi
+    real(rk), intent(in) :: x(:)
+    real(rk), intent(out) :: phi_exact(:,:,:)
+    real(rk), parameter :: phi0 = 1.0_rk
+    phi_exact(:,1,1) = phi0 * cos(pi * x / Lx_twogroup)
+  endsubroutine analytic_fun_onegroup
+
+  real(rk) function analytic_keff_onegroup(xslib)
+    use xs, only : XSLibrary
+    use constant, only : pi
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), parameter :: bsq = (pi / Lx_twogroup)**2
+    real(rk) :: rem
+    rem = xslib%mat(1)%sigma_t(1) - xslib%mat(1)%scatter(1,1,1)
+    analytic_keff_onegroup = xslib%mat(1)%nusf(1) &
+      / (xslib%mat(1)%diffusion(1) * bsq + rem)
+  endfunction analytic_keff_onegroup
 
 endmodule analytic
