@@ -37,6 +37,9 @@ logical :: high_low = .false.
 ! optional recalculate diffusion coefficient to 1/(3*sigma_t) for consistency with P1
 logical :: force_consistent_diffusion = .false.
 
+! optional calculation type. either 'eigenvalue' or 'fixed_source'
+character(16) :: calc_type = 'eigenvalue'
+
 public :: input_read, input_cleanup
 
 public :: nx, dx, xslib_fname, mat_map
@@ -48,6 +51,7 @@ public :: analytic_reference
 public :: pn_solver_opt
 public :: energy_solver_opt
 public :: high_low, force_consistent_diffusion
+public :: calc_type
 
 contains
 
@@ -119,6 +123,8 @@ contains
           read(line, *) card, high_low
         case ('force_consistent_diffusion')
           read(line, *) card, force_consistent_diffusion
+        case ('calc_type')
+          read(line, *) card, calc_type
         case default
           call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect
@@ -170,6 +176,7 @@ contains
     call output_write(line)
     write(line, '(a,l2)') 'force_consistent_diffusion = ', force_consistent_diffusion
     call output_write(line)
+    call output_write('calc_type = *' // trim(adjustl(calc_type)) // '*')
 
     call output_write('')
   endsubroutine input_summary

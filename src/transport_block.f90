@@ -510,7 +510,7 @@ contains
   endfunction transport_block_fission_summation
 
   subroutine transport_block_power_iteration(&
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+    nx, dx, mat_map, xslib, boundary_right, calc_type, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
@@ -521,6 +521,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: calc_type
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
@@ -548,8 +549,6 @@ contains
     real(rk), allocatable :: phi_block(:,:,:), phi_old(:,:,:) ! (ngroup,nx,pnorder+1)
 
     character(1024) :: line
-
-    character(*), parameter :: calc_type = 'fixed_source'
 
     if (mod(pnorder,2) /= 1) then
       call exception_fatal('pnorder must be odd')
