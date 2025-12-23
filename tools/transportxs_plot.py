@@ -53,27 +53,9 @@ if __name__ == "__main__":
         if ngroup <= 10:
             plt.legend()
         plt.xlabel("x [cm]")
-        plt.ylabel("$\\Sigma_{{tr}}(x)$ (arb. units)")
-        plt.title("Siren $\\Sigma_{{tr}}$ {:d}".format(n))
+        plt.ylabel("$\\sigma_{{tr}}(x)$ [1/cm]")
+        plt.title("Siren $\\sigma_{{tr}}$ {:d}".format(n))
         plt.tight_layout()
         plt.savefig("sigma_tr_n{:d}".format(n) + extension, dpi=dpi)
-
-    for n in range(0, pnorder, 2):
-        plt.figure()
-        for g in range(ngroup):
-            xnext = (n + 1) * (n + 1) / ((2 * n + 1) * (2 * n + 3))
-            xprev = n * n / ((2 * n + 1) * (2 * n - 1))
-            if n == 0:
-                d = xnext / sigma_tr[n + 1, g, :]
-            else:
-                d = xnext / sigma_tr[n + 1, g, :] + xprev / sigma_tr[n - 1, g, :]
-            plt.plot(x, d, label="g={:d}".format(g + 1))
-        if ngroup <= 10:
-            plt.legend()
-        plt.xlabel("x [cm]")
-        plt.ylabel("$D_g(x)$")
-        plt.title("Coefficient of Diffusivity n={:d}".format(n))
-        plt.tight_layout()
-        plt.savefig("diff_n{:d}".format(n) + extension, dpi=dpi)
 
     plt.show()
