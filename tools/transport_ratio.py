@@ -55,12 +55,8 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig("sigma_t_spectrum." + extension, dpi=resolution)
 
-    sigtr_ref = np.loadtxt("/Users/williamdawn/work/siren/cases/pno.slab/sig_tr.txt")
-
     plt.figure()
     plt.semilogx(c5_586_midpoint, sigtr / sigt, "-x", label="Siren")
-    plt.semilogx(c5_586_midpoint, sigtr_ref / sigt, "-x", label="SPENG")
-    plt.legend()
     plt.xlabel("Energy [eV]")
     plt.ylabel("$\\Sigma_{tr} / \\Sigma_{t}$")
     plt.title("Transport-to-Total Cross Section Ratio")
