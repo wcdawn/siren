@@ -549,6 +549,8 @@ contains
 
     character(1024) :: line
 
+    character(*), parameter :: calc_type = 'fixed_source'
+
     if (mod(pnorder,2) /= 1) then
       call exception_fatal('pnorder must be odd')
     endif
@@ -590,6 +592,14 @@ contains
     call transport_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
+    if (calc_type == 'fixed_source') then
+      call output_write('  building fixed source')
+      call output_write('  using fission spectrum for fixed source specturm: ' // trim(adjustl(xslib%mat(1)%name)))
+      call timer_start('transport_fixed_source')
+      call transport_block_build_fixed_source(nx, dx, xslib%mat(1)%chi, fsource)
+      call timer_stop('transport_fixed_source')
+    endif
+
     call output_write('  beginning iterations')
     do iter = 1,max_iter
 
@@ -609,10 +619,16 @@ contains
         q = pn_next_source(:,:,n)
 
         if (n == 1) then
-          call timer_start('transport_fsource')
-          call transport_block_build_fsource(nx, dx, mat_map, xslib, phi_block(:,:,1), fsource)
-          q = q + fsource / keff
-          call timer_stop('transport_fsource')
+          if (calc_type == 'eigenvalue') then
+            call timer_start('transport_fsource')
+            call transport_block_build_fsource(nx, dx, mat_map, xslib, phi_block(:,:,1), fsource)
+            q = q + fsource / keff
+            call timer_stop('transport_fsource')
+          else if (calc_type == 'fixed_source') then
+            q = q + fsource
+          else
+            call exception_fatal('unknown calc_type: ' // trim(adjustl(calc_type)))
+          endif
         else
           call timer_start('transport_pn_source')
           call transport_block_build_prev_source( &
@@ -631,8 +647,10 @@ contains
       enddo ! n = 1,neven
 
       call timer_start('transport_convergence')
-      fsum = transport_block_fission_summation(nx, dx, mat_map, xslib, phi_block(:,:,1))
-      if (iter > 1) keff = keff * fsum / fsum_old
+      if (calc_type == 'eigenvalue') then
+        fsum = transport_block_fission_summation(nx, dx, mat_map, xslib, phi_block(:,:,1))
+        if (iter > 1) keff = keff * fsum / fsum_old
+      endif
       delta_k = abs(keff - k_old)
       delta_phi = maxval(abs(phi_block - phi_old)) / maxval(phi_block)
       call timer_stop('transport_convergence')
@@ -817,96 +835,10 @@ contains
     enddo ! n = 1,pnorder+1
   endsubroutine transport_block_calc_transportxs
 
-  subroutine transport_block_fixed_source(&
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
-    use xs, only : XSLibrary
-    use linalg, only : trid
-    use output, only : output_write
-    use timer, only : timer_start, timer_stop
-    use exception_handler, only : exception_fatal, exception_warning
-    integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: dx(:) ! (nx)
-    integer(ik), intent(in) :: mat_map(:) ! (nx)
-    type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
-    real(rk), intent(in) :: k_tol
-    real(rk), intent(in) :: phi_tol
-    integer(ik), intent(in) :: max_iter
-    integer(ik), intent(in) :: pnorder
-    real(rk), intent(out) :: keff
-    real(rk), intent(out) :: sigma_tr ! (nx,ngroup,nmoment)
-    real(rk), intent(out) :: phi(:,:,:) ! (nx,ngroup,nmoment)
-
-    integer(ik) :: i, g, n
-    integer(ik) :: neven, idxn
-    integer(ik) :: iter
-
-    real(rk) :: delta_phi
-
-    ! (ngroup,ngroup,nx-1,neven) , (ngroup,ngroup,nx,neven) , (ngroup,ngroup,nx-1,neven)
-    real(rk), allocatable :: sub(:,:,:,:), dia(:,:,:,:), sup(:,:,:,:)
-    ! (ngroup,ngroup,nx-1) , (ngroup,ngroup,nx) , (ngroup,ngroup,nx-1)
-    real(rk), allocatable :: sub_copy(:,:,:), dia_copy(:,:,:), sup_copy(:,:,:)
-
-    real(rk), allocatable :: qfixed(:,:) ! (ngroup,nx)
-    real(rk), allocatable :: pn_prev_source(:,:) ! (ngroup,nx) -- for this moment
-    real(rk), allocatable :: pn_next_source(:,:,:) ! (ngroup,nx,neven) -- for all moments
-    real(rk), allocatable :: q(:,:) ! (ngroup,nx)
-
-    real(rk), allocatable :: phi_block(:,:,:), phi_old(:,:,:) ! (ngroup,nx,pnorder+1)
-
-    character(1024) :: line
-
-    if (mod(pnorder,2) /= 1) then
-      call exception_fatal('pnorder must be odd (fixed_source)')
-    endif
-    neven = (pnorder+1)/2
-
-    allocate(sub(xslib%ngroup,xslib%ngroup,nx-1,neven),&
-      dia(xslib%ngroup,xslib%ngroup,nx,neven),&
-      sup(xslib%ngroup,xslib%ngroup,nx-1,neven))
-    allocate(sub_copy(xslib%ngroup,xslib%ngroup,nx-1),&
-      dia_copy(xslib%ngroup,xslib%ngroup,nx),&
-      sup_copy(xslib%ngroup,xslib%ngroup,nx-1))
-
-    allocate(qfixed(xslib%ngroup,nx))
-    allocate(pn_prev_source(xslib%ngroup,nx))
-    allocate(pn_next_source(xslib%ngroup,nx,neven))
-    allocate(q(xslib%ngroup,nx))
-
-    allocate(phi_block(xslib%ngroup,nx,pnorder+1))
-    allocate(phi_old(xslib%ngroup,nx,pnorder+1))
-
-    phi_block(:,:,1) = 1.0_rk
-    phi_block(:,:,2:pnorder+1) = 0.0_rk
-
-    keff = 1.0_rk
-
-    call output_write('=== PN TRANSPORT BLOCK FIXED SOURCE ===')
-
-    call output_write('  building transport matrix')
-    call timer_start('transport_build_matrix')
-    call transport_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
-    call timer_stop('transport_build_matrix')
-
-    call output_write('  building fixed source')
-    call timer_start('transport_build_fixed_source')
-    call transport_block_build_fixed_source(nx, dx, xslib%ngroup, xslib%mat(1)%chi, qfixed)
-    call timer_stop('transport_build_fixed_source')
-
-    call output_write('  beginning iterations')
-
-    deallocate(qfixed, pn_prev_source, pn_next_source, q)
-    deallocate(phi_block, phi_old)
-    deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
-  endsubroutine transport_block_fixed_source
-
-  subroutine transport_block_build_fixed_source(nx, dx, ngroup, chi, qfixed)
+  subroutine transport_block_build_fixed_source(nx, dx, chi, qfixed)
     use constant, only : pi
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
-    integer(ik), intent(in) :: ngroup
     real(rk), intent(in) :: chi(:) ! (ngroup)
     real(rk), intent(out) :: qfixed(:,:) ! (ngroup,nx)
     
