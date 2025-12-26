@@ -239,7 +239,7 @@ contains
 
     character(1024) :: line
 
-    logical, parameter :: matrix_dump = .true.
+    logical, parameter :: matrix_dump = .false.
 
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
     allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
