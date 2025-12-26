@@ -4,7 +4,7 @@ use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
   k_tol, phi_tol, max_iter, analytic_reference, pn_solver_opt, energy_solver_opt, &
-  high_low, force_consistent_diffusion
+  high_low, force_consistent_diffusion, calc_type
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
@@ -108,7 +108,7 @@ else
   select case (energy_solver_opt)
     case ('block')
       call transport_block_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
+        nx, dx, mat_map, xs, boundary_right, calc_type, k_tol, phi_tol, max_iter, pnorder, &
         keff, sigma_tr, phi)
       if (high_low) then
         call diffusion_power_iteration( &

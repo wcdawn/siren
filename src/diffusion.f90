@@ -239,6 +239,8 @@ contains
 
     character(1024) :: line
 
+    logical, parameter :: matrix_dump = .false.
+
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
     allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
 
@@ -252,7 +254,7 @@ contains
       call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup, diffusion_coeff)
     else
       call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
-      if (.false.) then
+      if (matrix_dump) then
         write(730, '(es13.6,",",es13.6,",",es13.6)') 0d0 , dia(1,1), sup(1,1)
         do i = 2,nx-1
           write(730, '(es13.6,",",es13.6,",",es13.6)') sub(i-1,1), dia(i,1), sup(i,1)

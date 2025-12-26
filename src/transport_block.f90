@@ -510,7 +510,7 @@ contains
   endfunction transport_block_fission_summation
 
   subroutine transport_block_power_iteration(&
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr,phi)
+    nx, dx, mat_map, xslib, boundary_right, calc_type, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
@@ -521,6 +521,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: calc_type
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
@@ -590,6 +591,14 @@ contains
     call transport_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
+    if (calc_type == 'fixed_source') then
+      call output_write('  building fixed source')
+      call output_write('  using fission spectrum for fixed source specturm: ' // trim(adjustl(xslib%mat(1)%name)))
+      call timer_start('transport_fixed_source')
+      call transport_block_build_fixed_source(nx, dx, xslib%mat(1)%chi, fsource)
+      call timer_stop('transport_fixed_source')
+    endif
+
     call output_write('  beginning iterations')
     do iter = 1,max_iter
 
@@ -609,10 +618,16 @@ contains
         q = pn_next_source(:,:,n)
 
         if (n == 1) then
-          call timer_start('transport_fsource')
-          call transport_block_build_fsource(nx, dx, mat_map, xslib, phi_block(:,:,1), fsource)
-          q = q + fsource / keff
-          call timer_stop('transport_fsource')
+          if (calc_type == 'eigenvalue') then
+            call timer_start('transport_fsource')
+            call transport_block_build_fsource(nx, dx, mat_map, xslib, phi_block(:,:,1), fsource)
+            q = q + fsource / keff
+            call timer_stop('transport_fsource')
+          else if (calc_type == 'fixed_source') then
+            q = q + fsource
+          else
+            call exception_fatal('unknown calc_type: ' // trim(adjustl(calc_type)))
+          endif
         else
           call timer_start('transport_pn_source')
           call transport_block_build_prev_source( &
@@ -631,8 +646,10 @@ contains
       enddo ! n = 1,neven
 
       call timer_start('transport_convergence')
-      fsum = transport_block_fission_summation(nx, dx, mat_map, xslib, phi_block(:,:,1))
-      if (iter > 1) keff = keff * fsum / fsum_old
+      if (calc_type == 'eigenvalue') then
+        fsum = transport_block_fission_summation(nx, dx, mat_map, xslib, phi_block(:,:,1))
+        if (iter > 1) keff = keff * fsum / fsum_old
+      endif
       delta_k = abs(keff - k_old)
       delta_phi = maxval(abs(phi_block - phi_old)) / maxval(phi_block)
       call timer_stop('transport_convergence')
@@ -816,5 +833,26 @@ contains
       endif
     enddo ! n = 1,pnorder+1
   endsubroutine transport_block_calc_transportxs
+
+  subroutine transport_block_build_fixed_source(nx, dx, chi, qfixed)
+    use constant, only : pi
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    real(rk), intent(in) :: chi(:) ! (ngroup)
+    real(rk), intent(out) :: qfixed(:,:) ! (ngroup,nx)
+    
+    integer(ik) :: i
+    real(rk) :: xleft, xcenter
+
+    real(rk), parameter :: x0 = 0.0_rk
+    real(rk), parameter :: Lx = 100.0_rk
+
+    xleft = x0
+    do i = 1,nx
+      xcenter = xleft + 0.5_rk * dx(i)
+      xleft = xleft + dx(i)
+      qfixed(:,i) = chi * cos(pi * xcenter / Lx)
+    enddo ! i = 1,nx
+  endsubroutine transport_block_build_fixed_source
 
 endmodule transport_block
