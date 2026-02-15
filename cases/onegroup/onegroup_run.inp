@@ -2,7 +2,7 @@ xslib_fname onegroup.xs
 nx 5
 dx 10. 10. 10. 10. 10.
 mat_map 1 1 1 1 1
-refine 10
+refine 8
 boundary_right zero
 k_tol 1e-10
 phi_tol 1e-9

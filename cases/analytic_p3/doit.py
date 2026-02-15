@@ -103,6 +103,7 @@ if __name__ == "__main__":
 
     plt.figure()
     plt.loglog(nx, np.abs(keff_diff), "-o")
+    plt.loglog(nx, np.abs(keff_diff[0])/nx[0]/nx**2, "-k", lw=1, label="_hide")
     plt.xlabel("NX")
     plt.ylabel("keff error [pcm]")
     plt.title("Spatial Refinement")
@@ -110,6 +111,7 @@ if __name__ == "__main__":
 
     plt.figure()
     plt.loglog(nx, np.abs(ratio_diff), "-o")
+    plt.loglog(nx, np.abs(ratio_diff[0])/nx[0]/nx**2, "-k", lw=1, label="_hide")
     plt.xlabel("NX")
     plt.ylabel("ratio difference")
     plt.title("Spatial Refinement")
@@ -118,6 +120,7 @@ if __name__ == "__main__":
     plt.figure()
     for n in range(linferr.shape[1]):
         plt.loglog(nx, linferr[:, n], "-o", label="$\\phi_{{{:d}}}$".format(n))
+    plt.loglog(nx, np.abs(linferr[0,0])/nx[0]/nx**2, "-k", lw=1, label="_hide")
     plt.legend()
     plt.xlabel("NX")
     plt.ylabel("$\\| \\phi_n \\|$")

@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     executable = "/Users/williamdawn/work/siren/src/siren.x"
     fname_base = "onegroup.inp"
-    max_refine = 11
+    max_refine = 9
 
     fname_run = fname_base.replace(".inp", "_run.inp")
 
