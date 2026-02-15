@@ -1,0 +1,17 @@
+&library
+     c_mcclibdir  ="/home/wcdawn/projects/mcc/lib/lib.mcc.e70"
+     c_pwlibdir   ="/home/wcdawn/projects/mcc/lib/lib.pw.200.e70"
+/
+&control
+     c_group_structure       ="ANL425"
+     i_number_region         =2
+     l_external_inelasticpn  =T
+     i_scattering_order      =9
+     c_geometry_type         ="mixture"
+/
+&material
+t_composition(:,1)=
+        "H1___7"    "H1___7"     1.0   600.
+t_composition(:,2)=
+        "U235_7"    "U235_7"     1.0   600.
+ /

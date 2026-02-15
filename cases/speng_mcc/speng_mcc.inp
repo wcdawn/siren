@@ -1,0 +1,17 @@
+nx 5
+dx 10. 10. 10. 10. 10.
+mat_map 2 2 2 2 2
+
+xslib_fname hydrogenous_data.xs
+
+refine 2
+pnorder 1
+energy_solver_opt block
+
+k_tol 1d-10
+phi_tol 1e-10
+max_iter 1000
+
+boundary_right zero
+
+calc_type 'fixed_source'
