@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 import sys
 
 matplotlib.rcParams["lines.linewidth"] = 2
-# matplotlib.rcParams["mathtext.fontset"] = "stix"
-# matplotlib.rcParams["font.family"] = "STIXGeneral"
-matplotlib.rcParams["font.size"] = 16
+matplotlib.rcParams["mathtext.fontset"] = "stix"
+matplotlib.rcParams["font.family"] = "STIXGeneral"
+matplotlib.rcParams["font.size"] = 14
 
 
 def set_input(txt, pnorder, refine):
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     executable = "/Users/williamdawn/work/siren/src/siren.x"
     fname_base = "URRd-H2Ob_1-2-0-ISLC.inp"
-    max_pnorder = 13
+    max_pnorder = 21
     max_refine = 12
 
     fname_run = fname_base.replace(".inp", "_run.inp")
@@ -103,8 +103,8 @@ if __name__ == "__main__":
     plt.legend()
     plt.xlabel("NX")
     plt.ylabel("Error [pcm]")
-    plt.tight_layout()
     plt.title("Spatial Refinement")
+    plt.tight_layout()
 
     plt.figure()
     for pidx in range(table.shape[0]):
@@ -114,8 +114,8 @@ if __name__ == "__main__":
     plt.legend()
     plt.xlabel("NX")
     plt.ylabel("keff")
-    plt.tight_layout()
     plt.title("Spatial Refinement")
+    plt.tight_layout()
 
     pnorder = np.zeros(table.shape[0])
     for pidx in range(table.shape[0]):
@@ -127,8 +127,8 @@ if __name__ == "__main__":
     plt.legend()
     plt.xlabel("$P_N$")
     plt.ylabel("Error [pcm]")
-    plt.tight_layout()
     plt.title("Moment Refinement")
+    plt.tight_layout()
 
     plt.figure()
     for ridx in range(table.shape[1]):
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.xlabel("$P_N$")
     plt.ylabel("keff")
-    plt.tight_layout()
     plt.title("Moment Refinement")
+    plt.tight_layout()
 
     plt.show()

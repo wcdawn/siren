@@ -2,8 +2,9 @@ xslib_fname benchmark2g.xs
 nx 5
 dx 10. 10. 10. 10. 10.
 mat_map 1 1 1 1 1
-refine 0
-pnorder 0
+refine 12
+pnorder 5
+energy_solver_opt block
 
 k_tol 1e-13
 phi_tol 1e-10

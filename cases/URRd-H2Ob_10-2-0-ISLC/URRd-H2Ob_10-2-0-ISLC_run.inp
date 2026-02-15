@@ -2,8 +2,8 @@ xslib_fname benchmark2g.xs
 nx 2
 dx 0.460135 90.347875
 mat_map 1 2
-refine 10
-pnorder 0
+refine 12
+pnorder 17
 
 k_tol 1e-8
 phi_tol 1e-7
