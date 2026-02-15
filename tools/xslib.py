@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
 
 
 def load(fname):
@@ -136,6 +137,7 @@ def summary(lib):
 
 if __name__ == "__main__":
 
-    fname = "../cases/pin_slab/c5xs.xs"
+    # fname = "../cases/pin_slab/c5xs.xs"
+    fname = sys.argv[1]
     xs = load(fname)
     summary(xs)
