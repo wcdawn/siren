@@ -1,0 +1,18 @@
+#nx 10
+#dx 10. 10. 10. 10. 10. 10. 10. 10. 10. 10.
+#mat_map 1 1 1 1 1 1 1 1 2 2
+
+nx 7
+dx 30. 10. 10. 10. 10. 10. 20
+mat_map 1 1 1 1 1 1 2
+
+xslib_fname tworeg.xs
+refine 8
+k_tol 1d-10
+phi_tol 1d-9
+max_iter 1000
+pnorder 3
+boundary_right 'zero'
+energy_solver_opt 'block'
+
+analytic_reference tworeg
