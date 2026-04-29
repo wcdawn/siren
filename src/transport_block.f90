@@ -851,7 +851,11 @@ contains
     do i = 1,nx
       xcenter = xleft + 0.5_rk * dx(i)
       xleft = xleft + dx(i)
-      qfixed(:,i) = chi * cos(pi * xcenter / Lx)
+      if (xcenter < 0.5_rk * Lx) then
+        qfixed(:,i) = chi * cos(pi * xcenter / Lx)
+      else
+        qfixed(:,i) = 0.0_rk
+      endif
     enddo ! i = 1,nx
   endsubroutine transport_block_build_fixed_source
 
