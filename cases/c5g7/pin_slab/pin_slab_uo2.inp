@@ -1,0 +1,12 @@
+xslib_fname '../c5g7.xs'
+
+nx 2
+dx 0.54 0.09
+mat_map 1 7
+
+refine 10
+pnorder 51
+
+max_iter 10000
+k_tol 1e-10
+phi_tol 1e-9
