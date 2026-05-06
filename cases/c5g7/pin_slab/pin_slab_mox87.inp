@@ -2,7 +2,7 @@ xslib_fname '../c5g7.xs'
 
 nx 2
 dx 0.54 0.09
-mat_map 1 7
+mat_map 4 7
 
 refine 10
 pnorder 51
