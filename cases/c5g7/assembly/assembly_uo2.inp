@@ -1,7 +1,7 @@
 xslib_fname '../c5g7.xs'
 
 refine 10
-pnorder 21
+pnorder 51
 
 max_iter 10000
 k_tol 1e-10
