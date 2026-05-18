@@ -93,12 +93,14 @@ contains
           allocate(dx(nx))
           mat_map = 0
         case ('dx')
-          read(line, *) card, dx
+          backspace(iounit)
+          read(iounit, *) card, dx
+        case ('mat_map')
+          backspace(iounit)
+          read(iounit, *) card, mat_map
         case ('xslib_fname')
           xslib_fname = ''
           read(line, *) card, xslib_fname
-        case ('mat_map')
-          read(line, *) card, mat_map
         case ('k_tol')
           read(line, *) card, k_tol
         case ('phi_tol')
