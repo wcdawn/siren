@@ -510,7 +510,6 @@ contains
       if ((abs(eigval(i)) < kcalc) .and. (abs(eigval(i)) > epsilon(1.0_rk)) .and. (abs(aimag(eigval(i))) < epsilon(1.0_rk))) then
         idx = i
         kcalc = abs(eigval(i))
-        write(*,*) 1.0_rk/kcalc
       endif
     enddo ! i = 1,rank
     kcalc = 1.0_rk/kcalc
