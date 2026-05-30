@@ -346,13 +346,15 @@ contains
       / (xslib%mat(1)%diffusion(1) * bsq + rem)
   endfunction analytic_keff_onegroup
 
-  subroutine analytic_pn_fission_matrix(xsmat, pnorder, fmat)
+  subroutine analytic_pn_fission_matrix(xsmat, fmat)
     use xs, only : XSMaterial
     type(XSMaterial), intent(in) :: xsmat
-    integer(ik), intent(in) :: pnorder
     real(rk), intent(out) :: fmat(:,:)
 
     integer(ik) :: g, gprime
+
+    ! Note that pnorder is not necessary because I assume that fmat is already appropriately allocated.
+    ! Regardless of pnorder, I just write to the first "block" anyways.
 
     fmat = 0.0_rk
     do g = 1,xsmat%ngroup
@@ -495,7 +497,7 @@ contains
 
     bsq = (pi / Lx_p3)**2 ! NOTE: hard wired
 
-    call analytic_pn_fission_matrix(xslib%mat(1), pnorder, f)
+    call analytic_pn_fission_matrix(xslib%mat(1), f)
     call analytic_pn_transport_matrix(xslib%mat(1), bsq, pnorder, a)
 
     allocate(eigval(rank))
