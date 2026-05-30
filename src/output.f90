@@ -9,9 +9,10 @@ private
 
 public :: output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, &
-  output_matmap_csv
+  output_matmap_csv, &
+  output_file_unit
 
-integer, parameter, private :: output_file_unit = 99
+integer, parameter :: output_file_unit = 99
 integer, parameter, private :: output_list(2) = [ stdout, output_file_unit ]
 
 contains
