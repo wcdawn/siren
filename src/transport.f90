@@ -152,6 +152,11 @@ contains
     integer(ik) :: i, g, n
     integer(ik) :: mthis
 
+    ! NOTE: this can only ever be used.
+    ! It is *not* possible to update the transport xs during the iterative scheme due to non-positive
+    ! values of the flux moments and singularities of the transport xs.
+    ! Effectively, this routine is only useful for the one-group case.
+
     do n = 1,pnorder+1
       if (n <= xslib%nmoment) then
         do g = 1,xslib%ngroup
@@ -171,51 +176,6 @@ contains
     enddo ! n = 1,pnorder+1
 
   endsubroutine transport_init_transportxs
-
-  subroutine transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
-    use xs, only : XSLibrary
-    integer(ik), intent(in) :: nx
-    integer(ik), intent(in) :: mat_map(:)
-    type(XSLibrary), intent(in) :: xslib
-    integer(ik), intent(in) :: pnorder
-    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
-    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
-
-    integer(ik) :: n, g, i
-    integer(ik) :: mthis
-
-    do n = 1,pnorder+1
-      if (n <= xslib%nmoment) then
-        if (mod(n,2) == 0) then
-          ! If n is even, idxn (the actual PN order) is odd... off-by-one
-          do i = 1,nx
-            mthis = mat_map(i)
-            do g = 1,xslib%ngroup
-              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) &
-                - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
-            enddo ! g = 1,xslib%ngroup
-          enddo ! i = 1,nx
-        else
-          ! I don't really care about the even transport xs.
-          ! They are not used in the calculations anywhere
-          do i = 1,nx
-            mthis = mat_map(i)
-            do g = 1,xslib%ngroup
-              sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) &
-                - sum(xslib%mat(mthis)%scatter(:,g,n)*phi(i,:,n))/phi(i,g,n)
-            enddo ! xslib%ngroup
-          enddo ! i = 1,nx
-        endif
-      else
-        do i = 1,nx
-          mthis = mat_map(i)
-          do g = 1,xslib%ngroup
-            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g)
-          enddo ! g = 1,xslib%ngroup
-        enddo ! n = 1,nx
-      endif
-    enddo ! n = 1,pnorder+1
-  endsubroutine transport_build_transportxs
 
   subroutine transport_odd_update(nx, dx, mat_map, ng, boundary_right, pnorder, sigma_tr, phi)
     use numeric, only : deriv
@@ -656,21 +616,6 @@ contains
       phi_old = phi
       fsum_old = fsum
 
-      if (iter > 1) then
-      ! TODO simplify here
-      call timer_start('transport_odd_update')
-      call transport_odd_update( &
-        nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
-      call timer_stop('transport_odd_update')
-      call timer_start('transport_build_transportxs')
-      call transport_build_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
-      call timer_stop('transport_build_transportxs')
-      call timer_start('transport_build_matrix')
-      call transport_build_matrix( &
-        nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
-      call timer_stop('transport_build_matrix')
-      endif
-
       call timer_start('transport_pn_source')
       call transport_build_next_source( &
         nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
@@ -724,6 +669,12 @@ contains
 
         enddo ! g = 1,ngroup
       enddo ! n = 1,neven
+
+      ! always do this update so that we can use it in the convergence criteria
+      call timer_start('transport_odd_update')
+      call transport_odd_update( &
+        nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+      call timer_stop('transport_odd_update')
 
       call timer_start('transport_convergence')
       ! eigenvalue update
