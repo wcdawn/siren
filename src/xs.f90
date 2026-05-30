@@ -196,6 +196,7 @@ contains
       allocate(a(xsmat%ngroup,xsmat%ngroup), f(xsmat%ngroup,xsmat%ngroup))
       allocate(eigval(xsmat%ngroup), eigvec(xsmat%ngroup,xsmat%ngroup))
 
+      a = 0.0_rk
       do g = 1,xsmat%ngroup
         a(g,g) = xsmat%sigma_t(g)
       enddo ! g = 1,xsmat%ngroup
@@ -214,9 +215,10 @@ contains
       do g = 1,xsmat%ngroup
         if ((abs(eigval(g)) < calc_kinf) .and. (abs(eigval(g)) > epsilon(1.0_rk))) then
           gprime = g
-          calc_kinf = 1.0_rk/abs(eigval(g))
+          calc_kinf = abs(eigval(g))
         endif
       enddo
+      calc_kinf = 1.0_rk/calc_kinf
 
       ! NOTE: this isn't used now, but may be useful in the future
       allocate(phi(xsmat%ngroup))

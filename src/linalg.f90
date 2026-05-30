@@ -6,6 +6,8 @@ private
 
 public :: trid, norm, trid_block, inv, solve, geneig
 
+integer, parameter, private :: double_kind = kind(1d0)
+
 contains
 
   real(rk) function norm(ell, x)
@@ -60,25 +62,29 @@ contains
 
     ! scratch space used by LAPACK
     integer, allocatable :: ipiv(:)
-    real(rk), allocatable :: work(:)
+    real(double_kind), allocatable :: work(:)
+    real(double_kind), allocatable :: acpy(:,:)
 
     external :: dgetrf
     external :: dgetri
 
     allocate(ipiv(n))
     allocate(work(n))
+    allocate(acpy(n,n))
+    acpy = real(a, double_kind)
 
-    ainv = a
-    call dgetrf(n, n, ainv, n, ipiv, info)
+    call dgetrf(n, n, acpy, n, ipiv, info)
     if (info /= 0) then
       stop 'failure from dgetrf'
     endif
-    call dgetri(n, ainv, n, ipiv, work, n, info)
+    call dgetri(n, acpy, n, ipiv, work, n, info)
     if (info /= 0) then
       stop 'failure from dgetri'
     endif
 
-    deallocate(ipiv, work)
+    ainv = acpy
+
+    deallocate(ipiv, work, acpy)
   endsubroutine inv
 
   subroutine solve(n, a, b, x)
@@ -88,10 +94,10 @@ contains
     real(rk), intent(out) :: x(:) ! (n)
 
     integer :: info
-    integer(ik), allocatable :: ipiv(:)
+    integer, allocatable :: ipiv(:)
 
-    real(rk), allocatable :: acpy(:,:)
-    real(rk), allocatable :: bcpy(:)
+    real(double_kind), allocatable :: acpy(:,:)
+    real(double_kind), allocatable :: bcpy(:)
 
     external :: dgesv
 
@@ -99,8 +105,8 @@ contains
     allocate(bcpy(n))
     allocate(ipiv(n))
 
-    acpy = a
-    bcpy = b
+    acpy = real(a, double_kind)
+    bcpy = real(b, double_kind)
 
     call dgesv(n, 1, acpy, n, ipiv, bcpy, n, info)
     if (info /= 0) then
@@ -165,17 +171,17 @@ contains
   subroutine geneig(n, a, b, eigval, eigvec)
     integer(ik), intent(in) :: n
     real(rk), intent(in) :: a(:,:), b(:,:)
-    complex(rk), intent(out) :: eigval(:)
+    complex(kind=rk), intent(out) :: eigval(:)
     real(rk), intent(out) :: eigvec(:,:)
 
-    real(rk), allocatable :: acpy(:,:), bcpy(:,:)
-    real(rk), allocatable :: alphar(:), alphai(:)
-    real(rk), allocatable :: beta(:)
-    real(rk), allocatable :: vr(:,:), vl(:,:)
+    real(double_kind), allocatable :: acpy(:,:), bcpy(:,:)
+    real(double_kind), allocatable :: alphar(:), alphai(:)
+    real(double_kind), allocatable :: beta(:)
+    real(double_kind), allocatable :: vr(:,:), vl(:,:)
 
-    integer(ik) :: lwork
-    integer(ik), parameter :: lwork_factor = 10
-    real(rk), allocatable :: work(:)
+    integer :: lwork
+    integer, parameter :: lwork_factor = 10
+    real(double_kind), allocatable :: work(:)
     integer :: info
 
     integer(ik) :: i
@@ -186,8 +192,8 @@ contains
     allocate(alphar(n), alphai(n))
     allocate(beta(n))
     allocate(vr(n,n), vl(n,n))
-    acpy = a
-    bcpy = b
+    acpy = real(a, double_kind)
+    bcpy = real(b, double_kind)
 
     lwork = lwork_factor * n
     allocate(work(lwork))
@@ -198,6 +204,7 @@ contains
       stop 'failure in dgeev'
     endif
 
+    eigval = cmplx(0.0_rk, 0.0_rk, rk)
     do i = 1,n
       if (abs(beta(i)) > epsilon(1.0_rk)) then
         eigval(i) = cmplx(alphar(i), alphai(i), rk)/beta(i)

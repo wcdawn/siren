@@ -651,6 +651,7 @@ contains
         if (iter > 1) keff = keff * fsum / fsum_old
       endif
       delta_k = abs(keff - k_old)
+      ! NOTE: convergence is not enforced on odd moments as they are only calculated after-the-fact
       delta_phi = maxval(abs(phi_block - phi_old)) / maxval(phi_block)
       call timer_stop('transport_convergence')
 
