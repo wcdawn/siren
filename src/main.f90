@@ -11,19 +11,24 @@ use diffusion_block, only : diffusion_block_power_iteration
 use transport, only : transport_power_iteration
 use transport_block, only : transport_block_power_iteration
 use output, only : output_open_file, output_close_file, output_write, &
-  output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, output_matmap_csv
+  output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, &
+  output_matmap_csv, output_file_unit
 use power, only : power_calculate
 use analytic, only : analytic_error
 use exception_handler, only : exception_fatal, exception_summary
 use timer, only : timer_init, timer_start, timer_stop, timer_summary
+use fileio, only : fileio_open_read
 implicit none
+
+integer, parameter :: input_file_unit = 15
+integer :: ios
 
 integer(ik) :: i
 character(1024) :: input_fname
 character(1024) :: fname_stub, &
   fname_flux, fname_phi, fname_power, fname_transportxs, fname_out, fname_analytic, &
   fname_matmap
-character(1024) :: line
+character(10240) :: line
 type(XSLibrary) :: xs
 
 real(rk) :: keff
@@ -59,8 +64,23 @@ call output_write('begin SIREN')
 call output_write('input file: ' // trim(adjustl(input_fname)))
 call output_write('')
 
+write(output_file_unit, '(a)') '=== INPUT ECHO (BEGIN) ==='
+call fileio_open_read(input_fname, input_file_unit)
+do
+  line = ''
+  read(input_file_unit, '(a)', iostat=ios) line
+  if (ios /= 0) then
+    exit
+  endif
+  write(output_file_unit, '(a)') trim(line)
+enddo
+close(input_file_unit)
+write(output_file_unit, '(a)') '=== INPUT ECHO (END) ==='
+write(output_file_unit, *)
+
 call timer_start('input_read')
 call input_read(input_fname)
+
 call output_write('(before refinement)')
 call geometry_summary(nx, dx, mat_map)
 call timer_stop('input_read')

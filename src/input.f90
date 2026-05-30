@@ -62,7 +62,6 @@ contains
     integer :: ios
 
     call fileio_open_read(trim(adjustl(fname)), iounit)
-    ! TODO input echo
 
     do
       read(iounit, '(a)', iostat=ios) line
