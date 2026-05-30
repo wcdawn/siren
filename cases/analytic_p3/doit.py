@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
         out = run(executable, fname_run)
         if "CONVERGENCE!" not in out:
-            print("failed to converge p=", p, "r=", r)
+            print("failed to converge r=", r)
             sys.exit(1)
         out = out.split("\n")
 
