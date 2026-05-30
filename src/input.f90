@@ -23,10 +23,6 @@ character(16) :: boundary_left = 'mirror', boundary_right = 'mirror'
 ! optional analytic reference solution
 character(16) :: analytic_reference = 'none'
 
-! optional solver option for pn solver
-! right now, just chooses iteration order either classical "flip" or my version of "lupine"
-character(16) :: pn_solver_opt = 'lupine'
-
 ! optional solver option for diffusion solver (to be extended to pn)
 ! choose whether to solve one-group at-a-time ("onegroup") or all at once ("block")
 character(16) :: energy_solver_opt = 'onegroup'
@@ -48,7 +44,6 @@ public :: pnorder
 public :: refine
 public :: boundary_left, boundary_right
 public :: analytic_reference
-public :: pn_solver_opt
 public :: energy_solver_opt
 public :: high_low, force_consistent_diffusion
 public :: calc_type
@@ -117,8 +112,6 @@ contains
           read(line, *) card, boundary_right
         case ('analytic_reference')
           read(line, *) card, analytic_reference
-        case ('pn_solver_opt')
-          read(line, *) card, pn_solver_opt
         case ('energy_solver_opt')
           read(line, *) card, energy_solver_opt
         case ('high_low')
@@ -167,10 +160,6 @@ contains
     call output_write('boundary_left = *' // trim(adjustl(boundary_left)) // '*')
     call output_write('boundary_right = *' // trim(adjustl(boundary_right)) // '*')
     call output_write('analytic_reference = *' // trim(adjustl(analytic_reference)) // '*')
-
-    if (pnorder /= 0) then
-      call output_write('pn_solver_opt = *' // trim(adjustl(pn_solver_opt)) // '*')
-    endif
 
     call output_write('energy_solver_opt = *' // trim(adjustl(energy_solver_opt)) // '*')
 
