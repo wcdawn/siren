@@ -71,7 +71,7 @@ contains
     allocate(ipiv(n))
     allocate(work(n))
     allocate(acpy(n,n))
-    acpy = a
+    acpy = real(a, double_kind)
 
     call dgetrf(n, n, acpy, n, ipiv, info)
     if (info /= 0) then
@@ -105,8 +105,8 @@ contains
     allocate(bcpy(n))
     allocate(ipiv(n))
 
-    acpy = a
-    bcpy = b
+    acpy = real(a, double_kind)
+    bcpy = real(b, double_kind)
 
     call dgesv(n, 1, acpy, n, ipiv, bcpy, n, info)
     if (info /= 0) then
@@ -171,7 +171,7 @@ contains
   subroutine geneig(n, a, b, eigval, eigvec)
     integer(ik), intent(in) :: n
     real(rk), intent(in) :: a(:,:), b(:,:)
-    complex(rk), intent(out) :: eigval(:)
+    complex(kind=rk), intent(out) :: eigval(:)
     real(rk), intent(out) :: eigvec(:,:)
 
     real(double_kind), allocatable :: acpy(:,:), bcpy(:,:)
@@ -192,8 +192,8 @@ contains
     allocate(alphar(n), alphai(n))
     allocate(beta(n))
     allocate(vr(n,n), vl(n,n))
-    acpy = a
-    bcpy = b
+    acpy = real(a, double_kind)
+    bcpy = real(b, double_kind)
 
     lwork = lwork_factor * n
     allocate(work(lwork))
@@ -204,6 +204,7 @@ contains
       stop 'failure in dgeev'
     endif
 
+    eigval = cmplx(0.0_rk, 0.0_rk, rk)
     do i = 1,n
       if (abs(beta(i)) > epsilon(1.0_rk)) then
         eigval(i) = cmplx(alphar(i), alphai(i), rk)/beta(i)

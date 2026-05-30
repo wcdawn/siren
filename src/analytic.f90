@@ -421,6 +421,11 @@ contains
     allocate(Nhat(rank, rank))
     allocate(That(rank, rank))
 
+    Dhat = 0.0_rk
+    Phat = 0.0_rk
+    Nhat = 0.0_rk
+    That = 0.0_rk
+
     do n = 1,neq
       idxn = 2*(n-1)
       xidxn = real(idxn, rk)
@@ -512,7 +517,7 @@ contains
       keff = kcalc
     endif
 
-    allocate(amplitude(xslib%ngroup,pnorder+1))
+    allocate(amplitude(xslib%ngroup,pnorder))
 
     ! first pass: copy even moments
     do n = 1,neq

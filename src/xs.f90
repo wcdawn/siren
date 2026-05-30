@@ -196,6 +196,7 @@ contains
       allocate(a(xsmat%ngroup,xsmat%ngroup), f(xsmat%ngroup,xsmat%ngroup))
       allocate(eigval(xsmat%ngroup), eigvec(xsmat%ngroup,xsmat%ngroup))
 
+      a = 0.0_rk
       do g = 1,xsmat%ngroup
         a(g,g) = xsmat%sigma_t(g)
       enddo ! g = 1,xsmat%ngroup
