@@ -69,7 +69,7 @@ call timer_start('xs_read')
 call xs_read_library(xslib_fname, xs)
 call timer_stop('xs_read')
 
-if ((pnorder /= 0) .and. (xs%nmoment /= 1) .and. (trim(adjustl(energy_solver_opt)) /= 'block')) then
+if ((pnorder /= 0) .and. (xs%nmoment /= 1) .and. (xs%ngroup > 1) .and. (trim(adjustl(energy_solver_opt)) /= 'block')) then
   call exception_fatal(&
     'The onegroup PN solver is unstable for true anisotropic scattering. ' // &
     'You must use "energy_solver_opt block"')
