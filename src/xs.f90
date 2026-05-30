@@ -214,9 +214,10 @@ contains
       do g = 1,xsmat%ngroup
         if ((abs(eigval(g)) < calc_kinf) .and. (abs(eigval(g)) > epsilon(1.0_rk))) then
           gprime = g
-          calc_kinf = 1.0_rk/abs(eigval(g))
+          calc_kinf = abs(eigval(g))
         endif
       enddo
+      calc_kinf = 1.0_rk/calc_kinf
 
       ! NOTE: this isn't used now, but may be useful in the future
       allocate(phi(xsmat%ngroup))

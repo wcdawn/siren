@@ -75,6 +75,8 @@ contains
         call analytic_fun_tworeg(x, xslib, phi_exact)
       case ('analytic_p3')
         call analytic_fun_p3(x, xslib, phi_exact)
+      case ('analytic_pn')
+        call analytic_fun_pn(x, xslib, phi_exact)
       case default
         call exception_fatal('unknown analytic_name: ' // trim(adjustl(analytic_name)))
     endselect
@@ -100,6 +102,8 @@ contains
         keff_exact = analytic_keff_tworeg(xslib)
       case ('analytic_p3')
         keff_exact = analytic_keff_p3(xslib)
+      case ('analytic_pn')
+        call analytic_fun_pn(x, xslib, phi_exact, keff_exact)
       case default
         call exception_fatal('second -- unknown analytic_name: ' // trim(adjustl(analytic_name)))
     endselect
@@ -341,5 +345,195 @@ contains
     analytic_keff_onegroup = xslib%mat(1)%nusf(1) &
       / (xslib%mat(1)%diffusion(1) * bsq + rem)
   endfunction analytic_keff_onegroup
+
+  subroutine analytic_pn_fission_matrix(xsmat, pnorder, fmat)
+    use xs, only : XSMaterial
+    type(XSMaterial), intent(in) :: xsmat
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(out) :: fmat(:,:)
+
+    integer(ik) :: g, gprime
+
+    fmat = 0.0_rk
+    do g = 1,xsmat%ngroup
+      do gprime = 1,xsmat%ngroup
+        fmat(gprime, g) = xsmat%chi(gprime) * xsmat%nusf(g)
+      enddo ! gprime = 1,xsmat%ngroup
+    enddo ! g = 1,xsmat%ngroup
+  endsubroutine analytic_pn_fission_matrix
+
+  subroutine analytic_pn_transport_matrix(xsmat, bsq, pnorder, amat)
+    use xs, only : XSMaterial
+    use linalg, only : inv
+    type(XSMaterial), intent(in) :: xsmat
+    real(rk), intent(in) :: bsq
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(out) :: amat(:,:)
+
+    real(rk), allocatable :: mat(:,:), invmat(:,:)
+    real(rk), allocatable :: removal(:,:,:), inv_removal(:,:,:)
+
+    real(rk), allocatable :: Dmat(:,:), Pmat(:,:), Nmat(:,:), Tmat(:,:)
+    real(rk), allocatable :: Dhat(:,:), Phat(:,:), Nhat(:,:), That(:,:)
+
+    integer(ik) :: g, n, idxn
+    integer(ik) :: neq, rank
+    integer(ik) :: lo, hi
+    real(rk) :: xidxn
+
+    allocate(removal(xsmat%ngroup,xsmat%ngroup,pnorder+1))
+    allocate(inv_removal(xsmat%ngroup,xsmat%ngroup,pnorder+1))
+    allocate(mat(xsmat%ngroup, xsmat%ngroup), invmat(xsmat%ngroup, xsmat%ngroup))
+    do n = 1,pnorder+1
+      idxn = n-1
+
+      mat = 0.0_rk
+      do g = 1,xsmat%ngroup
+        mat(g,g) = xsmat%sigma_t(g)
+      enddo ! g = 1,xsmat%ngroup
+
+      if (idxn+1 <= xsmat%nmoment) then
+        ! we have a scattering moment
+        mat = mat - transpose(xsmat%scatter(:,:,idxn+1))
+        call inv(xsmat%ngroup, mat, invmat)
+        removal(:,:,idxn+1) = mat
+        inv_removal(:,:,idxn+1) = invmat
+      else
+        invmat = mat
+        do g = 1,xsmat%ngroup
+          invmat(g,g) = 1.0_rk / invmat(g,g)
+        enddo ! g = 1,xsmat%ngroup
+        removal(:,:,idxn+1) = mat
+        inv_removal(:,:,idxn+1) = invmat
+      endif
+    enddo ! n = 1,pnorder+1
+    deallocate(mat, invmat)
+
+    allocate(Dmat(xsmat%ngroup,xsmat%ngroup))
+    allocate(Pmat(xsmat%ngroup,xsmat%ngroup))
+    allocate(Nmat(xsmat%ngroup,xsmat%ngroup))
+    allocate(Tmat(xsmat%ngroup,xsmat%ngroup))
+
+    neq = int((pnorder+1)/2)
+    rank = neq * xsmat%ngroup
+    allocate(Dhat(rank, rank))
+    allocate(Phat(rank, rank))
+    allocate(Nhat(rank, rank))
+    allocate(That(rank, rank))
+
+    do n = 1,neq
+      idxn = 2*(n-1)
+      xidxn = real(idxn, rk)
+
+      lo = xsmat%ngroup*(n-1)+1
+      hi = xsmat%ngroup*n
+
+      Tmat = removal(:,:,idxn+1)
+      That(lo:hi,lo:hi) = Tmat
+
+      Dmat = (xidxn+1.0_rk)*(xidxn+1.0_rk)/((2.0_rk*xidxn+1.0_rk)*(2.0_rk*xidxn+3.0_rk))*inv_removal(:,:,idxn+1+1)
+      if ((idxn - 1) > 0) then
+        Dmat = Dmat + xidxn*xidxn/((2.0_rk*xidxn+1.0_rk)*(2.0_rk*xidxn-1.0_rk))*inv_removal(:,:,idxn+1-1)
+      endif
+      Dhat(lo:hi,lo:hi) = Dmat
+
+      if ((idxn - 1) > 0) then
+        Pmat = xidxn*(xidxn-1.0_rk)/((2.0_rk*xidxn+1.0_rk)*(2.0_rk*xidxn-1.0_rk))*inv_removal(:,:,idxn+1-1)
+        Phat(lo:hi,xsmat%ngroup*(n-2)+1:xsmat%ngroup*(n-1)) = Pmat ! TODO transpose block?
+      endif
+
+      if ((idxn + 1) < pnorder-1) then
+        Nmat = (xidxn+1.0_rk)*(xidxn+2.0_rk)/((2.0_rk*xidxn+1.0_rk)*(2.0_rk*xidxn+3.0_rk))*inv_removal(:,:,idxn+1+1)
+        Nhat(lo:hi,xsmat%ngroup*n+1:xsmat%ngroup*(n+1)) = Nmat ! TODO transpose block?
+      endif
+
+    enddo ! n = 1,neq
+
+    amat = (Dhat + Phat + Nhat) * bsq + That
+
+    deallocate(Dmat, Pmat, Nmat, Tmat)
+    deallocate(Dhat, Phat, Nhat, That)
+  endsubroutine analytic_pn_transport_matrix
+
+  subroutine analytic_fun_pn(x, xslib, exact, keff)
+    use xs, only : XSLibrary
+    use constant, only : pi
+    use linalg, only : geneig
+    real(rk), intent(in) :: x(:)
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(out) :: exact(:,:,:)
+    real(rk), intent(out), optional :: keff
+
+    integer(ik) :: pnorder, neq, rank
+    integer(ik) :: i, j, g, n, idxn
+    real(rk) :: bsq
+
+    real(rk), allocatable :: a(:,:), f(:,:)
+    complex(rk), allocatable :: eigval(:)
+    real(rk), allocatable :: eigvec(:,:)
+
+    integer(ik) :: idx
+    real(rk) :: kcalc
+
+    real(rk), allocatable :: amplitude(:,:)
+
+    ! a bit iffy since this is taken with intent(out)
+    pnorder = size(exact,3)
+
+    neq = int((pnorder+1)/2)
+    rank = neq * xslib%ngroup
+    allocate(f(rank,rank))
+    allocate(a(rank,rank))
+
+    bsq = (pi / Lx_p3)**2
+
+    call analytic_pn_fission_matrix(xslib%mat(1), pnorder, f)
+    call analytic_pn_transport_matrix(xslib%mat(1), bsq, pnorder, a)
+
+    allocate(eigval(rank))
+    allocate(eigvec(rank,rank))
+    call geneig(rank, a, f, eigval, eigvec)
+
+    kcalc = huge(1.0_rk)
+    idx = -1
+    do i = 1,rank
+      if ((abs(eigval(i)) < kcalc) .and. (abs(eigval(i)) > epsilon(1.0_rk))) then
+        idx = i
+        kcalc = abs(eigval(i))
+      endif
+    enddo ! i = 1,rank
+    kcalc = 1.0_rk/kcalc
+
+    if (present(keff)) then
+      keff = kcalc
+    endif
+
+    allocate(amplitude(xslib%ngroup,pnorder+1))
+
+    ! first pass: copy even moments
+    do n = 1,neq
+      idxn = 2*(n-1)
+      amplitude(:,idxn+1) = eigvec(xslib%ngroup*(n-1)+1:xslib%ngroup*n,idx)
+    enddo ! n = 1,neq
+
+    ! second pass: compute odd moments
+    do n = 1,neq
+      idxn = 2*(n-1)+1
+      ! TODO
+    enddo ! n = 1,neq
+
+    amplitude = amplitude / amplitude(1,1)
+
+    write(*,*) 'c_{n,g}'
+    do n = 1,pnorder
+      do g = 1,xslib%ngroup
+        write(*,'(a,i0,a,i0,a,es13.6)') 'c_{', n-1, ',', g, '} = ', amplitude(g,n)
+      enddo ! g = 1,xslib%ngroup
+    enddo ! n = 1,pnorder+1
+
+    stop 'here'
+
+    deallocate(a, f)
+  endsubroutine analytic_fun_pn
 
 endmodule analytic
