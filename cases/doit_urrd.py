@@ -42,7 +42,7 @@ def get_nx(lines):
 
 if __name__ == "__main__":
 
-    executable = "/Users/williamdawn/work/siren/src/siren.x"
+    executable = "../src/siren.x"
     pnorder = 17
     refine = 12
 

@@ -186,8 +186,8 @@ contains
     integer(ik), intent(in) :: ng
     character(*), intent(in) :: boundary_right
     integer(ik), intent(in) :: pnorder
-    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
-    real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
+    real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
 
     integer(ik) :: n, g, i
     integer(ik) :: idxn
@@ -298,7 +298,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
     integer(ik), intent(in) :: idxn
     real(rk), intent(out) :: qup(:,:) ! (nx, ngroup)
 
@@ -325,7 +325,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
     integer(ik), intent(in) :: idxn
     integer(ik), intent(in) :: g
     real(rk), intent(out) :: qdown(:) ! (nx)
@@ -376,8 +376,8 @@ contains
     integer(ik), intent(in) :: ngroup
     character(*), intent(in) :: boundary_right
     integer(ik), intent(in) :: neven
-    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
-    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(out) :: qnext(:,:,:) ! (nx, ngroup, neven)
 
     integer(ik) :: i, g, n
@@ -448,8 +448,8 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
     character(*), intent(in) :: boundary_right
-    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder)
-    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder)
+    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
     integer(ik), intent(in) :: idxn
     real(rk), intent(out) :: qprev(:,:) ! (nx, ngroup)
 

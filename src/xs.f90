@@ -78,7 +78,6 @@ contains
           read(line, *) card, xslib%niso
         case ('nmoment')
           read(line, *) card, xslib%nmoment
-          xslib%nmoment = xslib%nmoment + 1 ! index begins at 1 in SIREN
         case ('name')
           if (pnt == 0) then
             ! allocate necessary space
