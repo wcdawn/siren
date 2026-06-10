@@ -5,8 +5,7 @@ import sys
 import plot_settings
 import transportxs_plot
 import xslib
-from private_ebound import c5_586
-from ebound import anl425
+import ebound
 
 
 def compute_dx(x):
@@ -45,7 +44,18 @@ if __name__ == "__main__":
     dx = compute_dx(x)
     sigtr = compute_groupwise_average(dx, sigma_tr[1, :, :])
 
-    egrid = anl425
+    if ngroup == 361:
+        egrid = ebound.GROUP_STRUCTURES["SHEM-361"]
+    elif ngroup == 425:
+        egrid = ebound.GROUP_STRUCTURES["ANL-425"]
+    else:
+        print("Unknown group structure for ngroup: ", ngroup)
+        sys.exit(1)
+
+    # Order in descending energy order.
+    # This is the conventional multi-group ordering.
+    egrid = np.flip(egrid)
+
     ebins_midpoint = np.zeros(ngroup)
     for g in range(ngroup):
         ebins_midpoint[g] = 0.5 * (egrid[g] + egrid[g + 1])
