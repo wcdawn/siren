@@ -51,7 +51,7 @@ def get_nx(lines):
 
 if __name__ == "__main__":
 
-    executable = "/Users/wcdawn/work/siren/src/siren.x"
+    executable = "../../src/siren.x"
     fname_base = "analytic_p3.inp"
     max_refine = 11
 
