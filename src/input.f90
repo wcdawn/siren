@@ -79,46 +79,45 @@ contains
       endif
 
       read(line, *) card
+      backspace(iounit)
 
       select case (card)
         case ('nx')
-          read(line, *) card, nx
+          read(iounit, *) card, nx
           allocate(mat_map(nx))
           allocate(dx(nx))
           mat_map = 0
         case ('dx')
-          backspace(iounit)
           read(iounit, *) card, dx
         case ('mat_map')
-          backspace(iounit)
           read(iounit, *) card, mat_map
         case ('xslib_fname')
           xslib_fname = ''
-          read(line, *) card, xslib_fname
+          read(iounit, *) card, xslib_fname
         case ('k_tol')
-          read(line, *) card, k_tol
+          read(iounit, *) card, k_tol
         case ('phi_tol')
-          read(line, *) card, phi_tol
+          read(iounit, *) card, phi_tol
         case ('max_iter')
-          read(line, *) card, max_iter
+          read(iounit, *) card, max_iter
         case ('refine')
-          read(line, *) card, refine
+          read(iounit, *) card, refine
         case ('pnorder')
-          read(line, *) card, pnorder
+          read(iounit, *) card, pnorder
         case ('boundary_left')
-          read(line, *) card, boundary_left
+          read(iounit, *) card, boundary_left
         case ('boundary_right')
-          read(line, *) card, boundary_right
+          read(iounit, *) card, boundary_right
         case ('analytic_reference')
-          read(line, *) card, analytic_reference
+          read(iounit, *) card, analytic_reference
         case ('energy_solver_opt')
-          read(line, *) card, energy_solver_opt
+          read(iounit, *) card, energy_solver_opt
         case ('high_low')
-          read(line, *) card, high_low
+          read(iounit, *) card, high_low
         case ('force_consistent_diffusion')
-          read(line, *) card, force_consistent_diffusion
+          read(iounit, *) card, force_consistent_diffusion
         case ('calc_type')
-          read(line, *) card, calc_type
+          read(iounit, *) card, calc_type
         case default
           call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect
