@@ -25,9 +25,13 @@ target_sources(${PROJECT_NAME}.x
     src/xs.f90
 )
 
+find_package(OpenMP REQUIRED)
+target_link_libraries(${PROJECT_NAME}.x OpenMP::OpenMP_Fortran)
+
+find_package(LAPACK REQUIRED)
+target_link_libraries(${PROJECT_NAME}.x LAPACK::LAPACK)
+
 # Note that the CMake language does not allow setting the Fortran_STANDARD from the build instructions
 # and it must be specified via the command-line argument.
-
-# TODO OpenMP
-
+# TODO debug flags
 target_compile_options(${PROJECT_NAME}.x PRIVATE -Wall -Wextra -O3 -std=f2018 -pedantic)
