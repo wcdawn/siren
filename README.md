@@ -8,6 +8,7 @@ To build.
 
 ```
 git clone <url>
+cd siren
 cmake -B build
 cmake --build build
 ```
