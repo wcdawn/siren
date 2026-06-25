@@ -8,15 +8,15 @@ To build.
 
 ```
 git clone <url>
-cd siren/src
-make
+cmake -B build
+cmake --build build
 ```
 
 Then, to run.
 
 ```
 cd siren/cases/tworeg
-../../src/siren.x ./twreg.inp
+../../build/siren.x ./twreg.inp
 ```
 
 # Motivation
