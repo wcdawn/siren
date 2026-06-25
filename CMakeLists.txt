@@ -33,8 +33,7 @@ target_link_libraries(${PROJECT_NAME}.x LAPACK::LAPACK)
 
 # Note that the CMake language does not allow setting the Fortran_STANDARD from the build instructions
 # and it must be specified via the command-line argument.
-target_compile_options(${PROJECT_NAME}.x PRIVATE
-  -Wall -Wextra -std=f2018 -pedantic
-  $<$<CONFIG:Debug>:-O0;-g;-fbacktrace;-ffpe-trap=invalid,overflow,zero;-fcheck=all>
-  $<$<CONFIG:Release>:-O3>
-)
+target_compile_options(${PROJECT_NAME}.x PRIVATE -Wall -Wextra -std=f2018 -pedantic)
+target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<CONFIG:Debug>:-O0;-g;-fbacktrace;-ffpe-trap=invalid,overflow,zero;-fcheck=all>)
+target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<CONFIG:Release>:-O3>)
+target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<CONFIG:>:-O3>) # include default/empty option
