@@ -123,13 +123,13 @@ if __name__ == "__main__":
     # dump table in LaTeX format
     with open("pin_slab_result.tex", "w") as f:
         for i in range(table.shape[0]):
-            f.write(" & {{$P_{{{:d}}}$}}".format(2*i+1))
+            f.write(" & {{$P_{{{:d}}}$}}".format(2 * i + 1))
         f.write("\\\\\n")
         f.write("\\midrule\n")
         for j in range(table.shape[1]):
             f.write("r{:d}".format(j))
             for i in range(table.shape[0]):
-                f.write(" & {:.6f}".format(table[i,j]))
+                f.write(" & {:.6f}".format(table[i, j]))
             f.write("\\\\\n")
         f.write("\\midrule\n")
         f.write("Extrap.")
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     plt.ylabel("keff")
     plt.title("Spatial Refinement")
     plt.tight_layout()
-    plt.savefig("refinement_space." + extension, dpi = resolution)
+    plt.savefig("refinement_space." + extension, dpi=resolution)
 
     plt.figure()
     for pidx in range(table.shape[0]):
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     plt.ylabel("|extrapolation - keff| [pcm]")
     plt.title("Spatial Refinement to Extrapolation")
     plt.tight_layout()
-    plt.savefig("refinement_conv." + extension, dpi = resolution)
+    plt.savefig("refinement_conv." + extension, dpi=resolution)
 
     plt.figure()
     for ridx in range(table.shape[1]):
@@ -174,6 +174,6 @@ if __name__ == "__main__":
     plt.ylabel("keff")
     plt.title("Moment Refinement")
     plt.tight_layout()
-    plt.savefig("refinement_moment." + extension, dpi = resolution)
+    plt.savefig("refinement_moment." + extension, dpi=resolution)
 
     plt.show()
