@@ -7,7 +7,7 @@ private
 ! required input
 integer(ik) :: nx
 real(rk), allocatable :: dx(:)
-character(1024) :: xslib_fname
+character(1024) :: xslib_fname, transient_fname
 integer(ik), allocatable :: mat_map(:)
 character(16), allocatable :: mat_map_name(:)
 integer(ik) :: pnorder
@@ -39,7 +39,7 @@ character(16) :: calc_type = 'eigenvalue'
 
 public :: input_read, input_cleanup
 
-public :: nx, dx, xslib_fname, mat_map, mat_map_name
+public :: nx, dx, xslib_fname, transient_fname, mat_map, mat_map_name
 public :: k_tol, phi_tol, max_iter
 public :: pnorder
 public :: refine
@@ -61,6 +61,8 @@ contains
 
     character(1024) :: line, card
     integer :: ios
+
+    transient_fname = ''
 
     call fileio_open_read(trim(adjustl(fname)), iounit)
 
@@ -96,8 +98,9 @@ contains
         case ('mat_map')
           read(iounit, *) card, mat_map_name
         case ('xslib_fname')
-          xslib_fname = ''
           read(iounit, *) card, xslib_fname
+        case ('transient_fname')
+          read(iounit, *) card, transient_fname
         case ('k_tol')
           read(iounit, *) card, k_tol
         case ('phi_tol')
