@@ -55,6 +55,9 @@ contains
     use exception_handler, only : exception_fatal
     character(*), intent(in) :: fname
 
+    integer(ik) :: i, idx
+    character(16), allocatable :: mat_map_name(:)
+
     integer, parameter :: iounit = 15
     character(*), parameter :: comment_char = '#'
 
@@ -87,10 +90,13 @@ contains
           allocate(mat_map(nx))
           allocate(dx(nx))
           mat_map = 0
+          dx = 0.0_rk
+          allocate(mat_map_name(nx))
+          mat_map_name = ''
         case ('dx')
           read(iounit, *) card, dx
         case ('mat_map')
-          read(iounit, *) card, mat_map
+          read(iounit, *) card, mat_map_name
         case ('xslib_fname')
           xslib_fname = ''
           read(iounit, *) card, xslib_fname
@@ -122,6 +128,11 @@ contains
           call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect
     enddo
+
+    do i = 1,nx
+      read(mat_map_name(i), *) idx
+      mat_map(i) = idx
+    enddo ! i = 1,nx
 
     call input_summary()
 
