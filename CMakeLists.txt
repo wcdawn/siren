@@ -16,6 +16,7 @@ target_sources(${PROJECT_NAME}.x
     src/kind.f90
     src/linalg.f90
     src/main.f90
+    src/material.f90
     src/numeric.f90
     src/output.f90
     src/power.f90

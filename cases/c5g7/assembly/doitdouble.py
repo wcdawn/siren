@@ -2,6 +2,7 @@ import numpy as np
 import subprocess
 import sys
 
+
 def set_input(txt, pnorder, refine):
     out = []
     for line in txt:
@@ -57,11 +58,11 @@ if __name__ == "__main__":
     keff = np.zeros(max_refine)
     nx = np.zeros(max_refine, dtype=int)
 
-    start_neq = int((start_pnorder+1)/2)
+    start_neq = int((start_pnorder + 1) / 2)
 
     for i in range(max_refine):
-        neq = start_neq * 2 **i
-        p = neq*2 - 1
+        neq = start_neq * 2**i
+        p = neq * 2 - 1
         r = start_refine + i
 
         inp = set_input(runtxt, p, r)

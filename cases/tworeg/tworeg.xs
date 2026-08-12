@@ -1,6 +1,6 @@
 niso 2
 ngroup 1
-nmoment 0
+nmoment 1
 
 name FUEL
 diffusion

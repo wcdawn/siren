@@ -9,4 +9,4 @@ phi_tol 1e-9
 
 nx  51
 dx 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09 0.09 1.08 0.09
-mat_map 7 2 7 7 3 7 7 6 7 7 4 7 7 4 7 7 6 7 7 4 7 7 4 7 7 6 7 7 4 7 7 4 7 7 6 7 7 4 7 7 4 7 7 6 7 7 3 7 7 2 7
+mat_map moderator mox43 moderator moderator mox70 moderator moderator guide_tube moderator moderator mox87 moderator moderator mox87 moderator moderator guide_tube moderator moderator mox87 moderator moderator mox87 moderator moderator guide_tube moderator moderator mox87 moderator moderator mox87 moderator moderator guide_tube moderator moderator mox87 moderator moderator mox87 moderator moderator guide_tube moderator moderator mox70 moderator moderator mox43 moderator

@@ -2,7 +2,7 @@ xslib_fname '../c5g7.xs'
 
 nx 7
 dx 0.09 0.09 0.09 0.09 0.09 0.09 0.09
-mat_map 4 4 4 4 4 4 7
+mat_map mox87 mox87 mox87 mox87 mox87 mox87 moderator
 
 refine 5
 pnorder 65

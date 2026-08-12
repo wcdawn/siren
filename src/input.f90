@@ -9,6 +9,7 @@ integer(ik) :: nx
 real(rk), allocatable :: dx(:)
 character(1024) :: xslib_fname
 integer(ik), allocatable :: mat_map(:)
+character(16), allocatable :: mat_map_name(:)
 integer(ik) :: pnorder
 
 ! optional input (with defaults)
@@ -38,7 +39,7 @@ character(16) :: calc_type = 'eigenvalue'
 
 public :: input_read, input_cleanup
 
-public :: nx, dx, xslib_fname, mat_map
+public :: nx, dx, xslib_fname, mat_map, mat_map_name
 public :: k_tol, phi_tol, max_iter
 public :: pnorder
 public :: refine
@@ -87,10 +88,13 @@ contains
           allocate(mat_map(nx))
           allocate(dx(nx))
           mat_map = 0
+          dx = 0.0_rk
+          allocate(mat_map_name(nx))
+          mat_map_name = ''
         case ('dx')
           read(iounit, *) card, dx
         case ('mat_map')
-          read(iounit, *) card, mat_map
+          read(iounit, *) card, mat_map_name
         case ('xslib_fname')
           xslib_fname = ''
           read(iounit, *) card, xslib_fname
@@ -173,6 +177,9 @@ contains
   subroutine input_cleanup()
     if (allocated(mat_map)) then
       deallocate(mat_map)
+    endif
+    if (allocated(mat_map_name)) then
+      deallocate(mat_map_name)
     endif
     if (allocated(dx)) then
       deallocate(dx)

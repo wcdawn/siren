@@ -1,7 +1,7 @@
 xslib_fname onegroup.xs
 nx 5
 dx 10. 10. 10. 10. 10.
-mat_map 1 1 1 1 1
+mat_map FUEL FUEL FUEL FUEL FUEL
 refine 4
 boundary_right zero
 k_tol 1e-10

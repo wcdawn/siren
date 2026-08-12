@@ -2,7 +2,7 @@ program siren
 use kind, only : rk, ik
 use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
-  xslib_fname, refine, nx, dx, mat_map, pnorder, boundary_right, &
+  xslib_fname, refine, nx, dx, mat_map, mat_map_name, pnorder, boundary_right, &
   k_tol, phi_tol, max_iter, analytic_reference, energy_solver_opt, &
   high_low, force_consistent_diffusion, calc_type
 use geometry, only : geometry_uniform_refinement, geometry_summary
@@ -18,6 +18,7 @@ use analytic, only : analytic_error
 use exception_handler, only : exception_fatal, exception_summary
 use timer, only : timer_init, timer_start, timer_stop, timer_summary
 use fileio, only : fileio_open_read
+use material, only : material_idx_from_name
 implicit none
 
 integer, parameter :: input_file_unit = 15
@@ -80,20 +81,25 @@ write(output_file_unit, *)
 
 call timer_start('input_read')
 call input_read(input_fname)
-
-call output_write('(before refinement)')
-call geometry_summary(nx, dx, mat_map)
 call timer_stop('input_read')
 
 call timer_start('xs_read')
 call xs_read_library(xslib_fname, xs)
 call timer_stop('xs_read')
 
+! translate from the strings in the input file
+! this has to be done after the xslib is read so that we
+! know the correct indices
+call material_idx_from_name(nx, xs, mat_map_name, mat_map)
+
 if ((pnorder /= 0) .and. (xs%nmoment /= 1) .and. (xs%ngroup > 1) .and. (trim(adjustl(energy_solver_opt)) /= 'block')) then
   call exception_fatal(&
     'The onegroup PN solver is unstable for true anisotropic scattering. ' // &
     'You must use "energy_solver_opt block"')
 endif
+
+call output_write('(before refinement)')
+call geometry_summary(nx, dx, mat_map)
 
 if (refine > 0) then
   call timer_start('refinement')

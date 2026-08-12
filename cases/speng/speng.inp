@@ -1,6 +1,6 @@
 nx 5
 dx 10. 10. 10. 10. 10.
-mat_map 2 2 2 2 2
+mat_map COO_H1 COO_H1 COO_H1 COO_H1 COO_H1
 
 xslib_fname shem-361.xs
 
