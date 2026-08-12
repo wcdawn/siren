@@ -53,7 +53,7 @@ def get_nx(lines):
 
 if __name__ == "__main__":
 
-    executable = "/Users/williamdawn/work/siren/src/siren.x"
+    executable = "../../build/siren.x"
     fname_base = "twogroup.inp"
     max_refine = 11
 

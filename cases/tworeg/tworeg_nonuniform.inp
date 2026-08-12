@@ -1,10 +1,10 @@
 #nx 10
 #dx 10. 10. 10. 10. 10. 10. 10. 10. 10. 10.
-#mat_map 1 1 1 1 1 1 1 1 2 2
+#mat_map FUEL FUEL FUEL FUEL FUEL FUEL FUEL FUEL REFL REFL
 
 nx 7
 dx 30. 10. 10. 10. 10. 10. 20
-mat_map 1 1 1 1 1 1 2
+mat_map FUEL FUEL FUEL FUEL FUEL FUEL REFL
 
 xslib_fname tworeg.xs
 refine 8

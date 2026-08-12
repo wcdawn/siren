@@ -1,7 +1,7 @@
 xslib_fname benchmark2g.xs
 nx 5
 dx 10. 10. 10. 10. 10.
-mat_map 1 1 1 1 1
+mat_map URRd URRd URRd URRd URRd
 refine 12
 pnorder 5
 energy_solver_opt block

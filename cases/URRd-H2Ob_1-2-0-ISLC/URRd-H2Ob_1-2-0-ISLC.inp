@@ -1,7 +1,7 @@
 xslib_fname benchmark2g.xs
 nx 2
 dx 0.0329074 9.034787
-mat_map 1 2
+mat_map URRd H2Ob
 refine 3
 pnorder 5
 

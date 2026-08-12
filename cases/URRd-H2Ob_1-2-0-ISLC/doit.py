@@ -49,7 +49,7 @@ def get_nx(lines):
 
 if __name__ == "__main__":
 
-    executable = "../..//src/siren.x"
+    executable = "../../build/siren.x"
     fname_base = "URRd-H2Ob_1-2-0-ISLC.inp"
     max_pnorder = 21
     max_refine = 12

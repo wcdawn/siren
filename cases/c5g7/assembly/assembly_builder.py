@@ -57,29 +57,9 @@ if __name__ == "__main__":
         "mox43",
     ]
 
-    assembly_mix = [
-        "mox43",
-        "mox70",
-        "gdt",
-        "mox87",
-        "mox87",
-        "gdt",
-        "mox87",
-        "mox87",
-        "gdt",
-        "uo2",
-        "uo2",
-        "gdt",
-        "uo2",
-        "uo2",
-        "gdt",
-        "uo2",
-        "uo2",
-    ]
-
     dx = []
     mat = []
-    for pin in assembly_mix:
+    for pin in assembly_uo2:
         if pin == "uo2":
             dx += dx_uo2
             mat += mat_uo2
@@ -106,17 +86,7 @@ if __name__ == "__main__":
         s += " {:.2f}".format(x)
     print(s)
 
-    mat_map_idx = {
-        "uo2": 1,
-        "mox43": 2,
-        "mox70": 3,
-        "mox87": 4,
-        "fission_chamber": 5,
-        "guide_tube": 6,
-        "moderator": 7,
-    }
-
     s = "mat_map"
     for m in mat:
-        s += " {:d}".format(mat_map_idx[m])
+        s += " " + m
     print(s)
