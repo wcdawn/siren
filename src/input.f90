@@ -178,6 +178,9 @@ contains
     if (allocated(mat_map)) then
       deallocate(mat_map)
     endif
+    if (allocated(mat_map_name)) then
+      deallocate(mat_map_name)
+    endif
     if (allocated(dx)) then
       deallocate(dx)
     endif
