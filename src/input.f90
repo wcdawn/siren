@@ -9,6 +9,7 @@ integer(ik) :: nx
 real(rk), allocatable :: dx(:)
 character(1024) :: xslib_fname
 integer(ik), allocatable :: mat_map(:)
+character(16), allocatable :: mat_map_name(:)
 integer(ik) :: pnorder
 
 ! optional input (with defaults)
@@ -38,7 +39,7 @@ character(16) :: calc_type = 'eigenvalue'
 
 public :: input_read, input_cleanup
 
-public :: nx, dx, xslib_fname, mat_map
+public :: nx, dx, xslib_fname, mat_map, mat_map_name
 public :: k_tol, phi_tol, max_iter
 public :: pnorder
 public :: refine
@@ -54,9 +55,6 @@ contains
     use fileio, only : fileio_open_read
     use exception_handler, only : exception_fatal
     character(*), intent(in) :: fname
-
-    integer(ik) :: i, idx
-    character(16), allocatable :: mat_map_name(:)
 
     integer, parameter :: iounit = 15
     character(*), parameter :: comment_char = '#'
@@ -128,11 +126,6 @@ contains
           call exception_fatal('unknown input card: ' // trim(adjustl(card)))
       endselect
     enddo
-
-    do i = 1,nx
-      read(mat_map_name(i), *) idx
-      mat_map(i) = idx
-    enddo ! i = 1,nx
 
     call input_summary()
 
