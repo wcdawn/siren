@@ -186,12 +186,168 @@ contains
     enddo ! i = 1,nx
   endsubroutine transient_update_precursors
 
+  subroutine transient_build_kinsrc(nx, dx, mat_map, xslib, dnd, flux, prec, kinsrc)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    type(DelayedNeutronData), intent(in) :: dnd
+    real(rk), intent(in) :: flux(:,:) ! (nx,ngroup)
+    real(rk), intent(in) :: prec(:,:) ! (nx,nd)
+    real(rk), intent(out) :: kinsrc(:,:) ! (nx,ngroup)
+
+    integer(ik) :: i, mthis
+    real(rk) :: prec_src
+
+    do i = 1,nx
+      mthis = mat_map(i)
+      kinsrc(i,:) = flux(i,:) / (dnd%vel(:) * dnd%deltat) * dx(i)
+      if (xslib%mat(mthis)%is_fiss) then
+        prec_src = sum((dnd%lamd * prec(i,:)) / (1.0_rk + dnd%lamd*dnd%deltat))
+        kinsrc(i,:) = kinsrc(i,:) &
+          + xslib%mat(mthis)%chi_delay * prec_src * dx(i)
+      endif
+    enddo ! i = 1,nx
+  endsubroutine transient_build_kinsrc
+
+  subroutine transient_build_fsource(nx, dx, mat_map, xslib, dnd, flux, fsrc)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    type(DelayedNeutronData), intent(in) :: dnd
+    real(rk), intent(in) :: flux(:,:) ! (nx,ngroup)
+    real(rk), intent(out) :: fsrc(:,:) ! (nx,ngroup)
+
+    integer(ik) :: i
+    integer(ik) :: mthis
+    real(rk) :: beff, fsum
+    real(rk), allocatable :: chi_tilde(:)
+
+    allocate(chi_tilde(xslib%ngroup))
+
+    beff = sum(dnd%beta)
+
+    do i = 1,nx
+      mthis = mat_map(i)
+      if (xslib%mat(mthis)%is_fiss) then
+        fsum = sum(xslib%mat(mthis)%nusf(:) * flux(i,:)) * dx(i)
+        chi_tilde = (1.0 - beff) * xslib%mat(mthis)%chi &
+          + xslib%mat(mthis)%chi_delay * sum((dnd%lamd * dnd%beta * dnd%deltat)&
+          /(1.0_rk + dnd%lamd * dnd%deltat))
+        fsrc(i,:) = chi_tilde * fsum
+      else
+        fsrc(i,:) = 0.0_rk
+      endif
+    enddo ! i = 1,nx
+
+    deallocate(chi_tilde)
+  endsubroutine transient_build_fsource
+
+  subroutine transient_build_diagonal(nx, dx, mat_map, xslib, dnd, &
+      boundary_left, boundary_right, dia)
+    use xs, only : XSLibrary
+    use exception_handler, only : exception_fatal
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    type(DelayedNeutronData), intent(in) :: dnd
+    character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(out) :: dia(:,:) ! (nx,ngroup)
+
+    integer(ik) :: i, g
+    integer(ik) :: mprev, mthis, mnext
+    real(rk) :: dprev, dnext
+
+    ! BC at x=0, i=1
+    mthis = mat_map(1)
+    mnext = mat_map(2)
+    select case (boundary_left)
+      case ('zero')
+        do g = 1,xslib%ngroup
+          dnext = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+          dia(1,g) = dnext &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
+          dia(1,g) = dia(1,g) + 2 * xslib%mat(mthis)%diffusion(g) / dx(1)
+        enddo ! g = 1,xslib%ngroup
+      case ('mirror')
+        do g = 1,xslib%ngroup
+          dnext = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+          dia(1,g) = dnext &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
+        enddo ! g = 1,xslib%ngroup
+      case default
+        call exception_fatal(&
+          'Unknown boundary_left in transient_build_diagonal: ' &
+          // trim(adjustl(boundary_left)))
+    endselect
+
+    do g = 1,xslib%ngroup
+      do i = 2,nx-1
+
+        mprev = mat_map(i-1)
+        mthis = mat_map(i)
+        mnext = mat_map(i+1)
+
+        dprev = 2 &
+          * (xslib%mat(mthis)%diffusion(g) / dx(i) * xslib%mat(mprev)%diffusion(g) / dx(i-1)) &
+          / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mprev)%diffusion(g) / dx(i-1))
+        dnext = 2 &
+          * (xslib%mat(mthis)%diffusion(g) / dx(i) * xslib%mat(mnext)%diffusion(g) / dx(i+1)) &
+          / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mnext)%diffusion(g) / dx(i+1))
+
+        dia(i,g) = dprev + dnext &
+          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(i) &
+          + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(i)
+
+      enddo ! i = 2,nx-1
+    enddo ! g = 1,xslib%ngroup
+
+    ! BC at x=L, i=n
+    mprev = mat_map(nx-1)
+    mthis = mat_map(nx)
+    select case (boundary_right)
+      case ('zero')
+        do g = 1,xslib%ngroup
+          dprev = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          dia(nx,g) = dprev &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
+          dia(nx,g) = dia(nx,g) + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
+        enddo ! g = 1,xslib%ngroup
+      case ('mirror')
+        do g = 1,xslib%ngroup
+          dprev = 2 &
+            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+          dia(nx,g) = dprev &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
+        enddo ! g = 1,xslib%ngroup
+      case default
+        call exception_fatal(&
+          'Unknown boundary_right in transient_build_diagonal: ' &
+          // trim(adjustl(boundary_right)))
+    endselect
+  endsubroutine transient_build_diagonal
+
   subroutine transient_solve(nx, dx, mat_map, xslib, dnd, &
       boundary_left, boundary_right, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
     use power, only : power_calculate, power_total
-    use diffusion, only : diffusion_build_matrix, diffusion_build_fsource, &
+    use diffusion, only : diffusion_build_matrix, &
       diffusion_build_upscatter, diffusion_build_downscatter
     use linalg, only : trid
     integer(ik), intent(in) :: nx
@@ -206,7 +362,7 @@ contains
     real(rk), intent(inout) :: flux(:,:) ! (nx,ngroup)
 
     real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:) ! (nx,ngroup)
-    real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:) ! (nx)
+    real(rk), allocatable :: dia_copy(:) ! (nx)
     real(rk), allocatable :: fsource(:,:) ! (nx,ngroup)
     real(rk), allocatable :: upsource(:,:) ! (nx,ngroup)
     real(rk), allocatable :: downsource(:) ! (nx)
@@ -230,15 +386,11 @@ contains
     allocate(sub(nx,xslib%ngroup))
     allocate(dia(nx,xslib%ngroup))
     allocate(sup(nx,xslib%ngroup))
-    allocate(sub_copy(nx))
     allocate(dia_copy(nx))
-    allocate(sup_copy(nx))
     sub = 0.0_rk
     dia = 0.0_rk
     sup = 0.0_rk
-    sub_copy = 0.0_rk
     dia_copy = 0.0_rk
-    sup_copy = 0.0_rk
 
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
@@ -254,12 +406,6 @@ contains
     allocate(flux_old(nx,xslib%ngroup))
     flux_old = 0.0_rk
 
-    allocate(prec(nx,dnd%nd))
-    allocate(prec_old(nx,dnd%nd))
-    prec = 0.0_rk
-    prec_old = 0.0_rk
-    call transient_init_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
-
     ! compute intital power and normalize
     allocate(power(nx))
     power = 0.0_rk
@@ -268,11 +414,26 @@ contains
     ! now, recompute with normalized flux
     call power_calculate(nx, mat_map, xslib, flux, power)
 
+    allocate(prec(nx,dnd%nd))
+    allocate(prec_old(nx,dnd%nd))
+    prec = 0.0_rk
+    prec_old = 0.0_rk
+    call transient_init_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
+
     call output_write('=== TRANSIENT CALCULATION ===')
     call output_write('elapt [s] , deltat [s] , rel. power')
     write(line, '(es13.6, " , ", es13.6, " , ", es13.6)') &
       0.0_rk, dnd%deltat, power_total(dx, power)
     call output_write(line)
+
+    ! only the diagonal needs to be modified compared to steady-state solution
+    ! the off-diagonal never change (if diffusion coeff never changes)
+    call diffusion_build_matrix(&
+      nx, dx, mat_map, xslib, boundary_left, boundary_right, sub, dia, sup)
+    ! the diagonal term just has velocity and deltat
+    ! right now, these cannot change during the transient
+    call transient_build_diagonal(&
+      nx, dx, mat_map, xslib, dnd, boundary_left, boundary_right, dia)
 
     ! TIME LOOP
     step = 0
@@ -287,17 +448,13 @@ contains
 
       ! TODO update cross sections
 
+      call transient_build_kinsrc(nx, dx, mat_map, xslib, dnd, flux, prec, kinsource)
+
       ! iterative scheme is necesary for one-group at-a-time problem
       do iter = 1,max_iter
         flux_old = flux
 
-        ! TODO build and solve
-        ! TODO only the diagonal needs to be modified compared to the
-        ! steady-state solution
-        call diffusion_build_matrix(&
-          nx, dx, mat_map, xslib, boundary_left, boundary_right, sub, dia, sup)
-
-        call diffusion_build_fsource(nx, dx, mat_map, xslib, flux, fsource)
+        call transient_build_fsource(nx, dx, mat_map, xslib, dnd, flux, fsource)
         call diffusion_build_upscatter(nx, dx, mat_map, xslib, flux, upsource)
 
         do g = 1,xslib%ngroup
@@ -305,13 +462,9 @@ contains
             downsource)
           q = fsource(:,g)/keff + upsource(:,g) + kinsource(:,g) + downsource
 
-          ! TODO there is some work to do here
-          ! I think that the diagonal will be modified on every iteration, so we
-          ! can just trample on it
-          sub_copy = sub(:,g)
+          ! Note that we only trample over the diagonal
           dia_copy = dia(:,g)
-          sup_copy = sup(:,g)
-          call trid(nx, sub_copy, dia_copy, sup_copy, q, flux(:,g))
+          call trid(nx, sub(:,g), dia_copy, sup(:,g), q, flux(:,g))
 
           ! over-relaxation
           flux(:,g) = flux_old(:,g) + omega * (flux(:,g) - flux_old(:,g))
@@ -321,6 +474,7 @@ contains
           prec_old, prec)
 
         phi_conv = maxval(abs(flux - flux_old))/maxval(flux)
+
         if (phi_conv < phi_tol) then
           exit
         endif
@@ -340,7 +494,7 @@ contains
     call output_write('')
 
     deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
+    deallocate(dia_copy)
     deallocate(fsource, upsource, downsource, kinsource, q)
     deallocate(prec, prec_old)
     deallocate(power)

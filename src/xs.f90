@@ -22,6 +22,7 @@ type XSMaterial
   real(rk), allocatable :: sigma_f(:)
   real(rk), allocatable :: nusf(:)
   real(rk), allocatable :: chi(:)
+  real(rk), allocatable :: chi_delay(:)
 
   real(rk), allocatable :: scatter(:,:,:) ! (ngroup, ngroup, nmoment)
 
@@ -128,6 +129,10 @@ contains
           do i = 1,xslib%ngroup
             read(iounit, *) xslib%mat(pnt)%chi(i)
           enddo
+          ! Assume that delayed neutron spectrum is the same as the prompt
+          ! spectrum (for now).
+          allocate(xslib%mat(pnt)%chi_delay(xslib%ngroup))
+          xslib%mat(pnt)%chi_delay = xslib%mat(pnt)%chi
         case ('scatter')
           if (.not. allocated(xslib%mat(pnt)%scatter)) then
             allocate(xslib%mat(pnt)%scatter(xslib%ngroup, xslib%ngroup, xslib%nmoment))

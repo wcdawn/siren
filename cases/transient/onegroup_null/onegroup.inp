@@ -4,10 +4,10 @@ transient_fname onegroup.kin
 nx 5
 dx 10. 10. 10. 10. 10.
 mat_map FUEL FUEL FUEL FUEL FUEL
-refine 4
+refine 8
 boundary_right zero
 k_tol 1e-10
 phi_tol 1e-9
-max_iter 1000
+max_iter 100000
 pnorder 0
 analytic_reference onegroup
