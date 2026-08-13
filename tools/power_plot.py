@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
+import plot_settings
+
 if __name__ == "__main__":
 
     fname = sys.argv[1]
