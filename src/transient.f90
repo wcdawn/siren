@@ -545,7 +545,7 @@ contains
         if (time <= 1.0_rk) then
           xs%mat(1)%sigma_t(2) = sigma0 - time * 0.01_rk * sigma0
         endif
-      case ('anl-slab-6-a3')
+      case ('anl-slab-6-a3', 'anl-slab-6-a4')
         if (first) then
           sigma0 = xs%mat(1)%sigma_t(2)
           first = .false.
