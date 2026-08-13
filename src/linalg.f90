@@ -34,7 +34,9 @@ contains
 
   subroutine trid(n, sub, dia, sup, b, x)
     integer(ik), intent(in) :: n
-    real(rk), intent(inout) :: sub(:), dia(:), sup(:)
+    real(rk), intent(in) :: sub(:)
+    real(rk), intent(inout) :: dia(:)
+    real(rk), intent(in) :: sup(:)
     real(rk), intent(inout) :: b(:)
     real(rk), intent(inout) :: x(:)
 

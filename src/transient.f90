@@ -159,7 +159,8 @@ contains
     enddo ! i = 1,nx
   endsubroutine transient_init_precursors
 
-  subroutine transient_update_precursors(nx, mat_map, xslib, dnd, kcrit, flux, prec)
+  subroutine transient_update_precursors(nx, mat_map, xslib, dnd, kcrit, flux, &
+    prec_old, prec)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -167,7 +168,8 @@ contains
     type(DelayedNeutronData), intent(in) :: dnd
     real(rk), intent(in) :: kcrit
     real(rk), intent(in) :: flux(:,:) ! (nx,ngroup)
-    real(rk), intent(inout) :: prec(:,:) ! (nx,nd)
+    real(rk), intent(in) :: prec_old(:,:) ! (nx,nd)
+    real(rk), intent(out) :: prec(:,:) ! (nx,nd)
 
     integer(ik) :: i, mthis
     real(rk) :: fsrc
@@ -177,23 +179,27 @@ contains
       if (xslib%mat(mthis)%is_fiss) then
         fsrc = sum(xslib%mat(mthis)%nusf(:) * flux(i,:))/kcrit
         prec(i,:) = dnd%deltat / (1.0_rk + dnd%deltat * dnd%lamd(:)) &
-          * (dnd%beta(:)*fsrc + prec(i,:)/dnd%deltat)
+          * (dnd%beta(:)*fsrc + prec_old(i,:)/dnd%deltat)
       else
         prec(i,:) = 0.0_rk
       endif
     enddo ! i = 1,nx
   endsubroutine transient_update_precursors
 
-  subroutine transient_solve(nx, dx, mat_map, xslib, dnd, boundary_right, phi_tol, max_iter, keff, flux)
+  subroutine transient_solve(nx, dx, mat_map, xslib, dnd, &
+      boundary_left, boundary_right, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
     use power, only : power_calculate, power_total
+    use diffusion, only : diffusion_build_matrix, diffusion_build_fsource, &
+      diffusion_build_upscatter, diffusion_build_downscatter
+    use linalg, only : trid
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     type(DelayedNeutronData), intent(in) :: dnd
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(in) :: keff
@@ -201,10 +207,13 @@ contains
 
     real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:) ! (nx,ngroup)
     real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:) ! (nx)
-    real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:) ! (nx,ngroup), (nx,ngroup), (nx)
+    real(rk), allocatable :: fsource(:,:) ! (nx,ngroup)
+    real(rk), allocatable :: upsource(:,:) ! (nx,ngroup)
+    real(rk), allocatable :: downsource(:) ! (nx)
+    real(rk), allocatable :: kinsource(:,:) ! (nx,ngroup)
     real(rk), allocatable :: q(:) ! (nx)
 
-    real(rk), allocatable :: prec(:,:) ! (nx,nd)
+    real(rk), allocatable :: prec(:,:), prec_old(:,:) ! (nx,nd)
 
     real(rk), allocatable :: flux_old(:,:) ! (nx,ngroup)
     real(rk), allocatable :: power(:) ! (nx)
@@ -234,17 +243,21 @@ contains
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
     allocate(downsource(nx))
+    allocate(kinsource(nx,xslib%ngroup))
     allocate(q(nx))
     fsource = 0.0_rk
     upsource = 0.0_rk
     downsource = 0.0_rk
+    kinsource = 0.0_rk
     q = 0.0_rk
 
     allocate(flux_old(nx,xslib%ngroup))
     flux_old = 0.0_rk
 
     allocate(prec(nx,dnd%nd))
+    allocate(prec_old(nx,dnd%nd))
     prec = 0.0_rk
+    prec_old = 0.0_rk
     call transient_init_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
 
     ! compute intital power and normalize
@@ -269,22 +282,43 @@ contains
       ! addition which will accumulate round-off.
       step = step + 1
       tfinal = step * dnd%deltat
+      
+      prec_old = prec
+
+      ! TODO update cross sections
 
       ! iterative scheme is necesary for one-group at-a-time problem
       do iter = 1,max_iter
         flux_old = flux
 
         ! TODO build and solve
+        ! TODO only the diagonal needs to be modified compared to the
+        ! steady-state solution
+        call diffusion_build_matrix(&
+          nx, dx, mat_map, xslib, boundary_left, boundary_right, sub, dia, sup)
+
+        call diffusion_build_fsource(nx, dx, mat_map, xslib, flux, fsource)
+        call diffusion_build_upscatter(nx, dx, mat_map, xslib, flux, upsource)
 
         do g = 1,xslib%ngroup
+          call diffusion_build_downscatter(nx, dx, mat_map, xslib, flux, g, &
+            downsource)
+          q = fsource(:,g)/keff + upsource(:,g) + kinsource(:,g) + downsource
 
-          ! TODO build and solve
+          ! TODO there is some work to do here
+          ! I think that the diagonal will be modified on every iteration, so we
+          ! can just trample on it
+          sub_copy = sub(:,g)
+          dia_copy = dia(:,g)
+          sup_copy = sup(:,g)
+          call trid(nx, sub_copy, dia_copy, sup_copy, q, flux(:,g))
 
           ! over-relaxation
           flux(:,g) = flux_old(:,g) + omega * (flux(:,g) - flux_old(:,g))
         enddo ! g = 1,xslib%ngroup
 
-        call transient_update_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
+        call transient_update_precursors(nx, mat_map, xslib, dnd, keff, flux, &
+          prec_old, prec)
 
         phi_conv = maxval(abs(flux - flux_old))/maxval(flux)
         if (phi_conv < phi_tol) then
@@ -307,8 +341,8 @@ contains
 
     deallocate(sub, dia, sup)
     deallocate(sub_copy, dia_copy, sup_copy)
-    deallocate(fsource, upsource, downsource, q)
-    deallocate(prec)
+    deallocate(fsource, upsource, downsource, kinsource, q)
+    deallocate(prec, prec_old)
     deallocate(power)
     deallocate(flux_old)
   endsubroutine transient_solve

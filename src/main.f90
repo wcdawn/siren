@@ -3,7 +3,8 @@ use kind, only : rk, ik
 use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
   xslib_fname, transient_fname, &
-  refine, nx, dx, mat_map, mat_map_name, pnorder, boundary_right, &
+  refine, nx, dx, mat_map, mat_map_name, pnorder, &
+  boundary_left, boundary_right, &
   k_tol, phi_tol, max_iter, analytic_reference, energy_solver_opt, &
   high_low, force_consistent_diffusion, calc_type
 use geometry, only : geometry_uniform_refinement, geometry_summary
@@ -147,7 +148,8 @@ if (pnorder == 0) then
         nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case ('onegroup')
       call diffusion_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, boundary_left, boundary_right, &
+        k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case default
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
   endselect
@@ -160,7 +162,8 @@ else
         keff, sigma_tr, phi)
       if (high_low) then
         call diffusion_power_iteration( &
-          nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1), &
+          nx, dx, mat_map, xs, boundary_left, boundary_right, &
+          k_tol, phi_tol, max_iter, keff, phi(:,:,1), &
           transportxs = sigma_tr(:,:,2))
       endif
     case ('onegroup')
@@ -180,7 +183,8 @@ call output_write('')
 if (is_transient) then
   call timer_start('transient')
   call transient_solve(&
-    nx, dx, mat_map, xs, kindat, boundary_right, phi_tol, max_iter, keff, phi(:,:,1))
+    nx, dx, mat_map, xs, kindat, boundary_left, boundary_right, &
+    phi_tol, max_iter, keff, phi(:,:,1))
   call timer_stop('transient')
 endif
 
