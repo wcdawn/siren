@@ -147,6 +147,8 @@ contains
 
   subroutine transient_solve(nx, dx, mat_map, xslib, dnd, boundary_right, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
+    use output, only : output_write
+    use power, only : power_calculate, power_total
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -165,7 +167,15 @@ contains
 
     real(rk), allocatable :: prec(:,:) ! (nx,nd)
 
+    real(rk), allocatable :: power(:) ! (nx)
+
     real(rk), parameter :: omega = 1.9_rk ! over-relaxation
+    real(rk), parameter :: power_init = 1.0_rk ! solving for relative power
+
+    integer(ik) :: step
+    real(rk) :: tfinal
+
+    character(1024) :: line
 
     allocate(sub(nx,xslib%ngroup))
     allocate(dia(nx,xslib%ngroup))
@@ -193,10 +203,45 @@ contains
     prec = 0.0_rk
     call transient_init_precursors(nx, mat_map, xslib, dnd, flux, prec)
 
+    ! compute intital power and normalize
+    allocate(power(nx))
+    power = 0.0_rk
+    call power_calculate(nx, mat_map, xslib, flux, power)
+    flux = flux * (power_init / power_total(dx, power))
+    ! now, recompute with normalized flux
+    call power_calculate(nx, mat_map, xslib, flux, power)
+
+    call output_write('=== TRANSIENT CALCULATION ===')
+    call output_write('elapt [s] , deltat [s] , rel. power')
+    write(line, '(es13.6, " , ", es13.6, " , ", es13.6)') &
+      0.0_rk, dnd%deltat, power_total(dx, power)
+    call output_write(line)
+
+    step = 0
+    do
+      ! This works for uniform time steps.
+      ! It is more accurate to use a multiplication rather than floating-point
+      ! addition which will accumulate round-off.
+      step = step + 1
+      tfinal = step * dnd%deltat
+
+      write(line, '(es13.6, " , ", es13.6, " , ", es13.6)') &
+        tfinal, dnd%deltat, power_total(dx, power)
+      call output_write(line)
+
+      if (tfinal > dnd%tend) then
+        call output_write('Transient Completed!')
+        exit
+      endif
+    enddo
+
+    call output_write('')
+
     deallocate(sub, dia, sup)
     deallocate(sub_copy, dia_copy, sup_copy)
     deallocate(fsource, upsource, downsource, q)
     deallocate(prec)
+    deallocate(power)
   endsubroutine transient_solve
 
   subroutine transient_cleanup(dnd)
