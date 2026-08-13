@@ -20,7 +20,7 @@ type DelayedNeutronData
 endtype
 
 public :: DelayedNeutronData
-public :: transient_read, transient_summary, transient_cleanup
+public :: transient_read, transient_summary, transient_solve, transient_cleanup
 
 contains
 
@@ -134,6 +134,70 @@ contains
 
     call output_write('')
   endsubroutine transient_summary
+
+  subroutine transient_init_precursors(nx, mat_map, xslib, dnd, flux, prec)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    type(DelayedNeutronData), intent(in) :: dnd
+    real(rk), intent(in) :: flux(:,:) ! (nx,ngroup)
+    real(rk), intent(out) :: prec(:,:) ! (nx,nd)
+  endsubroutine transient_init_precursors
+
+  subroutine transient_solve(nx, dx, mat_map, xslib, dnd, boundary_right, phi_tol, max_iter, keff, flux)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    type(DelayedNeutronData), intent(in) :: dnd
+    character(*), intent(in) :: boundary_right
+    real(rk), intent(in) :: phi_tol
+    integer(ik), intent(in) :: max_iter
+    real(rk), intent(in) :: keff
+    real(rk), intent(inout) :: flux(:,:) ! (nx,ngroup)
+
+    real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:) ! (nx,ng)
+    real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:) ! (nx)
+    real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:) ! (nx,ng), (nx,ng), (nx)
+    real(rk), allocatable :: q(:) ! (nx)
+
+    real(rk), allocatable :: prec(:,:) ! (nx,nd)
+
+    real(rk), parameter :: omega = 1.9_rk ! over-relaxation
+
+    allocate(sub(nx,xslib%ngroup))
+    allocate(dia(nx,xslib%ngroup))
+    allocate(sup(nx,xslib%ngroup))
+    allocate(sub_copy(nx))
+    allocate(dia_copy(nx))
+    allocate(sup_copy(nx))
+    sub = 0.0_rk
+    dia = 0.0_rk
+    sup = 0.0_rk
+    sub_copy = 0.0_rk
+    dia_copy = 0.0_rk
+    sup_copy = 0.0_rk
+
+    allocate(fsource(nx,xslib%ngroup))
+    allocate(upsource(nx,xslib%ngroup))
+    allocate(downsource(nx))
+    allocate(q(nx))
+    fsource = 0.0_rk
+    upsource = 0.0_rk
+    downsource = 0.0_rk
+    q = 0.0_rk
+
+    allocate(prec(nx,dnd%nd))
+    prec = 0.0_rk
+    call transient_init_precursors(nx, mat_map, xslib, dnd, flux, prec)
+
+    deallocate(sub, dia, sup)
+    deallocate(sub_copy, dia_copy, sup_copy)
+    deallocate(fsource, upsource, downsource, q)
+    deallocate(prec)
+  endsubroutine transient_solve
 
   subroutine transient_cleanup(dnd)
     type(DelayedNeutronData), intent(out) :: dnd

@@ -21,7 +21,7 @@ use timer, only : timer_init, timer_start, timer_stop, timer_summary
 use fileio, only : fileio_open_read
 use material, only : material_idx_from_name
 use transient, only : DelayedNeutronData, &
-  transient_read, transient_summary, transient_cleanup
+  transient_read, transient_summary, transient_solve, transient_cleanup
 implicit none
 
 integer, parameter :: input_file_unit = 15
@@ -95,11 +95,17 @@ call timer_stop('xs_read')
 
 is_transient = (transient_fname /= '')
 if (is_transient) then
+
   call transient_read(transient_fname, kindat)
   call transient_summary(kindat)
+
   if (kindat%ng /= xs%ngroup) then
     call exception_fatal('Inconsistent number of energy groups in ' &
       // 'transient and cross section data.')
+  endif
+  if (pnorder /= 0) then
+    call exception_fatal('Transient calculations are only supported ' &
+      // 'for diffusion (pnorder=0).')
   endif
 endif
 
@@ -166,6 +172,13 @@ else
   endselect
 endif
 call timer_stop('solver')
+
+if (is_transient) then
+  call timer_start('transient')
+  call transient_solve(&
+    nx, dx, mat_map, xs, kindat, boundary_right, phi_tol, max_iter, keff, phi(:,:,1))
+  call timer_stop('transient')
+endif
 
 write(line, '(a,f22.20)') 'keff = ', keff
 call output_write(line)
