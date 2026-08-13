@@ -342,7 +342,7 @@ contains
     endselect
   endsubroutine transient_build_diagonal
 
-  subroutine transient_solve(nx, dx, mat_map, xslib, dnd, &
+  subroutine transient_solve(nx, dx, mat_map, xs, dnd, &
       boundary_left, boundary_right, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
@@ -353,7 +353,7 @@ contains
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
-    type(XSLibrary), intent(in) :: xslib
+    type(XSLibrary), intent(in) :: xs
     type(DelayedNeutronData), intent(in) :: dnd
     character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: phi_tol
@@ -382,6 +382,10 @@ contains
     real(rk) :: phi_conv
 
     character(1024) :: line
+
+    type(XSLibrary) :: xslib
+    ! store a mutable copy so I can modify it during the transient
+    xslib = xs
 
     allocate(sub(nx,xslib%ngroup))
     allocate(dia(nx,xslib%ngroup))
@@ -430,10 +434,6 @@ contains
     ! the off-diagonal never change (if diffusion coeff never changes)
     call diffusion_build_matrix(&
       nx, dx, mat_map, xslib, boundary_left, boundary_right, sub, dia, sup)
-    ! the diagonal term just has velocity and deltat
-    ! right now, these cannot change during the transient
-    call transient_build_diagonal(&
-      nx, dx, mat_map, xslib, dnd, boundary_left, boundary_right, dia)
 
     ! TIME LOOP
     step = 0
@@ -446,9 +446,13 @@ contains
       
       prec_old = prec
 
-      ! TODO update cross sections
-
       call transient_build_kinsrc(nx, dx, mat_map, xslib, dnd, flux, prec, kinsource)
+
+      ! update xs and re-build the diagonal
+      ! the rest of the entries in the matrix do not change
+      call transient_update_xs(dnd%reference, tfinal, xslib)
+      call transient_build_diagonal(&
+        nx, dx, mat_map, xslib, dnd, boundary_left, boundary_right, dia)
 
       ! iterative scheme is necesary for one-group at-a-time problem
       do iter = 1,max_iter
@@ -475,7 +479,7 @@ contains
 
         phi_conv = maxval(abs(flux - flux_old))/maxval(flux)
 
-        if (phi_conv < phi_tol) then
+        if ((phi_conv < phi_tol) .and. (iter > 1)) then
           exit
         endif
       enddo ! iter = 1,max_iter
@@ -513,5 +517,32 @@ contains
       deallocate(dnd%vel)
     endif
   endsubroutine transient_cleanup
+
+  subroutine transient_update_xs(name, time, xs)
+    use xs, only : XSLibrary
+    use exception_handler, only : exception_fatal
+    character(*), intent(in) :: name
+    real(rk), intent(in) :: time
+    type(XSLibrary), intent(inout) :: xs
+
+    logical, save :: first = .true.
+    real(rk), save :: sigma0
+
+    select case (name)
+      case ('anl-slab-6-a1')
+        if (first) then
+          sigma0 = xs%mat(1)%sigma_t(2)
+          first = .false.
+        endif
+        if (time <= 1.0_rk) then
+          xs%mat(1)%sigma_t(2) = sigma0 + time * 0.03_rk * sigma0
+        endif
+      case ('null')
+        ! do nothing
+      case default
+        call exception_fatal('Unknown transient reference name: ' &
+          // trim(adjustl(name)))
+    endselect
+  endsubroutine transient_update_xs
 
 endmodule transient
