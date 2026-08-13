@@ -135,15 +135,54 @@ contains
     call output_write('')
   endsubroutine transient_summary
 
-  subroutine transient_init_precursors(nx, mat_map, xslib, dnd, flux, prec)
+  subroutine transient_init_precursors(nx, mat_map, xslib, dnd, kcrit, flux, prec)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     type(DelayedNeutronData), intent(in) :: dnd
+    real(rk), intent(in) :: kcrit
     real(rk), intent(in) :: flux(:,:) ! (nx,ngroup)
     real(rk), intent(out) :: prec(:,:) ! (nx,nd)
+
+    integer(ik) :: i, mthis
+    real(rk) :: fsrc
+
+    do i = 1,nx
+      mthis = mat_map(i)
+      if (xslib%mat(mthis)%is_fiss) then
+        fsrc = sum(xslib%mat(mthis)%nusf(:) * flux(i,:))/kcrit
+        prec(i,:) = dnd%beta/dnd%lamd * fsrc
+      else
+        prec(i,:) = 0.0_rk
+      endif
+    enddo ! i = 1,nx
   endsubroutine transient_init_precursors
+
+  subroutine transient_update_precursors(nx, mat_map, xslib, dnd, kcrit, flux, prec)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    type(DelayedNeutronData), intent(in) :: dnd
+    real(rk), intent(in) :: kcrit
+    real(rk), intent(in) :: flux(:,:) ! (nx,ngroup)
+    real(rk), intent(inout) :: prec(:,:) ! (nx,nd)
+
+    integer(ik) :: i, mthis
+    real(rk) :: fsrc
+
+    do i = 1,nx
+      mthis = mat_map(i)
+      if (xslib%mat(mthis)%is_fiss) then
+        fsrc = sum(xslib%mat(mthis)%nusf(:) * flux(i,:))/kcrit
+        prec(i,:) = dnd%deltat / (1.0_rk + dnd%deltat * dnd%lamd(:)) &
+          * (dnd%beta(:)*fsrc + prec(i,:)/dnd%deltat)
+      else
+        prec(i,:) = 0.0_rk
+      endif
+    enddo ! i = 1,nx
+  endsubroutine transient_update_precursors
 
   subroutine transient_solve(nx, dx, mat_map, xslib, dnd, boundary_right, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
@@ -160,20 +199,22 @@ contains
     real(rk), intent(in) :: keff
     real(rk), intent(inout) :: flux(:,:) ! (nx,ngroup)
 
-    real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:) ! (nx,ng)
+    real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:) ! (nx,ngroup)
     real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:) ! (nx)
-    real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:) ! (nx,ng), (nx,ng), (nx)
+    real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:) ! (nx,ngroup), (nx,ngroup), (nx)
     real(rk), allocatable :: q(:) ! (nx)
 
     real(rk), allocatable :: prec(:,:) ! (nx,nd)
 
+    real(rk), allocatable :: flux_old(:,:) ! (nx,ngroup)
     real(rk), allocatable :: power(:) ! (nx)
 
     real(rk), parameter :: omega = 1.9_rk ! over-relaxation
     real(rk), parameter :: power_init = 1.0_rk ! solving for relative power
 
-    integer(ik) :: step
+    integer(ik) :: step, iter, g
     real(rk) :: tfinal
+    real(rk) :: phi_conv
 
     character(1024) :: line
 
@@ -199,9 +240,12 @@ contains
     downsource = 0.0_rk
     q = 0.0_rk
 
+    allocate(flux_old(nx,xslib%ngroup))
+    flux_old = 0.0_rk
+
     allocate(prec(nx,dnd%nd))
     prec = 0.0_rk
-    call transient_init_precursors(nx, mat_map, xslib, dnd, flux, prec)
+    call transient_init_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
 
     ! compute intital power and normalize
     allocate(power(nx))
@@ -217,6 +261,7 @@ contains
       0.0_rk, dnd%deltat, power_total(dx, power)
     call output_write(line)
 
+    ! TIME LOOP
     step = 0
     do
       ! This works for uniform time steps.
@@ -225,6 +270,29 @@ contains
       step = step + 1
       tfinal = step * dnd%deltat
 
+      ! iterative scheme is necesary for one-group at-a-time problem
+      do iter = 1,max_iter
+        flux_old = flux
+
+        ! TODO build and solve
+
+        do g = 1,xslib%ngroup
+
+          ! TODO build and solve
+
+          ! over-relaxation
+          flux(:,g) = flux_old(:,g) + omega * (flux(:,g) - flux_old(:,g))
+        enddo ! g = 1,xslib%ngroup
+
+        call transient_update_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
+
+        phi_conv = maxval(abs(flux - flux_old))/maxval(flux)
+        if (phi_conv < phi_tol) then
+          exit
+        endif
+      enddo ! iter = 1,max_iter
+
+      call power_calculate(nx, mat_map, xslib, flux, power)
       write(line, '(es13.6, " , ", es13.6, " , ", es13.6)') &
         tfinal, dnd%deltat, power_total(dx, power)
       call output_write(line)
@@ -233,7 +301,7 @@ contains
         call output_write('Transient Completed!')
         exit
       endif
-    enddo
+    enddo ! TIME LOOP
 
     call output_write('')
 
@@ -242,6 +310,7 @@ contains
     deallocate(fsource, upsource, downsource, q)
     deallocate(prec)
     deallocate(power)
+    deallocate(flux_old)
   endsubroutine transient_solve
 
   subroutine transient_cleanup(dnd)

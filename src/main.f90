@@ -173,16 +173,16 @@ else
 endif
 call timer_stop('solver')
 
+write(line, '(a,f22.20)') 'keff = ', keff
+call output_write(line)
+call output_write('')
+
 if (is_transient) then
   call timer_start('transient')
   call transient_solve(&
     nx, dx, mat_map, xs, kindat, boundary_right, phi_tol, max_iter, keff, phi(:,:,1))
   call timer_stop('transient')
 endif
-
-write(line, '(a,f22.20)') 'keff = ', keff
-call output_write(line)
-call output_write('')
 
 if (analytic_reference /= 'none') then
   call analytic_error(analytic_reference, fname_analytic, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
