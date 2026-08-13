@@ -1,0 +1,14 @@
+xslib_fname anl_slab.xs
+transient_fname anl_slab.kin
+
+nx 12
+dx 20. 20. 20. 20. 20. 20. 20. 20. 20. 20. 20. 20.
+mat_map M1 M1 M2 M2 M2 M2 M2 M2 M2 M2 M3 M3
+
+refine 10
+boundary_left zero
+boundary_right zero
+k_tol 1e-10
+phi_tol 1e-9
+max_iter 100000
+pnorder 0
