@@ -17,6 +17,9 @@ type DelayedNeutronData
   real(rk) :: tend ! [s] final time
 
   character(16) :: reference ! reference case (used to specify absorption xs)
+
+  integer(ik) :: ntime = 0
+  real(rk), allocatable :: tedit(:)
 endtype
 
 public :: DelayedNeutronData
@@ -79,6 +82,12 @@ contains
           read(iounit, *) card, dnd%tend
         case ('reference')
           read(iounit, *) card, dnd%reference
+        case ('tedit')
+          read(iounit, *) card, dnd%ntime
+          backspace(iounit)
+          allocate(dnd%tedit(dnd%ntime))
+          dnd%tedit = 0.0_rk
+          read(iounit, *) card, dnd%ntime, dnd%tedit
         case default
           call exception_fatal('unknown transient input card: ' // &
             trim(adjustl(card)))
@@ -93,7 +102,7 @@ contains
     type(DelayedNeutronData), intent(in) :: dnd
 
     character(2**16) :: line, tmp
-    integer(ik) :: d, g
+    integer(ik) :: d, g, i
 
     call output_write('=== TRANSIENT ===')
 
@@ -131,6 +140,16 @@ contains
     
     call output_write('Transient reference case: ' &
       // trim(adjustl(dnd%reference)))
+
+    write(line, '(a,i0)') 'Number of time edit points: ', dnd%ntime
+    call output_write(line)
+
+    line = ''
+    do i = 1,dnd%ntime
+      write(tmp, '(es9.2)') dnd%tedit(i)
+      line = trim(adjustl(line)) // ' ' // trim(adjustl(tmp))
+    enddo ! i = 1,dnd%ntime
+    call output_write('Edit times [s] = ' // trim(adjustl(line)))
 
     call output_write('')
   endsubroutine transient_summary
@@ -351,6 +370,7 @@ contains
       diffusion_build_upscatter, diffusion_build_downscatter
     use linalg, only : trid
     use fileio, only : fileio_open_write
+    use output, only : output_power_csv, output_flux_csv
     character(*), intent(in) :: fname_kin
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
@@ -376,7 +396,7 @@ contains
     real(rk), allocatable :: flux_old(:,:) ! (nx,ngroup)
     real(rk), allocatable :: power(:) ! (nx)
 
-    integer(ik) :: step, iter, g
+    integer(ik) :: step, iter, g, idx
     real(rk) :: tfinal
     real(rk) :: phi_conv
 
@@ -384,7 +404,7 @@ contains
 
     type(XSLibrary) :: xslib
 
-    integer(ik), parameter :: iout = 17
+    integer(ik), parameter :: iout = 19
     real(rk), parameter :: omega = 1.9_rk ! over-relaxation
     real(rk), parameter :: power_init = 1.0_rk ! solving for relative power
 
@@ -442,6 +462,16 @@ contains
     call diffusion_build_matrix(&
       nx, dx, mat_map, xslib, boundary_left, boundary_right, sub, dia, sup)
 
+    ! edit requested before first step
+    idx = 0
+    if (any(dnd%tedit < 0.5_rk*dnd%deltat)) then
+      idx = idx + 1 ! TODO
+      write(line, '(a,i0,a)') 'power', idx, '.csv'
+      call output_power_csv(line, nx, dx, power)
+      write(line, '(a,i0,a)') 'flux', idx, '.csv'
+      call output_flux_csv(line, nx, xslib%ngroup, dx, flux)
+    endif
+
     ! TIME LOOP
     step = 0
     do
@@ -497,6 +527,14 @@ contains
       call output_write(line)
       write(iout, '(a)') trim(adjustl(line))
 
+      if (any(abs(tfinal - dnd%tedit) < 0.5_rk*dnd%deltat)) then
+        idx = idx + 1 ! TODO
+        write(line, '(a,i0,a)') 'power', idx, '.csv'
+        call output_power_csv(line, nx, dx, power)
+        write(line, '(a,i0,a)') 'flux', idx, '.csv'
+        call output_flux_csv(line, nx, xslib%ngroup, dx, flux)
+      endif
+
       if (tfinal > dnd%tend) then
         call output_write('Transient Completed!')
         exit
@@ -504,6 +542,8 @@ contains
     enddo ! TIME LOOP
 
     call output_write('')
+    flush(iout)
+    close(iout)
 
     deallocate(sub, dia, sup)
     deallocate(dia_copy)
