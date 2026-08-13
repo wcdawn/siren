@@ -32,7 +32,7 @@ integer(ik) :: i
 character(1024) :: input_fname
 character(1024) :: fname_stub, &
   fname_flux, fname_phi, fname_power, fname_transportxs, fname_out, &
-  fname_analytic, fname_matmap
+  fname_analytic, fname_matmap, fname_kin
 character(10240) :: line
 type(XSLibrary) :: xs
 
@@ -65,6 +65,7 @@ fname_power = trim(adjustl(fname_stub)) // '_power.csv'
 fname_transportxs = trim(adjustl(fname_stub)) // '_transportxs.csv'
 fname_analytic = trim(adjustl(fname_stub)) // '_analytic.csv'
 fname_matmap = trim(adjustl(fname_stub)) // '_matmap.csv'
+fname_kin = trim(adjustl(fname_stub)) // '_transient.csv'
 
 call output_open_file(trim(adjustl(fname_out)))
 
@@ -182,7 +183,7 @@ call output_write('')
 
 if (is_transient) then
   call timer_start('transient')
-  call transient_solve(&
+  call transient_solve(fname_kin, &
     nx, dx, mat_map, xs, kindat, boundary_left, boundary_right, &
     phi_tol, max_iter, keff, phi(:,:,1))
   call timer_stop('transient')

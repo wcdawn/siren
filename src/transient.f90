@@ -342,7 +342,7 @@ contains
     endselect
   endsubroutine transient_build_diagonal
 
-  subroutine transient_solve(nx, dx, mat_map, xs, dnd, &
+  subroutine transient_solve(fname_kin, nx, dx, mat_map, xs, dnd, &
       boundary_left, boundary_right, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
@@ -350,6 +350,8 @@ contains
     use diffusion, only : diffusion_build_matrix, &
       diffusion_build_upscatter, diffusion_build_downscatter
     use linalg, only : trid
+    use fileio, only : fileio_open_write
+    character(*), intent(in) :: fname_kin
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -374,9 +376,6 @@ contains
     real(rk), allocatable :: flux_old(:,:) ! (nx,ngroup)
     real(rk), allocatable :: power(:) ! (nx)
 
-    real(rk), parameter :: omega = 1.9_rk ! over-relaxation
-    real(rk), parameter :: power_init = 1.0_rk ! solving for relative power
-
     integer(ik) :: step, iter, g
     real(rk) :: tfinal
     real(rk) :: phi_conv
@@ -384,6 +383,11 @@ contains
     character(1024) :: line
 
     type(XSLibrary) :: xslib
+
+    integer(ik), parameter :: iout = 17
+    real(rk), parameter :: omega = 1.9_rk ! over-relaxation
+    real(rk), parameter :: power_init = 1.0_rk ! solving for relative power
+
     ! store a mutable copy so I can modify it during the transient
     xslib = xs
 
@@ -424,11 +428,14 @@ contains
     prec_old = 0.0_rk
     call transient_init_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
 
+    call fileio_open_write(fname_kin, iout)
+
     call output_write('=== TRANSIENT CALCULATION ===')
     call output_write('elapt [s] , deltat [s] , rel. power')
     write(line, '(es13.6, " , ", es13.6, " , ", es13.6)') &
       0.0_rk, dnd%deltat, power_total(dx, power)
     call output_write(line)
+    write(iout, '(a)') trim(adjustl(line))
 
     ! only the diagonal needs to be modified compared to steady-state solution
     ! the off-diagonal never change (if diffusion coeff never changes)
@@ -488,6 +495,7 @@ contains
       write(line, '(es13.6, " , ", es13.6, " , ", es13.6)') &
         tfinal, dnd%deltat, power_total(dx, power)
       call output_write(line)
+      write(iout, '(a)') trim(adjustl(line))
 
       if (tfinal > dnd%tend) then
         call output_write('Transient Completed!')
