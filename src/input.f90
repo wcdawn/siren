@@ -8,7 +8,7 @@ private
 integer(ik) :: nx
 real(rk), allocatable :: dx(:)
 character(1024) :: xslib_fname, transient_fname
-integer(ik), allocatable :: mat_map(:)
+integer(ik), allocatable :: mat_map(:) ! (not input, populated later)
 character(16), allocatable :: mat_map_name(:)
 integer(ik) :: pnorder
 
@@ -19,6 +19,7 @@ integer(ik) :: refine = 0
 
 ! optional boundary conditions
 ! only allowed for very special problems
+! (allowed for diffusion problems)
 character(16) :: boundary_left = 'mirror', boundary_right = 'mirror'
 
 ! optional analytic reference solution
@@ -37,6 +38,19 @@ logical :: force_consistent_diffusion = .false.
 ! optional calculation type. either 'eigenvalue' or 'fixed_source'
 character(16) :: calc_type = 'eigenvalue'
 
+! Optional albedo factor.
+! Only a single albedo can be specified for the whole problem.
+! One value overall, not specified per-group or per-edge at the moment.
+! This is specified as a "big-A" albedo factor (rathern than an alpha as used in
+! LUPINE and DIF3D).
+!             |  A  |  alpha  |
+! ------------|-----|---------|
+!  zero-flux  | -1  | \infty  |
+!  "vacuum"   |  0  |  1/2    |
+!   mirror    |  1  |    0    |
+!
+real(rk) :: albedo_coeff = 0.0_rk
+
 public :: input_read, input_cleanup
 
 public :: nx, dx, xslib_fname, transient_fname, mat_map, mat_map_name
@@ -48,6 +62,7 @@ public :: analytic_reference
 public :: energy_solver_opt
 public :: high_low, force_consistent_diffusion
 public :: calc_type
+public :: albedo_coeff
 
 contains
 
@@ -115,6 +130,8 @@ contains
           read(iounit, *) card, boundary_left
         case ('boundary_right')
           read(iounit, *) card, boundary_right
+        case ('albedo')
+          read(iounit, *) card, albedo_coeff
         case ('analytic_reference')
           read(iounit, *) card, analytic_reference
         case ('energy_solver_opt')
@@ -156,12 +173,14 @@ contains
     call output_write('xslib_fname = "' // trim(adjustl(xslib_fname)) // '"')
     write(line, '(a,i0)') 'refine = ', refine
     call output_write(line)
-    write(line, '(a,es13.6)') 'k_tol = ', k_tol
+    write(line, '(a,es9.2)') 'k_tol = ', k_tol
     call output_write(line)
-    write(line, '(a,es13.6)') 'phi_tol = ', phi_tol
+    write(line, '(a,es9.2)') 'phi_tol = ', phi_tol
     call output_write(line)
     call output_write('boundary_left = *' // trim(adjustl(boundary_left)) // '*')
     call output_write('boundary_right = *' // trim(adjustl(boundary_right)) // '*')
+    write(line, '(a,es9.2)') 'albedo = ', albedo_coeff
+    call output_write(line)
     call output_write('analytic_reference = *' // trim(adjustl(analytic_reference)) // '*')
 
     call output_write('energy_solver_opt = *' // trim(adjustl(energy_solver_opt)) // '*')

@@ -6,7 +6,7 @@ use input, only : input_read, input_cleanup, &
   refine, nx, dx, mat_map, mat_map_name, pnorder, &
   boundary_left, boundary_right, &
   k_tol, phi_tol, max_iter, analytic_reference, energy_solver_opt, &
-  high_low, force_consistent_diffusion, calc_type
+  high_low, force_consistent_diffusion, calc_type, albedo_coeff
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
@@ -190,7 +190,8 @@ if (is_transient) then
 endif
 
 if (analytic_reference /= 'none') then
-  call analytic_error(analytic_reference, fname_analytic, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
+  call analytic_error(analytic_reference, fname_analytic, &
+    nx, xs%ngroup, pnorder, xs, dx, phi, keff, albedo_coeff)
 endif
 
 call timer_start('output')
