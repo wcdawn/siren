@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
-import sys
 
 matplotlib.rcParams["lines.linewidth"] = 2
 matplotlib.rcParams["font.size"] = 14
