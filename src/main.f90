@@ -169,8 +169,8 @@ else
       endif
     case ('onegroup')
       call transport_power_iteration(&
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
-        keff, sigma_tr, phi)
+        nx, dx, mat_map, xs, boundary_left, boundary_right, &
+        k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     case default
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
   endselect

@@ -9,7 +9,8 @@ public :: transport_power_iteration
 contains
 
   subroutine transport_build_matrix( &
-    nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+    nx, dx, mat_map, xslib, sigma_tr, &
+    boundary_left, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -17,7 +18,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer, intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
 
@@ -31,26 +32,55 @@ contains
     ! BC at x=0, i=1
     mthis = mat_map(1)
     mnext = mat_map(2)
-    do n = 1,neven
-      idxn = 2*(n-1)
-      xn = real(idxn, rk)
-      xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-      xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
-      do g = 1,xslib%ngroup
-        cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
-        cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
-        if (idxn > 1) then
-          cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
-          cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
-        endif
-        dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
-        dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
-        if (idxn+1 <= xslib%nmoment) then
-          dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
-        endif
-        sup(1,g,n) = -dnext
-      enddo ! = g = 1,xslib%ngroup
-    enddo ! n = 1,neven
+    select case (boundary_left)
+      case ('zero')
+        do n = 1,neven
+          idxn = 2*(n-1)
+          xn = real(idxn, rk)
+          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
+          do g = 1,xslib%ngroup
+            cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
+            cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
+            if (idxn > 1) then
+              cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
+              cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
+            endif
+            dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
+            dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
+              + 2 * cthis / dx(1)
+            if (idxn+1 <= xslib%nmoment) then
+              dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
+            endif
+            sup(1,g,n) = -dnext
+          enddo ! = g = 1,xslib%ngroup
+        enddo ! n = 1,neven
+      case ('mirror')
+        do n = 1,neven
+          idxn = 2*(n-1)
+          xn = real(idxn, rk)
+          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
+          do g = 1,xslib%ngroup
+            cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
+            cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
+            if (idxn > 1) then
+              cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
+              cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
+            endif
+            dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
+            dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+            if (idxn+1 <= xslib%nmoment) then
+              dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
+            endif
+            sup(1,g,n) = -dnext
+          enddo ! = g = 1,xslib%ngroup
+        enddo ! n = 1,neven
+      case default
+        call exception_fatal( &
+          'unknown boundary_left in transport_build_matrix: ' &
+          // trim(adjustl(boundary_left)))
+    endselect
 
     do n = 1,neven
       idxn = 2*(n-1)
@@ -177,14 +207,15 @@ contains
 
   endsubroutine transport_init_transportxs
 
-  subroutine transport_odd_update(nx, dx, mat_map, ng, boundary_right, pnorder, sigma_tr, phi)
+  subroutine transport_odd_update(nx, dx, mat_map, ng, &
+      boundary_left, boundary_right, pnorder, sigma_tr, phi)
     use numeric, only : deriv
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     integer(ik), intent(in) :: ng
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: pnorder
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
@@ -193,6 +224,10 @@ contains
     integer(ik) :: idxn
     real(rk) :: xn, xmul_prev, xmul_next
     real(rk) :: dphi_prev, dphi_next
+
+    if (boundary_left /= 'mirror') then
+      call exception_fatal('need to implement boundary_left in transport_odd_update')
+    endif
 
     do n = 2,pnorder+1,2
       idxn = n-1
@@ -369,12 +404,12 @@ contains
   endsubroutine transport_build_fsource
 
   subroutine transport_build_next_source( &
-    nx, dx, ngroup, boundary_right, neven, sigma_tr, phi, qnext)
+    nx, dx, ngroup, boundary_left, boundary_right, neven, sigma_tr, phi, qnext)
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: neven
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
@@ -385,6 +420,10 @@ contains
     real(rk) :: xn, xmul
     real(rk) :: kaprev, kathis, kanext
     real(rk) :: daprev, danext
+
+    if (boundary_left /= 'mirror') then
+      call exception_fatal('need to implement boundary_left in transport_odd_update')
+    endif
 
     qnext(:,:,neven) = 0.0_rk
     do n = 1,neven-1
@@ -442,12 +481,13 @@ contains
 
   endsubroutine transport_build_next_source
 
-  subroutine transport_build_prev_source(nx, dx, ngroup, boundary_right, sigma_tr, phi, idxn, qprev)
+  subroutine transport_build_prev_source(nx, dx, ngroup, &
+      boundary_left, boundary_right, sigma_tr, phi, idxn, qprev)
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
     integer(ik), intent(in) :: idxn
@@ -457,6 +497,10 @@ contains
     real(rk) :: xn, xmul
     real(rk) :: kbprev, kbthis, kbnext
     real(rk) :: dbprev, dbnext
+
+    if (boundary_left /= 'mirror') then
+      call exception_fatal('need to implement boundary_left in transport_odd_update')
+    endif
 
     xn = real(idxn, rk)
     xmul = (xn**2-xn)/(4.0_rk*xn**2 - 1.0_rk)
@@ -536,7 +580,8 @@ contains
   endfunction transport_fission_summation
 
   subroutine transport_power_iteration(&
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -546,7 +591,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
@@ -607,7 +652,8 @@ contains
 
     call timer_start('transport_build_matrix')
     call transport_build_matrix( &
-      nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+      nx, dx, mat_map, xslib, sigma_tr, &
+      boundary_left, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
     do iter = 1,max_iter
@@ -618,7 +664,8 @@ contains
 
       call timer_start('transport_pn_source')
       call transport_build_next_source( &
-        nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
+        nx, dx, xslib%ngroup, boundary_left, boundary_right, &
+        neven, sigma_tr, phi, pn_next_source)
       call timer_stop('transport_pn_source')
 
       do n = 1,neven
@@ -632,7 +679,8 @@ contains
         else ! (n > 1)
           call timer_start('transport_pn_source')
           call transport_build_prev_source( &
-            nx, dx, xslib%ngroup, boundary_right, sigma_tr, phi, idxn, pn_prev_source)
+            nx, dx, xslib%ngroup, boundary_left, boundary_right, &
+            sigma_tr, phi, idxn, pn_prev_source)
           call timer_stop('transport_pn_source')
         endif
 
@@ -673,7 +721,8 @@ contains
       ! always do this update so that we can use it in the convergence criteria
       call timer_start('transport_odd_update')
       call transport_odd_update( &
-        nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        nx, dx, mat_map, xslib%ngroup, boundary_left, boundary_right, &
+        pnorder, sigma_tr, phi)
       call timer_stop('transport_odd_update')
 
       call timer_start('transport_convergence')
