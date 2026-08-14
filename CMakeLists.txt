@@ -21,6 +21,7 @@ target_sources(${PROJECT_NAME}.x
     src/output.f90
     src/power.f90
     src/timer.f90
+    src/transient.f90
     src/transport_block.f90
     src/transport.f90
     src/xs.f90

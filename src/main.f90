@@ -2,7 +2,9 @@ program siren
 use kind, only : rk, ik
 use xs, only : XSLibrary, XSMaterial, xs_read_library, xs_cleanup
 use input, only : input_read, input_cleanup, &
-  xslib_fname, refine, nx, dx, mat_map, mat_map_name, pnorder, boundary_right, &
+  xslib_fname, transient_fname, &
+  refine, nx, dx, mat_map, mat_map_name, pnorder, &
+  boundary_left, boundary_right, &
   k_tol, phi_tol, max_iter, analytic_reference, energy_solver_opt, &
   high_low, force_consistent_diffusion, calc_type
 use geometry, only : geometry_uniform_refinement, geometry_summary
@@ -19,6 +21,8 @@ use exception_handler, only : exception_fatal, exception_summary
 use timer, only : timer_init, timer_start, timer_stop, timer_summary
 use fileio, only : fileio_open_read
 use material, only : material_idx_from_name
+use transient, only : DelayedNeutronData, &
+  transient_read, transient_summary, transient_solve, transient_cleanup
 implicit none
 
 integer, parameter :: input_file_unit = 15
@@ -27,8 +31,8 @@ integer :: ios
 integer(ik) :: i
 character(1024) :: input_fname
 character(1024) :: fname_stub, &
-  fname_flux, fname_phi, fname_power, fname_transportxs, fname_out, fname_analytic, &
-  fname_matmap
+  fname_flux, fname_phi, fname_power, fname_transportxs, fname_out, &
+  fname_analytic, fname_matmap
 character(10240) :: line
 type(XSLibrary) :: xs
 
@@ -36,6 +40,9 @@ real(rk) :: keff
 real(rk), allocatable :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
 real(rk), allocatable :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
 real(rk), allocatable :: power(:)
+
+logical :: is_transient
+type(DelayedNeutronData) :: kindat
 
 character(len=:), allocatable :: mat_name_list(:)
 
@@ -87,6 +94,22 @@ call timer_start('xs_read')
 call xs_read_library(xslib_fname, xs)
 call timer_stop('xs_read')
 
+is_transient = (transient_fname /= '')
+if (is_transient) then
+
+  call transient_read(transient_fname, kindat)
+  call transient_summary(kindat)
+
+  if (kindat%ng /= xs%ngroup) then
+    call exception_fatal('Inconsistent number of energy groups in ' &
+      // 'transient and cross section data.')
+  endif
+  if (pnorder /= 0) then
+    call exception_fatal('Transient calculations are only supported ' &
+      // 'for diffusion (pnorder=0).')
+  endif
+endif
+
 ! translate from the strings in the input file
 ! this has to be done after the xslib is read so that we
 ! know the correct indices
@@ -125,7 +148,8 @@ if (pnorder == 0) then
         nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case ('onegroup')
       call diffusion_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, boundary_left, boundary_right, &
+        k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case default
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
   endselect
@@ -138,7 +162,8 @@ else
         keff, sigma_tr, phi)
       if (high_low) then
         call diffusion_power_iteration( &
-          nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1), &
+          nx, dx, mat_map, xs, boundary_left, boundary_right, &
+          k_tol, phi_tol, max_iter, keff, phi(:,:,1), &
           transportxs = sigma_tr(:,:,2))
       endif
     case ('onegroup')
@@ -154,6 +179,14 @@ call timer_stop('solver')
 write(line, '(a,f22.20)') 'keff = ', keff
 call output_write(line)
 call output_write('')
+
+if (is_transient) then
+  call timer_start('transient')
+  call transient_solve(fname_stub, &
+    nx, dx, mat_map, xs, kindat, boundary_left, boundary_right, &
+    phi_tol, max_iter, keff, phi(:,:,1))
+  call timer_stop('transient')
+endif
 
 if (analytic_reference /= 'none') then
   call analytic_error(analytic_reference, fname_analytic, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
@@ -198,6 +231,9 @@ if (allocated(sigma_tr)) deallocate(sigma_tr)
 
 call xs_cleanup(xs)
 call input_cleanup()
+if (is_transient) then
+  call transient_cleanup(kindat)
+endif
 
 call output_write('Normal Termination :)')
 call output_write('end SIREN')

@@ -12,15 +12,15 @@ if __name__ == "__main__":
 
     dat = np.loadtxt(fname, delimiter=",", skiprows=1)
 
-    x = dat[:, 0]
-    power = dat[:, 1:]
+    elapt = dat[:, 0]
+    relpow = dat[:, 2]
 
     plt.figure()
-    plt.plot(x, power)
-    plt.xlabel("x [cm]")
-    plt.ylabel("Power (arb. units)")
-    plt.title("SIREN Power")
+    plt.plot(elapt, relpow)
+    plt.xlabel("Time [s]")
+    plt.ylabel("Relative Power [-]")
+    plt.title("Siren Transient")
     plt.tight_layout()
-    plt.savefig("power." + extension, dpi=dpi)
+    plt.savefig("transient." + extension, dpi=600)
 
     plt.show()
