@@ -32,55 +32,36 @@ contains
     ! BC at x=0, i=1
     mthis = mat_map(1)
     mnext = mat_map(2)
-    select case (boundary_left)
-      case ('zero')
-        do n = 1,neven
-          idxn = 2*(n-1)
-          xn = real(idxn, rk)
-          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
-          do g = 1,xslib%ngroup
-            cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
-            cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
-            if (idxn > 1) then
-              cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
-              cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
-            endif
-            dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
+    do n = 1,neven
+      idxn = 2*(n-1)
+      xn = real(idxn, rk)
+      xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+      xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
+      do g = 1,xslib%ngroup
+        cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
+        cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
+        if (idxn > 1) then
+          cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
+          cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
+        endif
+        dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
+        select case (boundary_left)
+          case ('zero')
             dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
               + 2 * cthis / dx(1)
-            if (idxn+1 <= xslib%nmoment) then
-              dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
-            endif
-            sup(1,g,n) = -dnext
-          enddo ! = g = 1,xslib%ngroup
-        enddo ! n = 1,neven
-      case ('mirror')
-        do n = 1,neven
-          idxn = 2*(n-1)
-          xn = real(idxn, rk)
-          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
-          do g = 1,xslib%ngroup
-            cthis = xmul_next / sigma_tr(1,g,idxn+1+1)
-            cnext = xmul_next / sigma_tr(2,g,idxn+1+1)
-            if (idxn > 1) then
-              cthis = cthis + xmul_prev / sigma_tr(1,g,idxn+1-1)
-              cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
-            endif
-            dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
+          case ('mirror')
             dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
-            if (idxn+1 <= xslib%nmoment) then
-              dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
-            endif
-            sup(1,g,n) = -dnext
-          enddo ! = g = 1,xslib%ngroup
-        enddo ! n = 1,neven
-      case default
-        call exception_fatal( &
-          'unknown boundary_left in transport_build_matrix: ' &
-          // trim(adjustl(boundary_left)))
-    endselect
+          case default
+            call exception_fatal( &
+              'unknown boundary_left in transport_build_matrix: ' &
+              // trim(adjustl(boundary_left)))
+        endselect
+        if (idxn+1 <= xslib%nmoment) then
+          dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
+        endif
+        sup(1,g,n) = -dnext
+      enddo ! = g = 1,xslib%ngroup
+    enddo ! n = 1,neven
 
     do n = 1,neven
       idxn = 2*(n-1)
@@ -120,55 +101,36 @@ contains
     ! BC at x=L, i=N
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    select case (boundary_right)
-      case ('mirror')
-        do n = 1,neven
-          idxn = 2*(n-1)
-          xn = real(idxn, rk)
-          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
-          do g = 1,xslib%ngroup
-            cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
-            cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
-            if (idxn > 0) then
-              cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
-              cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
-            endif
-            dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
-            sub(nx-1,g,n) = -dprev
+    do n = 1,neven
+      idxn = 2*(n-1)
+      xn = real(idxn, rk)
+      xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+      xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
+      do g = 1,xslib%ngroup
+        cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
+        cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
+        if (idxn > 0) then
+          cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
+          cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
+        endif
+        dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
+        sub(nx-1,g,n) = -dprev
+        select case (boundary_right)
+          case ('mirror')
             dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
-            if (idxn+1 <= xslib%nmoment) then
-              dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
-            endif
-          enddo ! g = 1,xslib%ngroup
-        enddo ! n = 1,neven
-      case ('zero')
-        do n = 1,neven
-          idxn = 2*(n-1)
-          xn = real(idxn, rk)
-          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
-          do g = 1,xslib%ngroup
-            cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
-            cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
-            if (idxn > 0) then
-              cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
-              cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
-            endif
-            dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
-            sub(nx-1,g,n) = -dprev
+          case ('zero')
             dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
               + 2 * cthis / dx(nx)
-            if (idxn+1 <= xslib%nmoment) then
-              dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
-            endif
-          enddo ! g = 1,xslib%ngroup
-        enddo ! n = 1,neven
-      case default
-        call exception_fatal( &
-          'unknown boundary_right in transport_build_matrix: ' // &
-          trim(adjustl(boundary_right)))
-    endselect
+          case default
+            call exception_fatal( &
+              'unknown boundary_right in transport_build_matrix: ' // &
+              trim(adjustl(boundary_right)))
+        endselect
+        if (idxn+1 <= xslib%nmoment) then
+          dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
+        endif
+      enddo ! g = 1,xslib%ngroup
+    enddo ! n = 1,neven
   endsubroutine transport_build_matrix
 
   subroutine transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
@@ -446,16 +408,13 @@ contains
       do g = 1,ngroup
 
         ! BC at x=0, i=1
+        kathis = xmul/sigma_tr(1,g,idxn+1+1)
+        kanext = xmul/sigma_tr(2,g,idxn+1+1)
+        danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
         select case (boundary_left)
           case ('mirror')
-            kathis = xmul/sigma_tr(1,g,idxn+1+1)
-            kanext = xmul/sigma_tr(2,g,idxn+1+1)
-            danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
             qnext(1,g,n) = -phi(1,g,idxn+1+2)*danext + danext*phi(2,g,idxn+1+2)
           case ('zero')
-            kathis = xmul/sigma_tr(1,g,idxn+1+1)
-            kanext = xmul/sigma_tr(2,g,idxn+1+1)
-            danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
             qnext(1,g,n) = &
               -phi(1,g,idxn+1+2)*danext &
               + danext*phi(2,g,idxn+1+2) &
@@ -482,18 +441,15 @@ contains
         enddo
 
         ! BC at x=L, i=N
+        kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
+        kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
+        daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
         select case (boundary_right)
           case ('mirror')
-            kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
-            kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
-            daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
             qnext(nx,g,n) = &
               phi(nx-1,g,idxn+1+2)*daprev &
               - phi(nx,g,idxn+1+2)*daprev
           case ('zero')
-            kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
-            kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
-            daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
             qnext(nx,g,n) = &
               phi(nx-1,g,idxn+1+2)*daprev &
               - phi(nx,g,idxn+1+2)*daprev &
@@ -531,17 +487,14 @@ contains
     do g = 1,ngroup
 
       ! BC at x=0, i=1
+      kbthis = xmul/sigma_tr(1,g,idxn+1-1)
+      kbnext = xmul/sigma_tr(2,g,idxn+1-1)
+      dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
       select case (boundary_left)
         case ('zero')
-          kbthis = xmul/sigma_tr(1,g,idxn+1-1)
-          kbnext = xmul/sigma_tr(2,g,idxn+1-1)
-          dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
           qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2) &
             - 2 * kbthis / dx(1) * phi(1,g,idxn+1-2)
         case ('mirror')
-          kbthis = xmul/sigma_tr(1,g,idxn+1-1)
-          kbnext = xmul/sigma_tr(2,g,idxn+1-1)
-          dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
           qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
         case default
           call exception_fatal('unknown boundary_left in prev_source: ' &
@@ -565,18 +518,15 @@ contains
       enddo ! i = 2,nx-1
 
       ! BC at x=L, i=N
+      kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
+      kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
+      dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
       select case (boundary_right)
         case ('mirror')
-          kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
-          kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
-          dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
           qprev(nx,g) = &
             phi(nx-1,g,idxn+1-2)*dbprev &
             - phi(nx,g,idxn+1-2)*dbprev
         case ('zero')
-          kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
-          kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
-          dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
           qprev(nx,g) = &
             phi(nx-1,g,idxn+1-2)*dbprev &
             - phi(nx,g,idxn+1-2)*dbprev &
