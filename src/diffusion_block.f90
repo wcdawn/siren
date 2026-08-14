@@ -31,28 +31,25 @@ contains
     ! BC at x=0, i=1 (mirror)
     mthis = mat_map(1)
     mnext = mat_map(2)
-    select case (boundary_left)
-      case ('zero')
-        do g = 1,xslib%ngroup
-          dnext = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+    do g = 1,xslib%ngroup
+      dnext = 2 &
+        * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
+        / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+      dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+      sup(g,g,1) = -dnext
+      dia(g,g,1) = dia(g,g,1) + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
+      select case (boundary_left)
+        case ('zero')
+          dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
+            + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
+        case ('mirror')
           dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
-          sup(g,g,1) = -dnext
-          dia(g,g,1) = dia(g,g,1) + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
-        enddo ! g = 1,xslib%ngroup
-      case ('mirror')
-        do g = 1,xslib%ngroup
-          dnext = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
-          dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
-          sup(g,g,1) = -dnext
-        enddo ! g = 1,xslib%ngroup
-      case default
-        call exception_fatal('unknown boundary_left: ' &
-          // trim(adjustl(boundary_left)))
-    endselect
+        case default
+          call exception_fatal(&
+            'unknown boundary_left in diffusion_block_build_matrix: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
+    enddo ! g = 1,xslib%ngroup
 
     do i = 2,nx-1
 
@@ -77,27 +74,23 @@ contains
     ! BC at x=L, i=N
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    select case (boundary_right)
-      case ('zero')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
-          sub(g,g,nx-1) = -dprev
+    do g = 1,xslib%ngroup
+      dprev = 2 &
+        * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+        / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+      sub(g,g,nx-1) = -dprev
+      select case (boundary_right)
+        case ('zero')
           dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
             + 2 * xslib%mat(mthis)%diffusion(g)/dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case ('mirror')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
-          sub(g,g,nx-1) = -dprev
+        case ('mirror')
           dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case default
-        call exception_fatal('unknown boundary_right: ' // trim(adjustl(boundary_right)))
-    endselect
+        case default
+          call exception_fatal(&
+            'unknown boundary_right in diffusion_block_build_matrix: ' &
+            // trim(adjustl(boundary_right)))
+      endselect
+    enddo ! g = 1,xslib%ngroup
 
     ! remove scattering
     do i = 1,nx
