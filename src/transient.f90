@@ -450,7 +450,7 @@ contains
     prec_old = 0.0_rk
     call transient_init_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
 
-    fname_kin = fname_stub // trim(adjustl('_kin.csv'))
+    fname_kin = trim(adjustl(fname_stub)) // trim(adjustl('_transient.csv'))
     call fileio_open_write(fname_kin, iout)
 
     call output_write('=== TRANSIENT CALCULATION ===')
