@@ -39,7 +39,7 @@ contains
             / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
           dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
           sup(g,g,1) = -dnext
-          dia(g,g,1) = dia(g,g,1) + 2 * xslib%mat(mthis)%diffusion(g)/dx(nx)
+          dia(g,g,1) = dia(g,g,1) + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
         enddo ! g = 1,xslib%ngroup
       case ('mirror')
         do g = 1,xslib%ngroup
