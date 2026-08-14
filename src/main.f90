@@ -145,7 +145,8 @@ if (pnorder == 0) then
   select case (energy_solver_opt)
     case ('block')
       call diffusion_block_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, &
+        boundary_left, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case ('onegroup')
       call diffusion_power_iteration( &
         nx, dx, mat_map, xs, boundary_left, boundary_right, &
