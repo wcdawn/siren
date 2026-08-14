@@ -7,14 +7,15 @@ public :: diffusion_block_power_iteration
 
 contains
 
-  subroutine diffusion_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+  subroutine diffusion_block_build_matrix(nx, dx, mat_map, xslib, &
+      boundary_left, boundary_right, sub, dia, sup)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(out) :: sub(:,:,:) ! (ngroup,ngroup,nx-1)
     real(rk), intent(out) :: dia(:,:,:) ! (ngroup,ngroup,nx)
     real(rk), intent(out) :: sup(:,:,:) ! (ngroup,ngroup,nx-1)
@@ -34,8 +35,18 @@ contains
       dnext = 2 &
         * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
         / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
-      dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
       sup(g,g,1) = -dnext
+      select case (boundary_left)
+        case ('zero')
+          dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
+            + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
+        case ('mirror')
+          dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+        case default
+          call exception_fatal(&
+            'unknown boundary_left in diffusion_block_build_matrix: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
     enddo ! g = 1,xslib%ngroup
 
     do i = 2,nx-1
@@ -61,27 +72,23 @@ contains
     ! BC at x=L, i=N
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    select case (boundary_right)
-      case ('zero')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
-          sub(g,g,nx-1) = -dprev
+    do g = 1,xslib%ngroup
+      dprev = 2 &
+        * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+        / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+      sub(g,g,nx-1) = -dprev
+      select case (boundary_right)
+        case ('zero')
           dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
             + 2 * xslib%mat(mthis)%diffusion(g)/dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case ('mirror')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
-          sub(g,g,nx-1) = -dprev
+        case ('mirror')
           dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case default
-        call exception_fatal('unknown boundary_right: ' // trim(adjustl(boundary_right)))
-    endselect
+        case default
+          call exception_fatal(&
+            'unknown boundary_right in diffusion_block_build_matrix: ' &
+            // trim(adjustl(boundary_right)))
+      endselect
+    enddo ! g = 1,xslib%ngroup
 
     ! remove scattering
     do i = 1,nx
@@ -133,7 +140,8 @@ contains
   endfunction diffusion_block_fission_summation
 
   subroutine diffusion_block_power_iteration( &
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
+    nx, dx, mat_map, xslib, &
+    boundary_left, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
@@ -143,7 +151,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(out) :: keff
@@ -175,7 +183,8 @@ contains
       sup_copy(xslib%ngroup,xslib%ngroup,nx-1))
 
     call timer_start('diffusion_build_matrix')
-    call diffusion_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, sub, dia, sup)
+    call diffusion_block_build_matrix(nx, dx, mat_map, xslib, &
+      boundary_left, boundary_right, sub, dia, sup)
     call timer_stop('diffusion_build_matrix')
 
     allocate(fsource(xslib%ngroup,nx))

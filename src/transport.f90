@@ -9,7 +9,8 @@ public :: transport_power_iteration
 contains
 
   subroutine transport_build_matrix( &
-    nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+    nx, dx, mat_map, xslib, sigma_tr, &
+    boundary_left, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -17,7 +18,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer, intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
 
@@ -44,7 +45,17 @@ contains
           cnext = cnext + xmul_prev / sigma_tr(2,g,idxn+1-1)
         endif
         dnext = 2 * cthis / dx(1) * cnext / dx(2) / (cthis / dx(1) + cnext / dx(2))
-        dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+        select case (boundary_left)
+          case ('zero')
+            dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
+              + 2 * cthis / dx(1)
+          case ('mirror')
+            dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+          case default
+            call exception_fatal( &
+              'unknown boundary_left in transport_build_matrix: ' &
+              // trim(adjustl(boundary_left)))
+        endselect
         if (idxn+1 <= xslib%nmoment) then
           dia(1,g,n) = dia(1,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(1)
         endif
@@ -90,55 +101,36 @@ contains
     ! BC at x=L, i=N
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    select case (boundary_right)
-      case ('mirror')
-        do n = 1,neven
-          idxn = 2*(n-1)
-          xn = real(idxn, rk)
-          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
-          do g = 1,xslib%ngroup
-            cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
-            cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
-            if (idxn > 0) then
-              cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
-              cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
-            endif
-            dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
-            sub(nx-1,g,n) = -dprev
+    do n = 1,neven
+      idxn = 2*(n-1)
+      xn = real(idxn, rk)
+      xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+      xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
+      do g = 1,xslib%ngroup
+        cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
+        cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
+        if (idxn > 0) then
+          cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
+          cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
+        endif
+        dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
+        sub(nx-1,g,n) = -dprev
+        select case (boundary_right)
+          case ('mirror')
             dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
-            if (idxn+1 <= xslib%nmoment) then
-              dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
-            endif
-          enddo ! g = 1,xslib%ngroup
-        enddo ! n = 1,neven
-      case ('zero')
-        do n = 1,neven
-          idxn = 2*(n-1)
-          xn = real(idxn, rk)
-          xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
-          xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
-          do g = 1,xslib%ngroup
-            cprev = xmul_next / sigma_tr(nx-1,g,idxn+1+1)
-            cthis = xmul_next / sigma_tr(nx  ,g,idxn+1+1)
-            if (idxn > 0) then
-              cprev = cprev + xmul_prev / sigma_tr(nx-1,g,idxn+1-1)
-              cthis = cthis + xmul_prev / sigma_tr(nx  ,g,idxn+1-1)
-            endif
-            dprev = 2 * cthis / dx(nx) * cprev / dx(nx-1) / (cthis / dx(nx) + cprev / dx(nx-1))
-            sub(nx-1,g,n) = -dprev
+          case ('zero')
             dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
               + 2 * cthis / dx(nx)
-            if (idxn+1 <= xslib%nmoment) then
-              dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
-            endif
-          enddo ! g = 1,xslib%ngroup
-        enddo ! n = 1,neven
-      case default
-        call exception_fatal( &
-          'unknown boundary_right in transport_build_matrix: ' // &
-          trim(adjustl(boundary_right)))
-    endselect
+          case default
+            call exception_fatal( &
+              'unknown boundary_right in transport_build_matrix: ' // &
+              trim(adjustl(boundary_right)))
+        endselect
+        if (idxn+1 <= xslib%nmoment) then
+          dia(nx,g,n) = dia(nx,g,n) - xslib%mat(mthis)%scatter(g,g,idxn+1) * dx(nx)
+        endif
+      enddo ! g = 1,xslib%ngroup
+    enddo ! n = 1,neven
   endsubroutine transport_build_matrix
 
   subroutine transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
@@ -177,14 +169,15 @@ contains
 
   endsubroutine transport_init_transportxs
 
-  subroutine transport_odd_update(nx, dx, mat_map, ng, boundary_right, pnorder, sigma_tr, phi)
+  subroutine transport_odd_update(nx, dx, mat_map, ng, &
+      boundary_left, boundary_right, pnorder, sigma_tr, phi)
     use numeric, only : deriv
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     integer(ik), intent(in) :: ng
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: pnorder
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
@@ -199,96 +192,80 @@ contains
       xn = real(idxn, rk)
       xmul_prev = xn/(2.0_rk*xn+1.0_rk)
       xmul_next = (xn+1.0_rk)/(2.0_rk*xn+1.0_rk)
-      if (n < pnorder+1) then
-        do g = 1,ng
-          do i = 2,nx-1
-            if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
-              ! central difference for interior (second order)
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+      dphi_next = 0.0_rk
+      do g = 1,ng
+        do i = 2,nx-1
+          if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
+            ! central difference for interior (second order)
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            if (n < pnorder + 1) then
               dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
                 phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
-            elseif (mat_map(i) == mat_map(i+1)) then
-              ! forward difference (first order)
-              dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
+            endif
+          elseif (mat_map(i) == mat_map(i+1)) then
+            ! forward difference (first order)
+            dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
+            if (n < pnorder + 1) then
               dphi_next = (phi(i+1,g,idxn+1+1) - phi(i,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i+1)))
-            elseif (mat_map(i) == mat_map(i-1)) then
-              ! backward difference (first order)
-              dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
+            endif
+          elseif (mat_map(i) == mat_map(i-1)) then
+            ! backward difference (first order)
+            dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
+            if (n < pnorder + 1) then
               dphi_next = (phi(i,g,idxn+1+1) - phi(i-1,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i-1)))
-            else
-              ! this means that there is a material region with width of a single cell
-              ! what a terrible idea...
-              ! try central difference because why not
-              ! TODO raise warning probably in the input processing
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            endif
+          else
+            ! this means that there is a material region with width of a single cell
+            ! what a terrible idea...
+            ! try central difference because why not
+            ! TODO raise warning probably in the input processing
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            if (n  < pnorder + 1) then
               dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
                 phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
             endif
-            phi(i,g,idxn+1) = &
-              - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-              / sigma_tr(i,g,idxn+1)
-          enddo ! i = 2,nx-1
-          ! BC at x=0, i=1
-          ! use the fact that odd moments must equal zero for mirror bc
-          ! this stencil kind of extends to x3 because phi(2) was computed earlier
-          phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-          ! BC at x=L, i=N
-          select case (boundary_right)
-            case ('mirror')
-              phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
-            case ('zero')
-              dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
-              dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
-              phi(nx,g,idxn+1) = &
-                - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-                / sigma_tr(nx,g,idxn+1)
-            case default
-              call exception_fatal(&
-                'unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
-          endselect
-        enddo ! g = 1,ng
-      else
-        do g = 1,ng
-          do i = 2,nx-1
-            if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
-              ! central difference for interior (second order)
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
-            elseif (mat_map(i) == mat_map(i+1)) then
-              ! forward difference (first order)
-              dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
-            elseif (mat_map(i) == mat_map(i-1)) then
-              ! backward difference (first order)
-              dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
-            else
-              ! this means that there is a material region with width of a single cell
-              ! what a terrible idea...
-              ! try central difference because why not
-              ! TODO raise warning probably in the input processing
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+          endif
+          phi(i,g,idxn+1) = &
+            - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+            / sigma_tr(i,g,idxn+1)
+        enddo ! i = 2,nx-1
+        ! BC at x=0, i=1
+        ! use the fact that odd moments must equal zero for mirror bc
+        ! this stencil kind of extends to x3 because phi(2) was computed earlier
+        select case (boundary_left)
+          case ('mirror')
+            phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+          case ('zero')
+            dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+            if (n < pnorder + 1) then
+              dphi_next = -phi(2,g,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
             endif
-            phi(i,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(i,g,idxn+1)
-          enddo ! i = 2,nx-1
-          ! BC at x=0, i=1
-          ! use the fact that odd moments must equal zero for mirror bc
-          ! this stencil kind of extends to x3 because phi(2) was computed earlier
-          phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-          ! BC at x=L, i=N
-          select case (boundary_right)
-            case ('mirror')
-              phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
-            case ('zero')
-              dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
-              phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
-            case default
-              call exception_fatal(&
-                'unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right)))
-          endselect
-        enddo ! g = 1,ng
-      endif
+            phi(1,g,idxn+1) = &
+              (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+              / sigma_tr(1,g,idxn+1)
+          case default
+            call exception_fatal('unknown boundary_left in odd_update: ' &
+              // trim(adjustl(boundary_left)))
+        endselect
+        ! BC at x=L, i=N
+        select case (boundary_right)
+          case ('mirror')
+            phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
+          case ('zero')
+            dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
+            if (n < pnorder + 1) then
+              dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
+            endif
+            phi(nx,g,idxn+1) = &
+              - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+              / sigma_tr(nx,g,idxn+1)
+          case default
+            call exception_fatal('unknown boundary_right in odd_update: ' &
+              // trim(adjustl(boundary_right)))
+        endselect
+      enddo ! g = 1,ng
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
 
@@ -369,12 +346,12 @@ contains
   endsubroutine transport_build_fsource
 
   subroutine transport_build_next_source( &
-    nx, dx, ngroup, boundary_right, neven, sigma_tr, phi, qnext)
+    nx, dx, ngroup, boundary_left, boundary_right, neven, sigma_tr, phi, qnext)
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: neven
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
@@ -397,7 +374,18 @@ contains
         kathis = xmul/sigma_tr(1,g,idxn+1+1)
         kanext = xmul/sigma_tr(2,g,idxn+1+1)
         danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
-        qnext(1,g,n) = -phi(1,g,idxn+1+2)*danext + danext*phi(2,g,idxn+1+2)
+        select case (boundary_left)
+          case ('mirror')
+            qnext(1,g,n) = -phi(1,g,idxn+1+2)*danext + danext*phi(2,g,idxn+1+2)
+          case ('zero')
+            qnext(1,g,n) = &
+              -phi(1,g,idxn+1+2)*danext &
+              + danext*phi(2,g,idxn+1+2) &
+              - 2 * kathis / dx(1) * phi(1,g,idxn+1+2)
+          case default
+            call exception_fatal('unknown boundary_left in next_source: ' &
+              // trim(adjustl(boundary_left)))
+        endselect
 
         do i = 2,nx-1
 
@@ -416,18 +404,15 @@ contains
         enddo
 
         ! BC at x=L, i=N
+        kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
+        kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
+        daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
         select case (boundary_right)
           case ('mirror')
-            kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
-            kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
-            daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
             qnext(nx,g,n) = &
               phi(nx-1,g,idxn+1+2)*daprev &
               - phi(nx,g,idxn+1+2)*daprev
           case ('zero')
-            kaprev = xmul/sigma_tr(nx-1,g,idxn+1+1)
-            kathis = xmul/sigma_tr(nx  ,g,idxn+1+1)
-            daprev = 2 * kathis / dx(nx) * kaprev / dx(nx-1) / (kathis / dx(nx) + kaprev / dx(nx-1))
             qnext(nx,g,n) = &
               phi(nx-1,g,idxn+1+2)*daprev &
               - phi(nx,g,idxn+1+2)*daprev &
@@ -442,12 +427,13 @@ contains
 
   endsubroutine transport_build_next_source
 
-  subroutine transport_build_prev_source(nx, dx, ngroup, boundary_right, sigma_tr, phi, idxn, qprev)
+  subroutine transport_build_prev_source(nx, dx, ngroup, &
+      boundary_left, boundary_right, sigma_tr, phi, idxn, qprev)
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
     integer(ik), intent(in) :: idxn
@@ -467,7 +453,16 @@ contains
       kbthis = xmul/sigma_tr(1,g,idxn+1-1)
       kbnext = xmul/sigma_tr(2,g,idxn+1-1)
       dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
-      qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
+      select case (boundary_left)
+        case ('zero')
+          qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2) &
+            - 2 * kbthis / dx(1) * phi(1,g,idxn+1-2)
+        case ('mirror')
+          qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
+        case default
+          call exception_fatal('unknown boundary_left in prev_source: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
 
       do i = 2,nx-1
 
@@ -486,25 +481,22 @@ contains
       enddo ! i = 2,nx-1
 
       ! BC at x=L, i=N
+      kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
+      kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
+      dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
       select case (boundary_right)
         case ('mirror')
-          kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
-          kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
-          dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
           qprev(nx,g) = &
             phi(nx-1,g,idxn+1-2)*dbprev &
             - phi(nx,g,idxn+1-2)*dbprev
         case ('zero')
-          kbprev = xmul/sigma_tr(nx-1,g,idxn+1-1)
-          kbthis = xmul/sigma_tr(nx  ,g,idxn+1-1)
-          dbprev = 2 * kbthis / dx(nx) * kbprev / dx(nx-1) / (kbthis / dx(nx) + kbprev / dx(nx-1))
           qprev(nx,g) = &
             phi(nx-1,g,idxn+1-2)*dbprev &
             - phi(nx,g,idxn+1-2)*dbprev &
             - 2 * kbthis / dx(nx) * phi(nx,g,idxn+1-2)
         case default
-          call exception_fatal( &
-            'unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
+          call exception_fatal('unknown boundary_right in prev_source: ' &
+            // trim(adjustl(boundary_right)))
       endselect
 
     enddo ! g = 1,ngroup
@@ -536,7 +528,8 @@ contains
   endfunction transport_fission_summation
 
   subroutine transport_power_iteration(&
-    nx, dx, mat_map, xslib, boundary_right, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
@@ -546,7 +539,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
@@ -607,7 +600,8 @@ contains
 
     call timer_start('transport_build_matrix')
     call transport_build_matrix( &
-      nx, dx, mat_map, xslib, sigma_tr, boundary_right, neven, sub, dia, sup)
+      nx, dx, mat_map, xslib, sigma_tr, &
+      boundary_left, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
     do iter = 1,max_iter
@@ -618,7 +612,8 @@ contains
 
       call timer_start('transport_pn_source')
       call transport_build_next_source( &
-        nx, dx, xslib%ngroup, boundary_right, neven, sigma_tr, phi, pn_next_source)
+        nx, dx, xslib%ngroup, boundary_left, boundary_right, &
+        neven, sigma_tr, phi, pn_next_source)
       call timer_stop('transport_pn_source')
 
       do n = 1,neven
@@ -632,7 +627,8 @@ contains
         else ! (n > 1)
           call timer_start('transport_pn_source')
           call transport_build_prev_source( &
-            nx, dx, xslib%ngroup, boundary_right, sigma_tr, phi, idxn, pn_prev_source)
+            nx, dx, xslib%ngroup, boundary_left, boundary_right, &
+            sigma_tr, phi, idxn, pn_prev_source)
           call timer_stop('transport_pn_source')
         endif
 
@@ -673,7 +669,8 @@ contains
       ! always do this update so that we can use it in the convergence criteria
       call timer_start('transport_odd_update')
       call transport_odd_update( &
-        nx, dx, mat_map, xslib%ngroup, boundary_right, pnorder, sigma_tr, phi)
+        nx, dx, mat_map, xslib%ngroup, boundary_left, boundary_right, &
+        pnorder, sigma_tr, phi)
       call timer_stop('transport_odd_update')
 
       call timer_start('transport_convergence')

@@ -40,7 +40,7 @@ contains
   endsubroutine transport_invtransmat
 
   subroutine transport_block_build_matrix( &
-    nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, neven, sub, dia, sup)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
@@ -49,7 +49,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:,:) ! (ngroup,ngroup,nx-1,neven)
     real(rk), intent(out) :: dia(:,:,:,:) ! (ngroup,ngroup,nx,neven)
@@ -102,8 +102,18 @@ contains
       call inv(xslib%ngroup, anext(:,:,myid), matinv(:,:,myid))
       anext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
         * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_next(:,:,myid))
-      dia(:,:,1,n) = anext(:,:,myid)
-      sup(:,:,1,n) = -anext(:,:,myid)
+      select case (boundary_left)
+        case ('mirror')
+          dia(:,:,1,n) = anext(:,:,myid)
+          sup(:,:,1,n) = -anext(:,:,myid)
+        case ('zero')
+          dia(:,:,1,n) = anext(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(1)
+          sup(:,:,1,n) = -anext(:,:,myid)
+        case default
+          call exception_fatal(&
+            'unknown boundary_left in transport_block_build_matrix: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
     enddo ! n = 1,neven
 
     !$omp parallel do default(none) &
@@ -186,7 +196,9 @@ contains
           sub(:,:,nx-1,n) = -aprev(:,:,myid)
           dia(:,:,nx,n) = aprev(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(nx)
         case default
-          call exception_fatal('unknown boundary_right: ' // trim(adjustl(boundary_right)))
+          call exception_fatal(&
+            'unknown boundary_right in transport_block_build_matrix: ' &
+            // trim(adjustl(boundary_right)))
       endselect
     enddo ! n = 1,neven
 
@@ -210,7 +222,8 @@ contains
   endsubroutine transport_block_build_matrix
 
   subroutine transport_block_build_next_source(&
-    nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    neven, phi_block, pn_next_source)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
@@ -219,7 +232,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: neven
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_next_source(:,:,:) ! (ngroup,nx,neven)
@@ -267,8 +280,19 @@ contains
       call inv(xslib%ngroup, bnext(:,:,myid), matinv(:,:,myid))
       bnext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
         * matmul(matmul(fhat_this(:,:,myid), matinv(:,:,myid)), fhat_next(:,:,myid))
-      pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
-        + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2))
+      select case (boundary_left)
+        case ('mirror')
+          pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
+            + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2))
+        case ('zero')
+          pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
+            + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2)) &
+            - 2.0_rk/dx(1) * matmul(fhat_this(:,:,myid), phi_block(:,1,idxn+1+2))
+        case default
+          call exception_fatal(&
+            'unknown boundary_left in transport_block_build_next_source: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
     enddo ! n = 1,neven-1
 
     !$omp parallel do default(none) &
@@ -333,7 +357,8 @@ contains
             - 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_block(:,nx,idxn+1+2))
         case default
           call exception_fatal(&
-            'unknown boundary_right in next_source: ' // trim(adjustl(boundary_right)))
+            'unknown boundary_right in transport_block_build_next_source: ' &
+            // trim(adjustl(boundary_right)))
       endselect
     enddo ! n = 1,neven
 
@@ -343,7 +368,8 @@ contains
   endsubroutine transport_block_build_next_source
 
   subroutine transport_block_build_prev_source( &
-    nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    idxn, phi_block, pn_prev_source)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
@@ -352,7 +378,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: idxn
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_prev_source(:,:) ! (ngroup,nx)
@@ -402,8 +428,19 @@ contains
     call inv(xslib%ngroup, cnext(:,:,myid), matinv(:,:,myid))
     cnext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
       * matmul(matmul(ghat_this(:,:,myid), matinv(:,:,myid)), ghat_next(:,:,myid))
-    pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
-      + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2))
+    select case (boundary_left)
+      case ('mirror')
+        pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
+          + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2))
+      case ('zero')
+        pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
+          + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2)) &
+          - 2.0_rk/dx(1) * matmul(ghat_this(:,:,myid), phi_block(:,1,idxn+1-2))
+      case default
+        call exception_fatal(&
+          'unknown boundary_left in transport_block_build_prev_source: ' &
+          // trim(adjustl(boundary_left)))
+    endselect
 
     !$omp parallel do default(none) &
     !$omp shared (nx) &
@@ -458,7 +495,8 @@ contains
           - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2))
       case default
         call exception_fatal( &
-          'unknown boundary_right in prev_source: ' // trim(adjustl(boundary_right)))
+          'unknown boundary_right in transport_block_build_prev_source: ' &
+          // trim(adjustl(boundary_right)))
     endselect
 
     deallocate(matinv)
@@ -510,7 +548,8 @@ contains
   endfunction transport_block_fission_summation
 
   subroutine transport_block_power_iteration(&
-    nx, dx, mat_map, xslib, boundary_right, calc_type, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    calc_type, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
@@ -520,7 +559,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     character(*), intent(in) :: calc_type
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
@@ -588,7 +627,8 @@ contains
 
     call output_write('  building transport matrix')
     call timer_start('transport_build_matrix')
-    call transport_block_build_matrix(nx, dx, mat_map, xslib, boundary_right, neven, sub, dia, sup)
+    call transport_block_build_matrix(nx, dx, mat_map, xslib, &
+      boundary_left, boundary_right, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
     if (calc_type == 'fixed_source') then
@@ -608,7 +648,8 @@ contains
 
       call timer_start('transport_pn_source')
       call transport_block_build_next_source( &
-        nx, dx, mat_map, xslib, boundary_right, neven, phi_block, pn_next_source)
+        nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+        neven, phi_block, pn_next_source)
       call timer_stop('transport_pn_source')
 
       do n = 1,neven
@@ -631,7 +672,8 @@ contains
         else
           call timer_start('transport_pn_source')
           call transport_block_build_prev_source( &
-            nx, dx, mat_map, xslib, boundary_right, idxn, phi_block, pn_prev_source)
+            nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+            idxn, phi_block, pn_prev_source)
           q = q + pn_prev_source
           call timer_stop('transport_pn_source')
         endif
@@ -677,7 +719,8 @@ contains
     endif
 
     call timer_start('calc_odd')
-    call transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
+    call transport_block_calc_odd(nx, dx, mat_map, xslib, &
+      boundary_left, boundary_right, pnorder, phi_block)
     call timer_stop('calc_odd')
     call timer_start('calc_transportxs')
     call transport_block_calc_transportxs(nx, mat_map, xslib, pnorder, phi_block, sigma_tr)
@@ -699,7 +742,8 @@ contains
     deallocate(sub_copy, dia_copy, sup_copy)
   endsubroutine transport_block_power_iteration
 
-  subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, boundary_right, pnorder, phi_block)
+  subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, &
+      boundary_left, boundary_right, pnorder, phi_block)
     use xs, only : XSLibrary
     use numeric, only : deriv
     use exception_handler, only : exception_fatal
@@ -707,7 +751,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
-    character(*), intent(in) :: boundary_right
+    character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: pnorder
     real(rk), intent(inout) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
 
@@ -779,22 +823,42 @@ contains
       ! BC at x=0, i=1
       ! use the fact that odd moments must equal zero for mirror bc
       ! this stencil kind of extends to x3 because phi(2) was computed earlier
-      phi_block(:,1,idxn+1) = phi_block(:,2,idxn+1) &
-        * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+      select case (boundary_left)
+        case ('mirror')
+          phi_block(:,1,idxn+1) = phi_block(:,2,idxn+1) &
+            * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+        case ('zero')
+          dphi_prev = -phi_block(:,2,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+          if (n < pnorder + 1) then
+            dphi_next = -phi_block(:,2,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
+          else
+            dphi_next = 0.0_rk
+          endif
+          call transport_invtransmat(xslib%mat(mat_map(1)), idxn, trans)
+          phi_block(:,1,idxn+1) = matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
+        case default
+          call exception_fatal(&
+            'unknown boundary_left in transport_block_calc_odd: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
       ! BC at x=L, i=N
       select case (boundary_right)
         case ('mirror')
           phi_block(:,nx,idxn+1) = phi_block(:,nx-1,idxn+1) &
             * 0.5_rk * dx(nx) / (dx(nx) + 0.5_rk*dx(nx-1))
         case ('zero')
-          dphi_prev = -phi_block(:,nx-1,idxn+1-1)/(dx(nx) + 0.5_rk*(dx(nx-1)))
+          dphi_prev = -phi_block(:,nx-1,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
           if (n < pnorder + 1) then
-            dphi_next = -phi_block(:,nx-1,idxn+1+1)/(dx(nx) + 0.5_rk*(dx(nx-1)))
+            dphi_next = -phi_block(:,nx-1,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
+          else
+            dphi_next = 0.0_rk
           endif
           call transport_invtransmat(xslib%mat(mat_map(nx)), idxn, trans)
           phi_block(:,nx,idxn+1) = -matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
         case default
-          call exception_fatal('unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
+          call exception_fatal(&
+            'unknown boundary_right in transport_block_calc_odd: ' &
+            // trim(adjustl(boundary_right)))
       endselect
     enddo
 

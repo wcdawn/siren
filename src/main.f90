@@ -145,7 +145,8 @@ if (pnorder == 0) then
   select case (energy_solver_opt)
     case ('block')
       call diffusion_block_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, &
+        boundary_left, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case ('onegroup')
       call diffusion_power_iteration( &
         nx, dx, mat_map, xs, boundary_left, boundary_right, &
@@ -158,8 +159,8 @@ else
   select case (energy_solver_opt)
     case ('block')
       call transport_block_power_iteration( &
-        nx, dx, mat_map, xs, boundary_right, calc_type, k_tol, phi_tol, max_iter, pnorder, &
-        keff, sigma_tr, phi)
+        nx, dx, mat_map, xs, boundary_left, boundary_right, calc_type, &
+        k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
       if (high_low) then
         call diffusion_power_iteration( &
           nx, dx, mat_map, xs, boundary_left, boundary_right, &
@@ -168,8 +169,8 @@ else
       endif
     case ('onegroup')
       call transport_power_iteration(&
-        nx, dx, mat_map, xs, boundary_right, k_tol, phi_tol, max_iter, pnorder, &
-        keff, sigma_tr, phi)
+        nx, dx, mat_map, xs, boundary_left, boundary_right, &
+        k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     case default
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
   endselect
