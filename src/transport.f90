@@ -271,7 +271,7 @@ contains
               dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
               dphi_next = -phi(2,g,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
               phi(1,g,idxn+1) = &
-                - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+                (xmul_prev * dphi_prev + xmul_next * dphi_next) &
                 / sigma_tr(1,g,idxn+1)
             case default
               call exception_fatal('unknown boundary_left in odd_update: ' &
@@ -285,7 +285,7 @@ contains
               dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
               dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
               phi(nx,g,idxn+1) = &
-                (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+                - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
                 / sigma_tr(nx,g,idxn+1)
             case default
               call exception_fatal('unknown boundary_right in odd_update: ' &
@@ -525,20 +525,28 @@ contains
     real(rk) :: kbprev, kbthis, kbnext
     real(rk) :: dbprev, dbnext
 
-    if (boundary_left /= 'mirror') then
-      call exception_fatal('need to implement boundary_left in transport_build_prev_source')
-    endif
-
     xn = real(idxn, rk)
     xmul = (xn**2-xn)/(4.0_rk*xn**2 - 1.0_rk)
 
     do g = 1,ngroup
 
       ! BC at x=0, i=1
-      kbthis = xmul/sigma_tr(1,g,idxn+1-1)
-      kbnext = xmul/sigma_tr(2,g,idxn+1-1)
-      dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
-      qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
+      select case (boundary_left)
+        case ('zero')
+          kbthis = xmul/sigma_tr(1,g,idxn+1-1)
+          kbnext = xmul/sigma_tr(2,g,idxn+1-1)
+          dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
+          qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2) &
+            - 2 * kbthis / dx(1) * phi(1,g,idxn+1-2)
+        case ('mirror')
+          kbthis = xmul/sigma_tr(1,g,idxn+1-1)
+          kbnext = xmul/sigma_tr(2,g,idxn+1-1)
+          dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
+          qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
+        case default
+          call exception_fatal('unknown boundary_left in prev_source: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
 
       do i = 2,nx-1
 
@@ -574,8 +582,8 @@ contains
             - phi(nx,g,idxn+1-2)*dbprev &
             - 2 * kbthis / dx(nx) * phi(nx,g,idxn+1-2)
         case default
-          call exception_fatal( &
-            'unknown boundary in prev_source: ' // trim(adjustl(boundary_right)))
+          call exception_fatal('unknown boundary_right in prev_source: ' &
+            // trim(adjustl(boundary_right)))
       endselect
 
     enddo ! g = 1,ngroup
