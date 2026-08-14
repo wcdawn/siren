@@ -192,117 +192,80 @@ contains
       xn = real(idxn, rk)
       xmul_prev = xn/(2.0_rk*xn+1.0_rk)
       xmul_next = (xn+1.0_rk)/(2.0_rk*xn+1.0_rk)
-      if (n < pnorder+1) then
-        do g = 1,ng
-          do i = 2,nx-1
-            if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
-              ! central difference for interior (second order)
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+      dphi_next = 0.0_rk
+      do g = 1,ng
+        do i = 2,nx-1
+          if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
+            ! central difference for interior (second order)
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            if (n < pnorder + 1) then
               dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
                 phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
-            elseif (mat_map(i) == mat_map(i+1)) then
-              ! forward difference (first order)
-              dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
+            endif
+          elseif (mat_map(i) == mat_map(i+1)) then
+            ! forward difference (first order)
+            dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
+            if (n < pnorder + 1) then
               dphi_next = (phi(i+1,g,idxn+1+1) - phi(i,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i+1)))
-            elseif (mat_map(i) == mat_map(i-1)) then
-              ! backward difference (first order)
-              dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
+            endif
+          elseif (mat_map(i) == mat_map(i-1)) then
+            ! backward difference (first order)
+            dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
+            if (n < pnorder + 1) then
               dphi_next = (phi(i,g,idxn+1+1) - phi(i-1,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i-1)))
-            else
-              ! this means that there is a material region with width of a single cell
-              ! what a terrible idea...
-              ! try central difference because why not
-              ! TODO raise warning probably in the input processing
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            endif
+          else
+            ! this means that there is a material region with width of a single cell
+            ! what a terrible idea...
+            ! try central difference because why not
+            ! TODO raise warning probably in the input processing
+            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
+            if (n  < pnorder + 1) then
               dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
                 phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
             endif
-            phi(i,g,idxn+1) = &
-              - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-              / sigma_tr(i,g,idxn+1)
-          enddo ! i = 2,nx-1
-          ! BC at x=0, i=1
-          ! use the fact that odd moments must equal zero for mirror bc
-          ! this stencil kind of extends to x3 because phi(2) was computed earlier
-          select case (boundary_left)
-            case ('mirror')
-              phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-            case ('zero')
-              dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+          endif
+          phi(i,g,idxn+1) = &
+            - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+            / sigma_tr(i,g,idxn+1)
+        enddo ! i = 2,nx-1
+        ! BC at x=0, i=1
+        ! use the fact that odd moments must equal zero for mirror bc
+        ! this stencil kind of extends to x3 because phi(2) was computed earlier
+        select case (boundary_left)
+          case ('mirror')
+            phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+          case ('zero')
+            dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+            if (n < pnorder + 1) then
               dphi_next = -phi(2,g,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
-              phi(1,g,idxn+1) = &
-                (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-                / sigma_tr(1,g,idxn+1)
-            case default
-              call exception_fatal('unknown boundary_left in odd_update: ' &
-                // trim(adjustl(boundary_left)))
-          endselect
-          ! BC at x=L, i=N
-          select case (boundary_right)
-            case ('mirror')
-              phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
-            case ('zero')
-              dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
-              dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
-              phi(nx,g,idxn+1) = &
-                - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-                / sigma_tr(nx,g,idxn+1)
-            case default
-              call exception_fatal('unknown boundary_right in odd_update: ' &
-                // trim(adjustl(boundary_right)))
-          endselect
-        enddo ! g = 1,ng
-      else
-        do g = 1,ng
-          do i = 2,nx-1
-            if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
-              ! central difference for interior (second order)
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
-            elseif (mat_map(i) == mat_map(i+1)) then
-              ! forward difference (first order)
-              dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
-            elseif (mat_map(i) == mat_map(i-1)) then
-              ! backward difference (first order)
-              dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
-            else
-              ! this means that there is a material region with width of a single cell
-              ! what a terrible idea...
-              ! try central difference because why not
-              ! TODO raise warning probably in the input processing
-              dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
             endif
-            phi(i,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(i,g,idxn+1)
-          enddo ! i = 2,nx-1
-          ! BC at x=0, i=1
-          ! use the fact that odd moments must equal zero for mirror bc
-          ! this stencil kind of extends to x3 because phi(2) was computed earlier
-          select case (boundary_left)
-            case ('mirror')
-              phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-            case ('zero')
-              dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
-              phi(1,g,idxn+1) = xmul_prev * dphi_prev / sigma_tr(1,g,idxn+1)
-            case default
-              call exception_fatal('unknown boundary_left2 in odd_update: ' &
-                // trim(adjustl(boundary_left)))
-          endselect
-          ! BC at x=L, i=N
-          select case (boundary_right)
-            case ('mirror')
-              phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
-            case ('zero')
-              dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
-              phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
-            case default
-              call exception_fatal('unknown boundary_right2 in odd_update: ' &
-                // trim(adjustl(boundary_right)))
-          endselect
-        enddo ! g = 1,ng
-      endif
+            phi(1,g,idxn+1) = &
+              (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+              / sigma_tr(1,g,idxn+1)
+          case default
+            call exception_fatal('unknown boundary_left in odd_update: ' &
+              // trim(adjustl(boundary_left)))
+        endselect
+        ! BC at x=L, i=N
+        select case (boundary_right)
+          case ('mirror')
+            phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
+          case ('zero')
+            dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
+            if (n < pnorder + 1) then
+              dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
+            endif
+            phi(nx,g,idxn+1) = &
+              - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+              / sigma_tr(nx,g,idxn+1)
+          case default
+            call exception_fatal('unknown boundary_right in odd_update: ' &
+              // trim(adjustl(boundary_right)))
+        endselect
+      enddo ! g = 1,ng
     enddo ! n = 2,pnorder+1,2
   endsubroutine transport_odd_update
 
