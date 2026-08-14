@@ -35,9 +35,7 @@ contains
       dnext = 2 &
         * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
         / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
-      dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
       sup(g,g,1) = -dnext
-      dia(g,g,1) = dia(g,g,1) + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
       select case (boundary_left)
         case ('zero')
           dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
