@@ -493,14 +493,6 @@ contains
 
       call transient_build_kinsrc(nx, dx, mat_map, xslib, dnd, flux, prec, kinsource)
 
-      ! For the case of boundary condtrol, we need to update albedos.
-      ! Albedos appear in the boundary terms of the off-diagonal.
-      if ((dnd%reference == 'boundary_control') .or. (dnd%reference == 'albedo')) then
-        call transient_update_albedo()
-        call diffusion_build_matrix(nx, dx, mat_map, xslib, boundary_left, boundary_right, &
-          sub, dia, sup)
-      endif
-
       ! update xs and re-build the diagonal
       ! the rest of the entries in the matrix do not change
       call transient_update_xs(dnd%reference, tfinal, xslib)
@@ -621,15 +613,12 @@ contains
         if (time <= 0.01_rk) then
           xs%mat(1)%sigma_t(2) = sigma0 - time/0.01_rk * 0.05_rk * sigma0
         endif
-      case ('null', 'albedo')
+      case ('null')
         ! do nothing
       case default
         call exception_fatal('Unknown transient reference name: ' &
           // trim(adjustl(name)))
     endselect
   endsubroutine transient_update_xs
-
-  subroutine transient_update_albedo()
-  endsubroutine transient_update_albedo
 
 endmodule transient
