@@ -361,7 +361,7 @@ contains
     endselect
   endsubroutine transient_build_diagonal
 
-  subroutine transient_solve(fname_kin, nx, dx, mat_map, xs, dnd, &
+  subroutine transient_solve(fname_stub, nx, dx, mat_map, xs, dnd, &
       boundary_left, boundary_right, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
@@ -371,7 +371,7 @@ contains
     use linalg, only : trid
     use fileio, only : fileio_open_write
     use output, only : output_power_csv, output_flux_csv
-    character(*), intent(in) :: fname_kin
+    character(*), intent(in) :: fname_stub
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -407,6 +407,8 @@ contains
     integer(ik), parameter :: iout = 19
     real(rk), parameter :: omega = 1.9_rk ! over-relaxation
     real(rk), parameter :: power_init = 1.0_rk ! solving for relative power
+
+    character(1024) :: fname_kin, fname_tpower, fname_tflux
 
     ! store a mutable copy so I can modify it during the transient
     xslib = xs
@@ -448,6 +450,7 @@ contains
     prec_old = 0.0_rk
     call transient_init_precursors(nx, mat_map, xslib, dnd, keff, flux, prec)
 
+    fname_kin = fname_stub // trim(adjustl('_kin.csv'))
     call fileio_open_write(fname_kin, iout)
 
     call output_write('=== TRANSIENT CALCULATION ===')
@@ -464,12 +467,17 @@ contains
 
     ! edit requested before first step
     idx = 0
+    tfinal = 0.0_rk
     if (any(dnd%tedit < 0.5_rk*dnd%deltat)) then
-      idx = idx + 1 ! TODO
-      write(line, '(a,i0,a)') 'power', idx, '.csv'
-      call output_power_csv(line, nx, dx, power)
-      write(line, '(a,i0,a)') 'flux', idx, '.csv'
-      call output_flux_csv(line, nx, xslib%ngroup, dx, flux)
+      idx = idx + 1
+      write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
+      call output_power_csv(fname_tpower, nx, dx, power)
+      write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
+      call output_write(line)
+      write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
+      call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
+      write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
+      call output_write(line)
     endif
 
     ! TIME LOOP
@@ -528,11 +536,15 @@ contains
       write(iout, '(a)') trim(adjustl(line))
 
       if (any(abs(tfinal - dnd%tedit) < 0.5_rk*dnd%deltat)) then
-        idx = idx + 1 ! TODO
-        write(line, '(a,i0,a)') 'power', idx, '.csv'
-        call output_power_csv(line, nx, dx, power)
-        write(line, '(a,i0,a)') 'flux', idx, '.csv'
-        call output_flux_csv(line, nx, xslib%ngroup, dx, flux)
+        idx = idx + 1
+        write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
+        call output_power_csv(fname_tpower, nx, dx, power)
+        write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
+        call output_write(line)
+        write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
+        call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
+        write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
+        call output_write(line)
       endif
 
       if (tfinal > dnd%tend) then
