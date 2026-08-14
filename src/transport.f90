@@ -225,10 +225,6 @@ contains
     real(rk) :: xn, xmul_prev, xmul_next
     real(rk) :: dphi_prev, dphi_next
 
-    if (boundary_left /= 'mirror') then
-      call exception_fatal('need to implement boundary_left in transport_odd_update')
-    endif
-
     do n = 2,pnorder+1,2
       idxn = n-1
       xn = real(idxn, rk)
@@ -268,7 +264,19 @@ contains
           ! BC at x=0, i=1
           ! use the fact that odd moments must equal zero for mirror bc
           ! this stencil kind of extends to x3 because phi(2) was computed earlier
-          phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+          select case (boundary_left)
+            case ('mirror')
+              phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+            case ('zero')
+              dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+              dphi_next = -phi(2,g,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
+              phi(1,g,idxn+1) = &
+                - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+                / sigma_tr(1,g,idxn+1)
+            case default
+              call exception_fatal('unknown boundary_left in odd_update: ' &
+                // trim(adjustl(boundary_left)))
+          endselect
           ! BC at x=L, i=N
           select case (boundary_right)
             case ('mirror')
@@ -277,11 +285,11 @@ contains
               dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
               dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
               phi(nx,g,idxn+1) = &
-                - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
+                (xmul_prev * dphi_prev + xmul_next * dphi_next) &
                 / sigma_tr(nx,g,idxn+1)
             case default
-              call exception_fatal(&
-                'unknown boundary in odd_update: ' // trim(adjustl(boundary_right)))
+              call exception_fatal('unknown boundary_right in odd_update: ' &
+                // trim(adjustl(boundary_right)))
           endselect
         enddo ! g = 1,ng
       else
@@ -310,7 +318,16 @@ contains
           ! BC at x=0, i=1
           ! use the fact that odd moments must equal zero for mirror bc
           ! this stencil kind of extends to x3 because phi(2) was computed earlier
-          phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+          select case (boundary_left)
+            case ('mirror')
+              phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+            case ('zero')
+              dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+              phi(1,g,idxn+1) = xmul_prev * dphi_prev / sigma_tr(1,g,idxn+1)
+            case default
+              call exception_fatal('unknown boundary_left2 in odd_update: ' &
+                // trim(adjustl(boundary_left)))
+          endselect
           ! BC at x=L, i=N
           select case (boundary_right)
             case ('mirror')
@@ -319,8 +336,8 @@ contains
               dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
               phi(nx,g,idxn+1) = - xmul_prev * dphi_prev / sigma_tr(nx,g,idxn+1)
             case default
-              call exception_fatal(&
-                'unknown boundary2 in odd_update: ' // trim(adjustl(boundary_right)))
+              call exception_fatal('unknown boundary_right2 in odd_update: ' &
+                // trim(adjustl(boundary_right)))
           endselect
         enddo ! g = 1,ng
       endif
@@ -421,10 +438,6 @@ contains
     real(rk) :: kaprev, kathis, kanext
     real(rk) :: daprev, danext
 
-    if (boundary_left /= 'mirror') then
-      call exception_fatal('need to implement boundary_left in transport_odd_update')
-    endif
-
     qnext(:,:,neven) = 0.0_rk
     do n = 1,neven-1
       idxn = 2*(n-1)
@@ -433,10 +446,24 @@ contains
       do g = 1,ngroup
 
         ! BC at x=0, i=1
-        kathis = xmul/sigma_tr(1,g,idxn+1+1)
-        kanext = xmul/sigma_tr(2,g,idxn+1+1)
-        danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
-        qnext(1,g,n) = -phi(1,g,idxn+1+2)*danext + danext*phi(2,g,idxn+1+2)
+        select case (boundary_left)
+          case ('mirror')
+            kathis = xmul/sigma_tr(1,g,idxn+1+1)
+            kanext = xmul/sigma_tr(2,g,idxn+1+1)
+            danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
+            qnext(1,g,n) = -phi(1,g,idxn+1+2)*danext + danext*phi(2,g,idxn+1+2)
+          case ('zero')
+            kathis = xmul/sigma_tr(1,g,idxn+1+1)
+            kanext = xmul/sigma_tr(2,g,idxn+1+1)
+            danext = 2 * kathis / dx(1) * kanext / dx(2) / (kathis / dx(1) + kanext / dx(2))
+            qnext(1,g,n) = &
+              -phi(1,g,idxn+1+2)*danext &
+              + danext*phi(2,g,idxn+1+2) &
+              - 2 * kathis / dx(1) * phi(1,g,idxn+1+2)
+          case default
+            call exception_fatal('unknown boundary_left in next_source: ' &
+              // trim(adjustl(boundary_left)))
+        endselect
 
         do i = 2,nx-1
 
@@ -499,7 +526,7 @@ contains
     real(rk) :: dbprev, dbnext
 
     if (boundary_left /= 'mirror') then
-      call exception_fatal('need to implement boundary_left in transport_odd_update')
+      call exception_fatal('need to implement boundary_left in transport_build_prev_source')
     endif
 
     xn = real(idxn, rk)
