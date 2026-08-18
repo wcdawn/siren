@@ -5,6 +5,7 @@ add_executable(${PROJECT_NAME}.x)
 
 target_sources(${PROJECT_NAME}.x
   PRIVATE
+    src/albedo.f90
     src/analytic.f90
     src/constant.f90
     src/diffusion_block.f90

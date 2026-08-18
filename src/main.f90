@@ -6,7 +6,7 @@ use input, only : input_read, input_cleanup, &
   refine, nx, dx, mat_map, mat_map_name, pnorder, &
   boundary_left, boundary_right, &
   k_tol, phi_tol, max_iter, analytic_reference, energy_solver_opt, &
-  high_low, force_consistent_diffusion, calc_type
+  high_low, force_consistent_diffusion, calc_type, albedo_coeff
 use geometry, only : geometry_uniform_refinement, geometry_summary
 use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
@@ -145,11 +145,11 @@ if (pnorder == 0) then
   select case (energy_solver_opt)
     case ('block')
       call diffusion_block_power_iteration( &
-        nx, dx, mat_map, xs, &
-        boundary_left, boundary_right, k_tol, phi_tol, max_iter, keff, phi(:,:,1))
+        nx, dx, mat_map, xs, boundary_left, boundary_right, albedo_coeff, &
+        k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case ('onegroup')
       call diffusion_power_iteration( &
-        nx, dx, mat_map, xs, boundary_left, boundary_right, &
+        nx, dx, mat_map, xs, boundary_left, boundary_right, albedo_coeff, &
         k_tol, phi_tol, max_iter, keff, phi(:,:,1))
     case default
       call exception_fatal('unknown energy_solver_opt: ' // trim(adjustl(energy_solver_opt)))
@@ -163,7 +163,7 @@ else
         k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
       if (high_low) then
         call diffusion_power_iteration( &
-          nx, dx, mat_map, xs, boundary_left, boundary_right, &
+          nx, dx, mat_map, xs, boundary_left, boundary_right, albedo_coeff, &
           k_tol, phi_tol, max_iter, keff, phi(:,:,1), &
           transportxs = sigma_tr(:,:,2))
       endif
@@ -184,13 +184,14 @@ call output_write('')
 if (is_transient) then
   call timer_start('transient')
   call transient_solve(fname_stub, &
-    nx, dx, mat_map, xs, kindat, boundary_left, boundary_right, &
+    nx, dx, mat_map, xs, kindat, boundary_left, boundary_right, albedo_coeff, &
     phi_tol, max_iter, keff, phi(:,:,1))
   call timer_stop('transient')
 endif
 
 if (analytic_reference /= 'none') then
-  call analytic_error(analytic_reference, fname_analytic, nx, xs%ngroup, pnorder, xs, dx, phi, keff)
+  call analytic_error(analytic_reference, fname_analytic, &
+    nx, xs%ngroup, pnorder, xs, dx, phi, keff)
 endif
 
 call timer_start('output')

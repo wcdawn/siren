@@ -8,7 +8,7 @@ public :: diffusion_block_power_iteration
 contains
 
   subroutine diffusion_block_build_matrix(nx, dx, mat_map, xslib, &
-      boundary_left, boundary_right, sub, dia, sup)
+      boundary_left, boundary_right, albedo_alpha, sub, dia, sup)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -16,6 +16,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
     real(rk), intent(out) :: sub(:,:,:) ! (ngroup,ngroup,nx-1)
     real(rk), intent(out) :: dia(:,:,:) ! (ngroup,ngroup,nx)
     real(rk), intent(out) :: sup(:,:,:) ! (ngroup,ngroup,nx-1)
@@ -42,6 +43,9 @@ contains
             + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
         case ('mirror')
           dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+        case ('albedo')
+          dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
+            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / xslib%mat(mthis)%diffusion(g))
         case default
           call exception_fatal(&
             'unknown boundary_left in diffusion_block_build_matrix: ' &
@@ -83,6 +87,9 @@ contains
             + 2 * xslib%mat(mthis)%diffusion(g)/dx(nx)
         case ('mirror')
           dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx)
+        case ('albedo')
+          dia(g,g,nx) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
+            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / xslib%mat(mthis)%diffusion(g))
         case default
           call exception_fatal(&
             'unknown boundary_right in diffusion_block_build_matrix: ' &
@@ -140,18 +147,20 @@ contains
   endfunction diffusion_block_fission_summation
 
   subroutine diffusion_block_power_iteration( &
-    nx, dx, mat_map, xslib, &
-    boundary_left, boundary_right, k_tol, phi_tol, max_iter, keff, flux)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_coeff, &
+    k_tol, phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning
+    use albedo, only : albedo_calculate_alpha
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_coeff ! A \in [-1,1]
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(out) :: keff
@@ -161,6 +170,7 @@ contains
     integer(ik) :: i, g
     real(rk) :: fsum, fsum_old, k_old
     real(rk) :: delta_k, delta_phi
+    real(rk) :: albedo_alpha ! \alpha \in [0,\infty)
 
     ! (ngroup,ngroup,nx-1) , (nxgroup,ngroup,nx) , (ngroup,ngroup,nx-1)
     real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:)
@@ -182,9 +192,10 @@ contains
     allocate(sub_copy(xslib%ngroup,xslib%ngroup,nx-1), dia_copy(xslib%ngroup,xslib%ngroup,nx), &
       sup_copy(xslib%ngroup,xslib%ngroup,nx-1))
 
+    albedo_alpha = albedo_calculate_alpha(albedo_coeff)
     call timer_start('diffusion_build_matrix')
     call diffusion_block_build_matrix(nx, dx, mat_map, xslib, &
-      boundary_left, boundary_right, sub, dia, sup)
+      boundary_left, boundary_right, albedo_alpha, sub, dia, sup)
     call timer_stop('diffusion_build_matrix')
 
     allocate(fsource(xslib%ngroup,nx))

@@ -11,7 +11,8 @@ public :: diffusion_build_matrix, diffusion_build_fsource, &
 contains
 
   subroutine diffusion_build_matrix(nx, dx, mat_map, xslib, &
-      boundary_left, boundary_right, sub, dia, sup, diffusion_coeff)
+      boundary_left, boundary_right, albedo_alpha, &
+      sub, dia, sup, diffusion_coeff)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -19,6 +20,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_alpha
     real(rk), intent(out) :: sub(:,:) ! (nx,ngroup)
     real(rk), intent(out) :: dia(:,:) ! (nx,ngroup)
     real(rk), intent(out) :: sup(:,:) ! (nx,ngroup)
@@ -52,6 +54,16 @@ contains
           endif
         case ('mirror')
           dia(1,g) = dnext + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1)
+        case ('albedo')
+          if (present(diffusion_coeff)) then
+            dia(1,g) = dnext &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / diffusion_coeff(1,g))
+          else
+            dia(1,g) = dnext &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / xslib%mat(mthis)%diffusion(g))
+          endif
         case default
           call exception_fatal(&
             'unknown boundary_left in diffusion_build_matrix: '&
@@ -116,6 +128,16 @@ contains
         case ('mirror')
           dia(nx,g) = dprev &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
+        case ('albedo')
+          if (present(diffusion_coeff)) then
+            dia(nx,g) = dprev &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / diffusion_coeff(nx,g))
+          else
+            dia(nx,g) = dprev &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / xslib%mat(mthis)%diffusion(g))
+          endif
         case default
           call exception_fatal(&
             'unknown boundary_right in diffusion_build_matrix: '&
@@ -212,18 +234,20 @@ contains
   endfunction diffusion_fission_summation
 
   subroutine diffusion_power_iteration( &
-    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_coeff, &
     k_tol, phi_tol, max_iter, keff, flux, transportxs)
     use xs, only : XSLibrary
     use linalg, only : trid
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_warning
+    use albedo, only : albedo_calculate_alpha
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_coeff ! A \in [-1,1]
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(out) :: keff
@@ -240,6 +264,7 @@ contains
     real(rk) :: k_old, fsum, fsum_old
     real(rk), allocatable :: flux_old(:,:)
     real(rk) :: delta_k, delta_phi
+    real(rk) :: albedo_alpha ! \alpha \in [0, \infty)
 
     real(rk), allocatable :: diffusion_coeff(:,:) ! (nx,ngroup)
 
@@ -255,13 +280,15 @@ contains
       call diffusion_populate_coeff(nx, mat_map, xslib, transportxs, diffusion_coeff)
     endif
 
+    albedo_alpha = albedo_calculate_alpha(albedo_coeff)
     call timer_start('diffusion_build_matrix')
     if (allocated(diffusion_coeff)) then
       call diffusion_build_matrix(nx, dx, mat_map, xslib, &
-        boundary_left, boundary_right, sub, dia, sup, diffusion_coeff)
+        boundary_left, boundary_right, albedo_alpha, &
+        sub, dia, sup, diffusion_coeff)
     else
       call diffusion_build_matrix(nx, dx, mat_map, xslib, &
-        boundary_left, boundary_right, sub, dia, sup)
+        boundary_left, boundary_right, albedo_alpha, sub, dia, sup)
       if (matrix_dump) then
         write(730, '(es13.6,",",es13.6,",",es13.6)') 0d0 , dia(1,1), sup(1,1)
         do i = 2,nx-1

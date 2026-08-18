@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: trid, norm, trid_block, inv, solve, geneig
+public :: trid, norm, trid_block, inv, solve, geneig, eye
 
 integer, parameter, private :: double_kind = kind(1d0)
 
@@ -220,5 +220,16 @@ contains
     deallocate(alphar, alphai)
     deallocate(acpy, bcpy)
   endsubroutine geneig
+
+  ! fill an identity matrix
+  subroutine eye(n, mat)
+    integer(ik), intent(in) :: n
+    real(rk), intent(out) :: mat(:,:) ! (n,n)
+    integer(ik) :: i
+    mat = 0.0_rk
+    do i = 1,n
+      mat(i,i) = 1.0_rk
+    enddo
+  endsubroutine eye
 
 endmodule linalg
