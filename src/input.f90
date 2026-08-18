@@ -167,6 +167,7 @@ contains
 
   subroutine input_summary()
     use output, only : output_write
+    use albedo, only : albedo_calculate_alpha
     character(1024) :: line
 
     call output_write('=== INPUT ===')
@@ -179,7 +180,8 @@ contains
     call output_write(line)
     call output_write('boundary_left = *' // trim(adjustl(boundary_left)) // '*')
     call output_write('boundary_right = *' // trim(adjustl(boundary_right)) // '*')
-    write(line, '(a,es9.2)') 'albedo = ', albedo_coeff
+    write(line, '(a,es9.2,a,es9.2,a)') 'albedo = ', albedo_coeff, &
+      ' (alpha = ', albedo_calculate_alpha(albedo_coeff), ')'
     call output_write(line)
     call output_write('analytic_reference = *' // trim(adjustl(analytic_reference)) // '*')
 

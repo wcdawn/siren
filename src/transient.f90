@@ -362,7 +362,8 @@ contains
   endsubroutine transient_build_diagonal
 
   subroutine transient_solve(fname_stub, nx, dx, mat_map, xs, dnd, &
-      boundary_left, boundary_right, phi_tol, max_iter, keff, flux)
+      boundary_left, boundary_right, albedo_coeff, &
+      phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
     use power, only : power_calculate, power_total
@@ -371,6 +372,7 @@ contains
     use linalg, only : trid
     use fileio, only : fileio_open_write
     use output, only : output_power_csv, output_flux_csv
+    use albedo, only : albedo_calculate_alpha
     character(*), intent(in) :: fname_stub
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
@@ -378,6 +380,7 @@ contains
     type(XSLibrary), intent(in) :: xs
     type(DelayedNeutronData), intent(in) :: dnd
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_coeff ! A \in [-1,1]
     real(rk), intent(in) :: phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(in) :: keff
@@ -399,6 +402,7 @@ contains
     integer(ik) :: step, iter, g, idx
     real(rk) :: tfinal
     real(rk) :: phi_conv
+    real(rk) :: albedo_alpha ! \alpha \in [0,\infty]
 
     character(1024) :: line
 
@@ -462,8 +466,10 @@ contains
 
     ! only the diagonal needs to be modified compared to steady-state solution
     ! the off-diagonal never change (if diffusion coeff never changes)
+    albedo_alpha = albedo_calculate_alpha(albedo_coeff)
     call diffusion_build_matrix(&
-      nx, dx, mat_map, xslib, boundary_left, boundary_right, sub, dia, sup)
+      nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, &
+      sub, dia, sup)
 
     ! edit requested before first step
     idx = 0

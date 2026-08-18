@@ -16,10 +16,14 @@ real(rk), parameter :: Lr_tworeg = 100.0_rk
 ! analytic p3
 real(rk), parameter :: Lx_p3 = 1e2_rk
 
+! albedo
+! LF = 50 cm (with mirror, so buckling length is 100 cm)
+real(rk), parameter :: B_albedo = 0.02775645888894529358936758001164_rk ! [1/cm]
+
 contains
 
   subroutine analytic_error(analytic_name, fname, &
-      nx, ngroup, pnorder, xslib, dx, phi, keff, albedo_coeff)
+      nx, ngroup, pnorder, xslib, dx, phi, keff)
     use xs, only : XSLibrary
     use linalg, only : norm
     use output, only : output_write
@@ -31,7 +35,6 @@ contains
     real(rk), intent(in) :: dx(:)
     real(rk), intent(in) :: phi(:,:,:) ! (nx,ngroup,pnorder+1)
     real(rk), intent(in) :: keff
-    real(rk), intent(in) :: albedo_coeff
 
     ! assume that the coordinate system starts at xleft==0.0
     ! we don't really know in general since all we have are deltas
@@ -80,7 +83,7 @@ contains
       case ('analytic_pn')
         call analytic_fun_pn(x, xslib, phi_exact)
       case ('albedo')
-        call analytic_fun_albedo(x, xslib, albedo_coeff, phi_exact)
+        call analytic_fun_albedo(x, phi_exact)
       case default
         call exception_fatal('unknown analytic_name: ' // trim(adjustl(analytic_name)))
     endselect
@@ -109,7 +112,7 @@ contains
       case ('analytic_pn')
         call analytic_fun_pn(x, xslib, phi_exact, keff_exact)
       case ('albedo')
-        keff_exact = analytic_keff_albedo(xslib, albedo_coeff)
+        keff_exact = analytic_keff_albedo(xslib)
       case default
         call exception_fatal('second -- unknown analytic_name: ' // trim(adjustl(analytic_name)))
     endselect
@@ -452,12 +455,12 @@ contains
 
       if ((idxn - 1) > 0) then
         Pmat = xidxn*(xidxn-1.0_rk)/((2.0_rk*xidxn+1.0_rk)*(2.0_rk*xidxn-1.0_rk))*inv_removal(:,:,idxn+1-1)
-        Phat(lo:hi,xsmat%ngroup*(n-2)+1:xsmat%ngroup*(n-1)) = Pmat ! TODO transpose block?
+        Phat(lo:hi,xsmat%ngroup*(n-2)+1:xsmat%ngroup*(n-1)) = Pmat
       endif
 
       if ((idxn + 1) < pnorder-1) then
         Nmat = (xidxn+1.0_rk)*(xidxn+2.0_rk)/((2.0_rk*xidxn+1.0_rk)*(2.0_rk*xidxn+3.0_rk))*inv_removal(:,:,idxn+1+1)
-        Nhat(lo:hi,xsmat%ngroup*n+1:xsmat%ngroup*(n+1)) = Nmat ! TODO transpose block?
+        Nhat(lo:hi,xsmat%ngroup*n+1:xsmat%ngroup*(n+1)) = Nmat
       endif
 
     enddo ! n = 1,neq
@@ -587,36 +590,21 @@ contains
     deallocate(a, f)
   endsubroutine analytic_fun_pn
 
-  subroutine analytic_fun_albedo(x, xslib, albedo_coeff, exact)
+  subroutine analytic_fun_albedo(x, exact)
     use xs, only : XSLibrary
-    use albedo, only : albedo_calculate_alpha, albedo_calculate_dstar
-    use constant, only : pi
     real(rk), intent(in) :: x(:)
-    type(XSLibrary), intent(in) :: xslib
-    real(rk), intent(in) :: albedo_coeff
     real(rk), intent(out) :: exact(:,:,:)
     real(rk), parameter :: phi0 = 1.0_rk
-    real(rk) :: alpha, dstar, buckle
-    alpha = albedo_calculate_alpha(albedo_coeff)
-    dstar = albedo_calculate_dstar(xslib%mat(1)%diffusion(1), alpha)
-    buckle = pi / (Lx_twogroup + 2.0_rk * dstar)
-    exact(:,1,1) = phi0 * cos(buckle * x)
+    exact(:,1,1) = phi0 * cos(B_albedo * x)
   endsubroutine analytic_fun_albedo
 
-  real(rk) pure function analytic_keff_albedo(xslib, albedo_coeff)
+  real(rk) pure function analytic_keff_albedo(xslib)
     use xs, only : XSLibrary
-    use constant, only : pi
-    use albedo, only : albedo_calculate_alpha, albedo_calculate_dstar
     type(XSLibrary), intent(in) :: xslib
-    real(rk), intent(in) :: albedo_coeff
-    real(rk) :: bsq, rem
-    real(rk) :: alpha, dstar
+    real(rk) :: rem
     rem = xslib%mat(1)%sigma_t(1) - xslib%mat(1)%scatter(1,1,1)
-    alpha = albedo_calculate_alpha(albedo_coeff)
-    dstar = albedo_calculate_dstar(xslib%mat(1)%diffusion(1), alpha)
-    bsq = (pi / (Lx_twogroup + 2*dstar))**2
     analytic_keff_albedo = xslib%mat(1)%nusf(1) & 
-      / (xslib%mat(1)%diffusion(1) * bsq + rem)
+      / (xslib%mat(1)%diffusion(1) * B_albedo**2 + rem)
   endfunction analytic_keff_albedo
 
 endmodule analytic
