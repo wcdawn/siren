@@ -43,6 +43,9 @@ contains
             + 2 * xslib%mat(mthis)%diffusion(g)/dx(1)
         case ('mirror')
           dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+        case ('albedo')
+          dia(g,g,1) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
+            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / xslib%mat(mthis)%diffusion(g))
         case default
           call exception_fatal(&
             'unknown boundary_left in diffusion_block_build_matrix: ' &
