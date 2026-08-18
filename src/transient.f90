@@ -266,7 +266,7 @@ contains
   endsubroutine transient_build_fsource
 
   subroutine transient_build_diagonal(nx, dx, mat_map, xslib, dnd, &
-      boundary_left, boundary_right, dia)
+      boundary_left, boundary_right, albedo_alpha, dia)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -275,6 +275,7 @@ contains
     type(XSLibrary), intent(in) :: xslib
     type(DelayedNeutronData), intent(in) :: dnd
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_alpha
     real(rk), intent(out) :: dia(:,:) ! (nx,ngroup)
 
     integer(ik) :: i, g
@@ -298,6 +299,11 @@ contains
           dia(1,g) = dnext &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
+        case ('albedo')
+          dia(1,g) = dnext &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1) &
+            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / xslib%mat(mthis)%diffusion(g))
         case default
           call exception_fatal(&
             'Unknown boundary_left in transient_build_diagonal: ' &
@@ -343,6 +349,11 @@ contains
           dia(nx,g) = dprev &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
+        case ('albedo')
+          dia(nx,g) = dprev &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx) &
+            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / xslib%mat(mthis)%diffusion(g))
         case default
           call exception_fatal(&
             'Unknown boundary_right in transient_build_diagonal: ' &
@@ -464,16 +475,18 @@ contains
     ! edit requested before first step
     idx = 0
     tfinal = 0.0_rk
-    if (any(dnd%tedit < 0.5_rk*dnd%deltat)) then
-      idx = idx + 1
-      write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
-      call output_power_csv(fname_tpower, nx, dx, power)
-      write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
-      call output_write(line)
-      write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
-      call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
-      write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
-      call output_write(line)
+    if (allocated(dnd%tedit)) then
+      if (any(dnd%tedit < 0.5_rk*dnd%deltat)) then
+        idx = idx + 1
+        write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
+        call output_power_csv(fname_tpower, nx, dx, power)
+        write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
+        call output_write(line)
+        write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
+        call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
+        write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
+        call output_write(line)
+      endif
     endif
 
     ! TIME LOOP
@@ -491,9 +504,11 @@ contains
 
       ! update xs and re-build the diagonal
       ! the rest of the entries in the matrix do not change
+      albedo_alpha = albedo_calculate_alpha(albedo_coeff)
       call transient_update_xs(dnd%reference, tfinal, xslib)
       call transient_build_diagonal(&
-        nx, dx, mat_map, xslib, dnd, boundary_left, boundary_right, dia)
+        nx, dx, mat_map, xslib, dnd, &
+        boundary_left, boundary_right, albedo_alpha, dia)
 
       ! iterative scheme is necesary for one-group at-a-time problem
       do iter = 1,max_iter
@@ -531,16 +546,18 @@ contains
       call output_write(line)
       write(iout, '(a)') trim(adjustl(line))
 
-      if (any(abs(tfinal - dnd%tedit) < 0.5_rk*dnd%deltat)) then
-        idx = idx + 1
-        write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
-        call output_power_csv(fname_tpower, nx, dx, power)
-        write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
-        call output_write(line)
-        write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
-        call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
-        write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
-        call output_write(line)
+      if (allocated(dnd%tedit)) then
+        if (any(abs(tfinal - dnd%tedit) < 0.5_rk*dnd%deltat)) then
+          idx = idx + 1
+          write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
+          call output_power_csv(fname_tpower, nx, dx, power)
+          write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
+          call output_write(line)
+          write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
+          call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
+          write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
+          call output_write(line)
+        endif
       endif
 
       if (tfinal > dnd%tend) then
