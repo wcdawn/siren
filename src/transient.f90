@@ -403,8 +403,10 @@ contains
     integer(ik) :: step, iter, g, idx
     real(rk) :: tfinal
     real(rk) :: phi_conv
+
     real(rk) :: albedo_alpha ! \alpha \in [0,\infty]
     real(rk) :: albedo_coeff
+    real(rk) :: pboundary
 
     character(1024) :: line
 
@@ -504,10 +506,18 @@ contains
 
       call transient_build_kinsrc(nx, dx, mat_map, xslib, dnd, flux, prec, kinsource)
 
+      ! recompute an albedo coefficient
+      ! this is a bit verbose to support boundary control
+      ! the boundary controller may need the power at the boundary
+      !pboundary = (power(nx)-power(nx-1))/(dx(nx-1)+dx(nx))*dx(nx) + power(nx)
+      call power_calculate(nx, mat_map, xslib, flux, power)
+      pboundary = power_total(dx, power)
+      albedo_coeff = &
+        transient_update_albedo(dnd%reference, tfinal, albedo_coeff, pboundary)
+      albedo_alpha = albedo_calculate_alpha(albedo_coeff)
+
       ! update xs and re-build the diagonal
       ! the rest of the entries in the matrix do not change
-      albedo_coeff = transient_update_albedo(dnd%reference, tfinal, albedo_coeff)
-      albedo_alpha = albedo_calculate_alpha(albedo_coeff)
       call transient_update_xs(dnd%reference, tfinal, xslib)
       call transient_build_diagonal(&
         nx, dx, mat_map, xslib, dnd, &
@@ -629,7 +639,12 @@ contains
         if (time <= 0.01_rk) then
           xs%mat(1)%sigma_t(2) = sigma0 - time/0.01_rk * 0.05_rk * sigma0
         endif
-      case ('null')
+      case ('albedo-pid')
+        if (first) then
+          xs%mat(1)%sigma_t(1) = 0.995_rk * xs%mat(1)%sigma_t(1)
+          first = .false.
+        endif
+      case ('null', 'albedo')
         ! do nothing
       case default
         call exception_fatal('Unknown transient reference name: ' &
@@ -637,21 +652,68 @@ contains
     endselect
   endsubroutine transient_update_xs
 
-  real(rk) function transient_update_albedo(name, time, albedo_coeff)
+  real(rk) function transient_update_albedo(name, time, albedo_coeff, pboundary)
     use exception_handler, only : exception_fatal
     character(*), intent(in) :: name
     real(rk), intent(in) :: time
     real(rk), intent(in) :: albedo_coeff
+    real(rk), intent(in) :: pboundary
     select case (name)
       case ('null', 'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4')
         ! do nothing
         ! transparent pass-through
         transient_update_albedo = albedo_coeff
+      case ('albedo')
+        transient_update_albedo = max(1.0_rk - (time/64.0_rk), 0.0_rk)
+      case ('albedo-pid')
+        transient_update_albedo = &
+          transient_albedo_pid(time, albedo_coeff, pboundary)
       case default
         transient_update_albedo = 0.0_rk
         call exception_fatal('Unknown transient albedo reference name: ' &
           // trim(adjustl(name)))
     endselect
   endfunction transient_update_albedo
+
+  real(rk) function transient_albedo_pid(time, albedo_coeff, pboundary)
+    real(rk), intent(in) :: time ! [s]
+    real(rk), intent(in) :: albedo_coeff
+    real(rk), intent(in) :: pboundary
+
+    logical, save :: first = .true.
+
+    real(rk) :: dt
+    real(rk) :: error, derror_dt
+    real(rk), save :: p0
+    real(rk), save :: prev_error, prev_time
+    real(rk), save :: interror
+
+    real(rk), parameter :: kp = 0.003_rk
+    real(rk), parameter :: ki = 0.0_rk
+    real(rk), parameter :: kd = 0.0001_rk
+
+    if (first) then
+      p0 = pboundary
+      transient_albedo_pid = albedo_coeff
+      prev_error = p0
+      prev_time = time
+      interror = 0.0_rk
+      first = .false.
+    else
+      ! maintain constant pboundary
+      error = p0 - pboundary
+      dt = time - prev_time
+      derror_dt = (error - prev_error) / dt
+      interror = interror + error * dt
+      transient_albedo_pid = albedo_coeff &
+        + kp * error + kd * derror_dt + ki * interror
+      ! clamp
+      transient_albedo_pid = min(max(transient_albedo_pid, -1.0_rk), 1.0_rk)
+      write(*,'(a,1x,es9.2,1x,a,1x,es9.2,1x,a,1x,es9.2)') &
+        'error', error, 'albedo', transient_albedo_pid, 'pboundary', pboundary
+      prev_error = error
+      prev_time = time
+    endif
+  endfunction transient_albedo_pid
 
 endmodule transient
