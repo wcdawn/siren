@@ -266,7 +266,7 @@ contains
   endsubroutine transient_build_fsource
 
   subroutine transient_build_diagonal(nx, dx, mat_map, xslib, dnd, &
-      boundary_left, boundary_right, dia)
+      boundary_left, boundary_right, albedo_alpha, dia)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -275,6 +275,7 @@ contains
     type(XSLibrary), intent(in) :: xslib
     type(DelayedNeutronData), intent(in) :: dnd
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_alpha
     real(rk), intent(out) :: dia(:,:) ! (nx,ngroup)
 
     integer(ik) :: i, g
@@ -284,31 +285,31 @@ contains
     ! BC at x=0, i=1
     mthis = mat_map(1)
     mnext = mat_map(2)
-    select case (boundary_left)
-      case ('zero')
-        do g = 1,xslib%ngroup
-          dnext = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+    do g = 1,xslib%ngroup
+      dnext = 2 &
+        * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
+        / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+      select case (boundary_left)
+        case ('zero')
+          dia(1,g) = dnext &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1) &
+            + 2 * xslib%mat(mthis)%diffusion(g) / dx(1)
+        case ('mirror')
           dia(1,g) = dnext &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
-          dia(1,g) = dia(1,g) + 2 * xslib%mat(mthis)%diffusion(g) / dx(1)
-        enddo ! g = 1,xslib%ngroup
-      case ('mirror')
-        do g = 1,xslib%ngroup
-          dnext = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+        case ('albedo')
           dia(1,g) = dnext &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
-            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
-        enddo ! g = 1,xslib%ngroup
-      case default
-        call exception_fatal(&
-          'Unknown boundary_left in transient_build_diagonal: ' &
-          // trim(adjustl(boundary_left)))
-    endselect
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1) &
+            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / xslib%mat(mthis)%diffusion(g))
+        case default
+          call exception_fatal(&
+            'Unknown boundary_left in transient_build_diagonal: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
+    enddo ! g = 1,xslib%ngroup
 
     do g = 1,xslib%ngroup
       do i = 2,nx-1
@@ -334,35 +335,35 @@ contains
     ! BC at x=L, i=n
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    select case (boundary_right)
-      case ('zero')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+    do g = 1,xslib%ngroup
+      dprev = 2 &
+        * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+        / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+      select case (boundary_right)
+        case ('zero')
+          dia(nx,g) = dprev &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx) &
+            + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
+        case ('mirror')
           dia(nx,g) = dprev &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
-          dia(nx,g) = dia(nx,g) + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case ('mirror')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+        case ('albedo')
           dia(nx,g) = dprev &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
-            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case default
-        call exception_fatal(&
-          'Unknown boundary_right in transient_build_diagonal: ' &
-          // trim(adjustl(boundary_right)))
-    endselect
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx) &
+            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / xslib%mat(mthis)%diffusion(g))
+        case default
+          call exception_fatal(&
+            'Unknown boundary_right in transient_build_diagonal: ' &
+            // trim(adjustl(boundary_right)))
+      endselect
+    enddo ! g = 1,xslib%ngroup
   endsubroutine transient_build_diagonal
 
   subroutine transient_solve(fname_stub, nx, dx, mat_map, xs, dnd, &
-      boundary_left, boundary_right, albedo_coeff, &
+      boundary_left, boundary_right, albedo_coeff_in, &
       phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
@@ -380,7 +381,7 @@ contains
     type(XSLibrary), intent(in) :: xs
     type(DelayedNeutronData), intent(in) :: dnd
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_coeff ! A \in [-1,1]
+    real(rk), intent(in) :: albedo_coeff_in ! A \in [-1,1]
     real(rk), intent(in) :: phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(in) :: keff
@@ -402,7 +403,10 @@ contains
     integer(ik) :: step, iter, g, idx
     real(rk) :: tfinal
     real(rk) :: phi_conv
+
     real(rk) :: albedo_alpha ! \alpha \in [0,\infty]
+    real(rk) :: albedo_coeff
+    real(rk) :: pboundary
 
     character(1024) :: line
 
@@ -416,6 +420,7 @@ contains
 
     ! store a mutable copy so I can modify it during the transient
     xslib = xs
+    albedo_coeff = albedo_coeff_in
 
     allocate(sub(nx,xslib%ngroup))
     allocate(dia(nx,xslib%ngroup))
@@ -474,16 +479,18 @@ contains
     ! edit requested before first step
     idx = 0
     tfinal = 0.0_rk
-    if (any(dnd%tedit < 0.5_rk*dnd%deltat)) then
-      idx = idx + 1
-      write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
-      call output_power_csv(fname_tpower, nx, dx, power)
-      write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
-      call output_write(line)
-      write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
-      call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
-      write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
-      call output_write(line)
+    if (allocated(dnd%tedit)) then
+      if (any(dnd%tedit < 0.5_rk*dnd%deltat)) then
+        idx = idx + 1
+        write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
+        call output_power_csv(fname_tpower, nx, dx, power)
+        write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
+        call output_write(line)
+        write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
+        call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
+        write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
+        call output_write(line)
+      endif
     endif
 
     ! TIME LOOP
@@ -499,11 +506,20 @@ contains
 
       call transient_build_kinsrc(nx, dx, mat_map, xslib, dnd, flux, prec, kinsource)
 
+      ! recompute an albedo coefficient
+      ! this is a bit verbose to support boundary control
+      ! the boundary controller may need the power at the boundary
+      pboundary = (power(nx)-power(nx-1))/(dx(nx-1)+dx(nx))*dx(nx) + power(nx)
+      albedo_coeff = &
+        transient_update_albedo(dnd%reference, tfinal, albedo_coeff, pboundary)
+      albedo_alpha = albedo_calculate_alpha(albedo_coeff)
+
       ! update xs and re-build the diagonal
       ! the rest of the entries in the matrix do not change
       call transient_update_xs(dnd%reference, tfinal, xslib)
       call transient_build_diagonal(&
-        nx, dx, mat_map, xslib, dnd, boundary_left, boundary_right, dia)
+        nx, dx, mat_map, xslib, dnd, &
+        boundary_left, boundary_right, albedo_alpha, dia)
 
       ! iterative scheme is necesary for one-group at-a-time problem
       do iter = 1,max_iter
@@ -541,16 +557,18 @@ contains
       call output_write(line)
       write(iout, '(a)') trim(adjustl(line))
 
-      if (any(abs(tfinal - dnd%tedit) < 0.5_rk*dnd%deltat)) then
-        idx = idx + 1
-        write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
-        call output_power_csv(fname_tpower, nx, dx, power)
-        write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
-        call output_write(line)
-        write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
-        call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
-        write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
-        call output_write(line)
+      if (allocated(dnd%tedit)) then
+        if (any(abs(tfinal - dnd%tedit) < 0.5_rk*dnd%deltat)) then
+          idx = idx + 1
+          write(fname_tpower, '(a,i0,a)') trim(adjustl(fname_stub)) // '_power_t', idx, '.csv'
+          call output_power_csv(fname_tpower, nx, dx, power)
+          write(line, '(a,es13.6,a)') ' --- writing power at time t=', tfinal, ' on ' // trim(adjustl(fname_tpower))
+          call output_write(line)
+          write(fname_tflux, '(a,i0,a)') trim(adjustl(fname_stub)) // '_flux_t', idx, '.csv'
+          call output_flux_csv(fname_tflux, nx, xslib%ngroup, dx, flux)
+          write(line, '(a,es13.6,a)') ' --- writing flux  at time t=', tfinal, ' on ' // trim(adjustl(fname_tflux))
+          call output_write(line)
+        endif
       endif
 
       if (tfinal > dnd%tend) then
@@ -619,12 +637,81 @@ contains
         if (time <= 0.01_rk) then
           xs%mat(1)%sigma_t(2) = sigma0 - time/0.01_rk * 0.05_rk * sigma0
         endif
-      case ('null')
+      case ('albedo-pid')
+        if (first) then
+          xs%mat(1)%sigma_t(1) = 0.99_rk * xs%mat(1)%sigma_t(1)
+          first = .false.
+        endif
+      case ('null', 'albedo')
         ! do nothing
       case default
         call exception_fatal('Unknown transient reference name: ' &
           // trim(adjustl(name)))
     endselect
   endsubroutine transient_update_xs
+
+  real(rk) function transient_update_albedo(name, time, albedo_coeff, pboundary)
+    use exception_handler, only : exception_fatal
+    character(*), intent(in) :: name
+    real(rk), intent(in) :: time
+    real(rk), intent(in) :: albedo_coeff
+    real(rk), intent(in) :: pboundary
+    select case (name)
+      case ('null', 'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4')
+        ! do nothing
+        ! transparent pass-through
+        transient_update_albedo = albedo_coeff
+      case ('albedo')
+        transient_update_albedo = max(1.0_rk - (time/64.0_rk), 0.0_rk)
+      case ('albedo-pid')
+        transient_update_albedo = &
+          transient_albedo_pid(time, albedo_coeff, pboundary)
+      case default
+        transient_update_albedo = 0.0_rk
+        call exception_fatal('Unknown transient albedo reference name: ' &
+          // trim(adjustl(name)))
+    endselect
+  endfunction transient_update_albedo
+
+  real(rk) function transient_albedo_pid(time, albedo_coeff, pboundary)
+    real(rk), intent(in) :: time ! [s]
+    real(rk), intent(in) :: albedo_coeff
+    real(rk), intent(in) :: pboundary
+
+    logical, save :: first = .true.
+
+    real(rk) :: dt
+    real(rk) :: error, derror_dt
+    real(rk), save :: p0
+    real(rk), save :: prev_error, prev_time
+    real(rk), save :: interror
+
+    real(rk), parameter :: kp = 0.004_rk
+    real(rk), parameter :: ki = 0.0_rk
+    real(rk), parameter :: kd = 0.001_rk
+
+    if (first) then
+      p0 = pboundary
+      transient_albedo_pid = albedo_coeff
+      prev_error = p0
+      prev_time = time
+      interror = 0.0_rk
+      first = .false.
+    else
+      ! maintain constant pboundary
+      error = p0 - pboundary
+      dt = time - prev_time
+      derror_dt = (error - prev_error) / dt
+      interror = interror + error * dt
+      transient_albedo_pid = albedo_coeff &
+        + kp * error + kd * derror_dt + ki * interror
+      ! clamp
+      transient_albedo_pid = min(max(transient_albedo_pid, -1.0_rk), 1.0_rk)
+      ! write(*,'(a,1x,es9.2,1x,a,1x,es9.2,1x,a,1x,es9.2)') &
+      !   'error', error, 'albedo', transient_albedo_pid, 'pboundary', pboundary
+      prev_error = error
+      prev_time = time
+    endif
+  endfunction transient_albedo_pid
 
 endmodule transient
