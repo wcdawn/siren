@@ -363,7 +363,7 @@ contains
   endsubroutine transient_build_diagonal
 
   subroutine transient_solve(fname_stub, nx, dx, mat_map, xs, dnd, &
-      boundary_left, boundary_right, albedo_coeff, &
+      boundary_left, boundary_right, albedo_coeff_in, &
       phi_tol, max_iter, keff, flux)
     use xs, only : XSLibrary
     use output, only : output_write
@@ -381,7 +381,7 @@ contains
     type(XSLibrary), intent(in) :: xs
     type(DelayedNeutronData), intent(in) :: dnd
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_coeff ! A \in [-1,1]
+    real(rk), intent(in) :: albedo_coeff_in ! A \in [-1,1]
     real(rk), intent(in) :: phi_tol
     integer(ik), intent(in) :: max_iter
     real(rk), intent(in) :: keff
@@ -404,6 +404,7 @@ contains
     real(rk) :: tfinal
     real(rk) :: phi_conv
     real(rk) :: albedo_alpha ! \alpha \in [0,\infty]
+    real(rk) :: albedo_coeff
 
     character(1024) :: line
 
@@ -417,6 +418,7 @@ contains
 
     ! store a mutable copy so I can modify it during the transient
     xslib = xs
+    albedo_coeff = albedo_coeff_in
 
     allocate(sub(nx,xslib%ngroup))
     allocate(dia(nx,xslib%ngroup))
@@ -504,6 +506,7 @@ contains
 
       ! update xs and re-build the diagonal
       ! the rest of the entries in the matrix do not change
+      albedo_coeff = transient_update_albedo(dnd%reference, tfinal, albedo_coeff)
       albedo_alpha = albedo_calculate_alpha(albedo_coeff)
       call transient_update_xs(dnd%reference, tfinal, xslib)
       call transient_build_diagonal(&
@@ -633,5 +636,22 @@ contains
           // trim(adjustl(name)))
     endselect
   endsubroutine transient_update_xs
+
+  real(rk) function transient_update_albedo(name, time, albedo_coeff)
+    use exception_handler, only : exception_fatal
+    character(*), intent(in) :: name
+    real(rk), intent(in) :: time
+    real(rk), intent(in) :: albedo_coeff
+    select case (name)
+      case ('null', 'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4')
+        ! do nothing
+        ! transparent pass-through
+        transient_update_albedo = albedo_coeff
+      case default
+        transient_update_albedo = 0.0_rk
+        call exception_fatal('Unknown transient albedo reference name: ' &
+          // trim(adjustl(name)))
+    endselect
+  endfunction transient_update_albedo
 
 endmodule transient
