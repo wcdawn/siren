@@ -54,6 +54,16 @@ contains
           endif
         case ('mirror')
           dia(1,g) = dnext + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1)
+        case ('albedo')
+          if (present(diffusion_coeff)) then
+            dia(1,g) = dnext &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / diffusion_coeff(1,g))
+          else
+            dia(1,g) = dnext &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / xslib%mat(mthis)%diffusion(g))
+          endif
         case default
           call exception_fatal(&
             'unknown boundary_left in diffusion_build_matrix: '&
@@ -119,9 +129,15 @@ contains
           dia(nx,g) = dprev &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx)
         case ('albedo')
-          dia(nx,g) = dprev &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
-            + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / xslib%mat(mthis)%diffusion(g))
+          if (present(diffusion_coeff)) then
+            dia(nx,g) = dprev &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / diffusion_coeff(nx,g))
+          else
+            dia(nx,g) = dprev &
+              + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+              + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / xslib%mat(mthis)%diffusion(g))
+          endif
         case default
           call exception_fatal(&
             'unknown boundary_right in diffusion_build_matrix: '&
