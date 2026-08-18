@@ -639,7 +639,7 @@ contains
         endif
       case ('albedo-pid')
         if (first) then
-          xs%mat(1)%sigma_t(1) = 0.995_rk * xs%mat(1)%sigma_t(1)
+          xs%mat(1)%sigma_t(1) = 0.99_rk * xs%mat(1)%sigma_t(1)
           first = .false.
         endif
       case ('null', 'albedo')
