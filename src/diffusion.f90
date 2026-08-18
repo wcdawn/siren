@@ -255,7 +255,7 @@ contains
     real(rk), intent(in), optional :: transportxs(:,:) ! (nx,ngroup)
 
     real(rk), allocatable :: sub(:,:), dia(:,:), sup(:,:)
-    real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
+    real(rk), allocatable :: dia_copy(:)
     real(rk), allocatable :: fsource(:,:), upsource(:,:), downsource(:)
     real(rk), allocatable :: q(:)
 
@@ -273,7 +273,7 @@ contains
     logical, parameter :: matrix_dump = .false.
 
     allocate(sub(nx-1,xslib%ngroup), dia(nx,xslib%ngroup), sup(nx-1,xslib%ngroup))
-    allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+    allocate(dia_copy(nx))
 
     if (present(transportxs)) then
       allocate(diffusion_coeff(nx,xslib%ngroup))
@@ -333,10 +333,8 @@ contains
         call timer_start('diffusion_tridiagonal')
         ! SOLVE
         ! need to store copies, trid uses them as scratch space
-        sub_copy = sub(:,g)
         dia_copy = dia(:,g)
-        sup_copy = sup(:,g)
-        call trid(nx, sup_copy, dia_copy, sup_copy, q, flux(:,g))
+        call trid(nx, sub(:,g), dia_copy, sup(:,g), q, flux(:,g))
         call timer_stop('diffusion_tridiagonal')
 
       enddo
@@ -363,7 +361,7 @@ contains
 
     deallocate(flux_old)
     deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
+    deallocate(dia_copy)
     deallocate(fsource, upsource, downsource)
     deallocate(q)
     if (allocated(diffusion_coeff)) then
