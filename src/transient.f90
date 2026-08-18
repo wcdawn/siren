@@ -688,7 +688,7 @@ contains
 
     real(rk), parameter :: kp = 0.004_rk
     real(rk), parameter :: ki = 0.0_rk
-    real(rk), parameter :: kd = 0.0001_rk
+    real(rk), parameter :: kd = 0.001_rk
 
     if (first) then
       p0 = pboundary
