@@ -4,7 +4,7 @@ dx 10. 10. 10. 10. 10.
 mat_map FUEL FUEL FUEL FUEL FUEL
 refine 4
 boundary_right albedo
-# pseud-vacuum condition
+# pseudo-vacuum condition
 albedo 0.0
 k_tol 1e-10
 phi_tol 1e-9
