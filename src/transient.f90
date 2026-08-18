@@ -284,31 +284,26 @@ contains
     ! BC at x=0, i=1
     mthis = mat_map(1)
     mnext = mat_map(2)
-    select case (boundary_left)
-      case ('zero')
-        do g = 1,xslib%ngroup
-          dnext = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+    do g = 1,xslib%ngroup
+      dnext = 2 &
+        * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
+        / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+      select case (boundary_left)
+        case ('zero')
+          dia(1,g) = dnext &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1) &
+            + 2 * xslib%mat(mthis)%diffusion(g) / dx(1)
+        case ('mirror')
           dia(1,g) = dnext &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
-          dia(1,g) = dia(1,g) + 2 * xslib%mat(mthis)%diffusion(g) / dx(1)
-        enddo ! g = 1,xslib%ngroup
-      case ('mirror')
-        do g = 1,xslib%ngroup
-          dnext = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
-          dia(1,g) = dnext &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
-            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
-        enddo ! g = 1,xslib%ngroup
-      case default
-        call exception_fatal(&
-          'Unknown boundary_left in transient_build_diagonal: ' &
-          // trim(adjustl(boundary_left)))
-    endselect
+        case default
+          call exception_fatal(&
+            'Unknown boundary_left in transient_build_diagonal: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
+    enddo ! g = 1,xslib%ngroup
 
     do g = 1,xslib%ngroup
       do i = 2,nx-1
@@ -334,31 +329,26 @@ contains
     ! BC at x=L, i=n
     mprev = mat_map(nx-1)
     mthis = mat_map(nx)
-    select case (boundary_right)
-      case ('zero')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+    do g = 1,xslib%ngroup
+      dprev = 2 &
+        * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
+        / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+      select case (boundary_right)
+        case ('zero')
+          dia(nx,g) = dprev &
+            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx) &
+            + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
+        case ('mirror')
           dia(nx,g) = dprev &
             + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
-          dia(nx,g) = dia(nx,g) + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case ('mirror')
-        do g = 1,xslib%ngroup
-          dprev = 2 &
-            * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
-            / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
-          dia(nx,g) = dprev &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
-            + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
-        enddo ! g = 1,xslib%ngroup
-      case default
-        call exception_fatal(&
-          'Unknown boundary_right in transient_build_diagonal: ' &
-          // trim(adjustl(boundary_right)))
-    endselect
+        case default
+          call exception_fatal(&
+            'Unknown boundary_right in transient_build_diagonal: ' &
+            // trim(adjustl(boundary_right)))
+      endselect
+    enddo ! g = 1,xslib%ngroup
   endsubroutine transient_build_diagonal
 
   subroutine transient_solve(fname_stub, nx, dx, mat_map, xs, dnd, &
