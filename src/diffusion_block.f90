@@ -174,7 +174,6 @@ contains
 
     ! (ngroup,ngroup,nx-1) , (nxgroup,ngroup,nx) , (ngroup,ngroup,nx-1)
     real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:)
-    real(rk), allocatable :: sub_copy(:,:,:), dia_copy(:,:,:), sup_copy(:,:,:)
 
     real(rk), allocatable :: fsource(:,:) ! (ngroup,nx)
 
@@ -189,8 +188,6 @@ contains
       dia(xslib%ngroup,xslib%ngroup,nx),&
       sup(xslib%ngroup,xslib%ngroup,nx-1)&
     )
-    allocate(sub_copy(xslib%ngroup,xslib%ngroup,nx-1), dia_copy(xslib%ngroup,xslib%ngroup,nx), &
-      sup_copy(xslib%ngroup,xslib%ngroup,nx-1))
 
     albedo_alpha = albedo_calculate_alpha(albedo_coeff)
     call timer_start('diffusion_build_matrix')
@@ -221,10 +218,7 @@ contains
       fsource = fsource / keff
 
       call timer_start('diffusion_block_tridiagonal')
-      sub_copy = sub
-      dia_copy = dia
-      sup_copy = sup
-      call trid_block(nx, xslib%ngroup, sub_copy, dia_copy, sup_copy, fsource, flux_block)
+      call trid_block(nx, xslib%ngroup, sub, dia, sup, fsource, flux_block)
       call timer_stop('diffusion_block_tridiagonal')
 
       fsum = diffusion_block_fission_summation(nx, dx, mat_map, xslib, flux_block)
@@ -257,7 +251,6 @@ contains
     enddo ! i = 1,nx
 
     deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
     deallocate(fsource)
     deallocate(flux_block, flux_old)
   endsubroutine diffusion_block_power_iteration

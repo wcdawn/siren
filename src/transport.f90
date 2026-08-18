@@ -549,7 +549,7 @@ contains
 
     ! matrix
     real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
-    real(rk), allocatable :: sub_copy(:), dia_copy(:), sup_copy(:)
+    real(rk), allocatable :: dia_copy(:)
     ! neutron source
     real(rk), allocatable :: fsource(:,:) ! (nx, ngroup) -- all p0
     real(rk), allocatable :: upsource(:,:) ! (nx, ngroup) -- just this moment
@@ -577,7 +577,7 @@ contains
     neven = max((pnorder + 1) / 2, 1)
 
     allocate(sub(nx-1,xslib%ngroup,neven), dia(nx,xslib%ngroup,neven), sup(nx-1,xslib%ngroup,neven))
-    allocate(sub_copy(nx-1), dia_copy(nx), sup_copy(nx-1))
+    allocate(dia_copy(nx))
 
     allocate(fsource(nx,xslib%ngroup))
     allocate(upsource(nx,xslib%ngroup))
@@ -657,10 +657,8 @@ contains
           call timer_start('transport_tridiagonal')
           ! SOLVE
           ! need to store copies, trid uses them as scratch space
-          sub_copy = sub(:,g,n)
           dia_copy = dia(:,g,n)
-          sup_copy = sup(:,g,n)
-          call trid(nx, sub_copy, dia_copy, sup_copy, q, phi(:,g,idxn+1))
+          call trid(nx, sub(:,g,n), dia_copy, sup(:,g,n), q, phi(:,g,idxn+1))
           call timer_stop('transport_tridiagonal')
 
         enddo ! g = 1,ngroup
@@ -705,7 +703,7 @@ contains
     endif
 
     deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
+    deallocate(dia_copy)
     deallocate(fsource, upsource, downsource, q)
     deallocate(pn_next_source, pn_prev_source)
     deallocate(phi_old)

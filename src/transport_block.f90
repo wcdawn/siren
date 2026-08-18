@@ -577,8 +577,6 @@ contains
 
     ! (ngroup,ngroup,nx-1,neven) , (ngroup,ngroup,nx,neven) , (ngroup,ngroup,nx-1,neven)
     real(rk), allocatable :: sub(:,:,:,:), dia(:,:,:,:), sup(:,:,:,:)
-    ! (ngroup,ngroup,nx-1) , (ngroup,ngroup,nx) , (ngroup,ngroup,nx-1)
-    real(rk), allocatable :: sub_copy(:,:,:), dia_copy(:,:,:), sup_copy(:,:,:)
 
     real(rk), allocatable :: fsource(:,:) ! (ngroup,nx)
     real(rk), allocatable :: pn_prev_source(:,:) ! (ngroup,nx) -- for this moment
@@ -597,9 +595,6 @@ contains
     allocate(sub(xslib%ngroup,xslib%ngroup,nx-1,neven),&
       dia(xslib%ngroup,xslib%ngroup,nx,neven),&
       sup(xslib%ngroup,xslib%ngroup,nx-1,neven))
-    allocate(sub_copy(xslib%ngroup,xslib%ngroup,nx-1),&
-      dia_copy(xslib%ngroup,xslib%ngroup,nx),&
-      sup_copy(xslib%ngroup,xslib%ngroup,nx-1))
 
     allocate(fsource(xslib%ngroup,nx))
     allocate(pn_prev_source(xslib%ngroup,nx))
@@ -679,11 +674,9 @@ contains
         endif
 
         call timer_start('transport_block_tridiagonal')
-        sub_copy = sub(:,:,:,n)
-        dia_copy = dia(:,:,:,n)
-        sup_copy = sup(:,:,:,n)
         call trid_block( &
-          nx, xslib%ngroup, sub_copy, dia_copy, sup_copy, q, phi_block(:,:,idxn+1))
+          nx, xslib%ngroup, sub(:,:,:,n), dia(:,:,:,n), sup(:,:,:,n), &
+          q, phi_block(:,:,idxn+1))
         call timer_stop('transport_block_tridiagonal')
       enddo ! n = 1,neven
 
@@ -739,7 +732,6 @@ contains
     deallocate(fsource, pn_prev_source, pn_next_source, q)
     deallocate(phi_block, phi_old)
     deallocate(sub, dia, sup)
-    deallocate(sub_copy, dia_copy, sup_copy)
   endsubroutine transport_block_power_iteration
 
   subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, &
