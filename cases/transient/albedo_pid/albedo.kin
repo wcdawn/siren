@@ -1,0 +1,11 @@
+nd 1
+beta 0.0075
+lambda 0.08
+
+ng 1
+vel 1e6
+
+deltat 1e-3
+tend 4.0
+reference 'albedo-pid'
+tedit 5 0.0 1.0 2.0 3.0 4.0
