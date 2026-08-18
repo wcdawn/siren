@@ -509,9 +509,7 @@ contains
       ! recompute an albedo coefficient
       ! this is a bit verbose to support boundary control
       ! the boundary controller may need the power at the boundary
-      !pboundary = (power(nx)-power(nx-1))/(dx(nx-1)+dx(nx))*dx(nx) + power(nx)
-      call power_calculate(nx, mat_map, xslib, flux, power)
-      pboundary = power_total(dx, power)
+      pboundary = (power(nx)-power(nx-1))/(dx(nx-1)+dx(nx))*dx(nx) + power(nx)
       albedo_coeff = &
         transient_update_albedo(dnd%reference, tfinal, albedo_coeff, pboundary)
       albedo_alpha = albedo_calculate_alpha(albedo_coeff)
@@ -688,7 +686,7 @@ contains
     real(rk), save :: prev_error, prev_time
     real(rk), save :: interror
 
-    real(rk), parameter :: kp = 0.003_rk
+    real(rk), parameter :: kp = 0.004_rk
     real(rk), parameter :: ki = 0.0_rk
     real(rk), parameter :: kd = 0.0001_rk
 
@@ -709,8 +707,8 @@ contains
         + kp * error + kd * derror_dt + ki * interror
       ! clamp
       transient_albedo_pid = min(max(transient_albedo_pid, -1.0_rk), 1.0_rk)
-      write(*,'(a,1x,es9.2,1x,a,1x,es9.2,1x,a,1x,es9.2)') &
-        'error', error, 'albedo', transient_albedo_pid, 'pboundary', pboundary
+      ! write(*,'(a,1x,es9.2,1x,a,1x,es9.2,1x,a,1x,es9.2)') &
+      !   'error', error, 'albedo', transient_albedo_pid, 'pboundary', pboundary
       prev_error = error
       prev_time = time
     endif
