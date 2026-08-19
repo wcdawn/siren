@@ -3,6 +3,7 @@ import subprocess
 import sys
 import re
 
+
 def set_input(txt, pnorder, refine):
     out = []
     for line in txt:
@@ -74,4 +75,11 @@ if __name__ == "__main__":
 
     for c in keff:
         stub = re.sub("^.*/", "", c).replace(".inp", "")
-        print(stub + " & " + " {:.6f}".format(keff[c]) + " & " + "{:.2f}".format((1.0-keff[c])*1e5) + " \\\\")
+        print(
+            stub
+            + " & "
+            + " {:.6f}".format(keff[c])
+            + " & "
+            + "{:.2f}".format((1.0 - keff[c]) * 1e5)
+            + " \\\\"
+        )

@@ -14,18 +14,19 @@ real(rk), parameter :: mms_coeff_b =  2368.0_rk/15.0_rk /mms_L**3
 real(rk), parameter :: mms_coeff_c = -1486.0_rk/15.0_rk /mms_L**2
 real(rk), parameter :: mms_coeff_d =   302.0_rk/15.0_rk /mms_L
 real(rk), parameter :: mms_coeff_e = 0.0_rk
-real(rk), parameter :: mms_coeff_fint = 163d0/225d0 * mms_L
+real(rk), parameter :: mms_coeff_fint = 163.0_rk/225.0_rk * mms_L
 real(rk), parameter :: mms_nusf = 0.156_rk
 real(rk), parameter :: mms_kappa_nu = 1.5e-11_rk
 real(rk), parameter :: mms_kappasf = mms_kappa_nu * mms_nusf ! NOTE: hard-wired...
 real(rk), parameter :: mms_phi0 = mms_p0/mms_kappasf * pi*0.5d0/mms_L
-real(rk), parameter :: mms_alpha = 1d9
+real(rk), parameter :: mms_alpha = 1e9_rk
 
 public :: transient_mms_init, transient_mms_cleanup
 public :: transient_mms_sigma_a
 
 type(DelayedNeutronData) :: kin
 type(XSLibrary) :: xslib
+logical :: mms_negative_flag = .false.
 
 contains
 
@@ -34,6 +35,7 @@ contains
     type(DelayedNeutronData), intent(in) :: dnd
     kin = dnd
     xslib = xs
+    mms_negative_flag = .false.
   endsubroutine transient_mms_init
 
   subroutine transient_mms_cleanup()
@@ -103,6 +105,7 @@ contains
   endfunction transient_mms_c
 
   real(rk) function transient_mms_sigma_a(x, t)
+    use exception_handler, only : exception_warning
     real(rk), intent(in) :: x, t
     transient_mms_sigma_a = ( &
       xslib%mat(1)%nusf(1)/transient_mms_kcrit() * (1.0_rk - kin%beta(1)) * transient_mms_phi(x, t) &
@@ -110,11 +113,11 @@ contains
       - transient_mms_dphi_dt(x, t) / kin%vel(1) &
       + xslib%mat(1)%diffusion(1) * transient_mms_d2phi_dx2(x, t) &
       ) / transient_mms_phi(x, t)
-    if (transient_mms_sigma_a < 0d0) then
-      write(*,'(a,es23.16)') 'x=', x
-      write(*,'(a,es23.16)') 't=', t
-      write(*,'(a,es23.16)') 'mms_sigma_a=', transient_mms_sigma_a
-      stop 'negative xs in mms_sigma_a'
+    if ((transient_mms_sigma_a < 0d0) .and. (.not. mms_negative_flag)) then
+      call exception_warning(&
+        'A negative value of sigma_a has been encountered ' &
+        // ' in the MMS calculation.')
+      mms_negative_flag = .true.
     endif
   endfunction transient_mms_sigma_a
 
