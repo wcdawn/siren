@@ -15,6 +15,10 @@ extern int first;
 double max(const double a, const double b);
 double min(const double a, const double b);
 
+/*
 double transient_albedo(const double time, const double albedo_coeff, const double pboundary);
+*/
+
+double transient_albedo(void);
 
 #endif

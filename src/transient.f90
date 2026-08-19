@@ -2,6 +2,12 @@ module transient
 use kind, only : rk, ik
 implicit none
 
+interface
+  real(c_double) function transient_albedo() bind(C, name='transient_albedo')
+    use, intrinsic :: iso_c_binding, only : c_double
+  endfunction transient_albedo
+endinterface
+
 private
 
 type DelayedNeutronData
@@ -717,7 +723,7 @@ contains
   endfunction transient_albedo_pid
 
   real(rk) function transient_albedo_capi(time, albedo_coeff, pboundary)
-    use iso_c_binding, only : c_double
+    use, intrinsic :: iso_c_binding, only : c_double
     real(rk), intent(in) :: time
     real(rk), intent(in) :: albedo_coeff
     real(rk), intent(in) :: pboundary
@@ -731,8 +737,8 @@ contains
     c_albedo_coeff = real(albedo_coeff, c_double)
     c_pboundary = real(pboundary, c_double)
 
-    c_alb = 0.5_c_double
     ! c_alb = transient_albedo(c_time, c_albedo_coeff, c_pboundary)
+    c_alb = transient_albedo()
 
     transient_albedo_capi = real(c_alb, rk)
   endfunction transient_albedo_capi
