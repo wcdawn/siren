@@ -2,6 +2,14 @@ module transient
 use kind, only : rk, ik
 implicit none
 
+interface
+  real(c_double) function transient_albedo(time, albedo_coeff, pboundary) &
+      bind(C, name='transient_albedo')
+    use, intrinsic :: iso_c_binding, only : c_double
+    real(c_double), value, intent(in) :: time, albedo_coeff, pboundary
+  endfunction transient_albedo
+endinterface
+
 private
 
 type DelayedNeutronData
@@ -637,7 +645,7 @@ contains
         if (time <= 0.01_rk) then
           xs%mat(1)%sigma_t(2) = sigma0 - time/0.01_rk * 0.05_rk * sigma0
         endif
-      case ('albedo-pid')
+      case ('albedo-pid', 'albedo-pid-capi')
         if (first) then
           xs%mat(1)%sigma_t(1) = 0.99_rk * xs%mat(1)%sigma_t(1)
           first = .false.
@@ -666,6 +674,9 @@ contains
       case ('albedo-pid')
         transient_update_albedo = &
           transient_albedo_pid(time, albedo_coeff, pboundary)
+      case ('albedo-pid-capi')
+        transient_update_albedo = &
+          transient_albedo_capi(time, albedo_coeff, pboundary)
       case default
         transient_update_albedo = 0.0_rk
         call exception_fatal('Unknown transient albedo reference name: ' &
@@ -693,8 +704,7 @@ contains
     if (first) then
       p0 = pboundary
       transient_albedo_pid = albedo_coeff
-      prev_error = p0
-      prev_time = time
+      error = 0.0_rk
       interror = 0.0_rk
       first = .false.
     else
@@ -709,9 +719,29 @@ contains
       transient_albedo_pid = min(max(transient_albedo_pid, -1.0_rk), 1.0_rk)
       ! write(*,'(a,1x,es9.2,1x,a,1x,es9.2,1x,a,1x,es9.2)') &
       !   'error', error, 'albedo', transient_albedo_pid, 'pboundary', pboundary
-      prev_error = error
-      prev_time = time
     endif
+    prev_error = error
+    prev_time = time
   endfunction transient_albedo_pid
+
+  real(rk) function transient_albedo_capi(time, albedo_coeff, pboundary)
+    use, intrinsic :: iso_c_binding, only : c_double
+    real(rk), intent(in) :: time
+    real(rk), intent(in) :: albedo_coeff
+    real(rk), intent(in) :: pboundary
+
+    real(c_double) :: c_time
+    real(c_double) :: c_albedo_coeff
+    real(c_double) :: c_pboundary
+    real(c_double) :: c_alb
+
+    c_time = real(time, c_double)
+    c_albedo_coeff = real(albedo_coeff, c_double)
+    c_pboundary = real(pboundary, c_double)
+
+    c_alb = transient_albedo(c_time, c_albedo_coeff, c_pboundary)
+
+    transient_albedo_capi = real(c_alb, rk)
+  endfunction transient_albedo_capi
 
 endmodule transient

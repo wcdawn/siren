@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(siren VERSION 0.2.0 DESCRIPTION "A one-dimensional PN neutron transport solver." LANGUAGES Fortran)
+project(siren VERSION 0.2.0 DESCRIPTION "A one-dimensional PN neutron transport solver." LANGUAGES Fortran C)
 
 add_executable(${PROJECT_NAME}.x)
 
@@ -26,6 +26,7 @@ target_sources(${PROJECT_NAME}.x
     src/transport_block.f90
     src/transport.f90
     src/xs.f90
+    src/transient_albedo.c
 )
 
 find_package(OpenMP REQUIRED)
@@ -36,7 +37,9 @@ target_link_libraries(${PROJECT_NAME}.x LAPACK::LAPACK)
 
 # Note that the CMake language does not allow setting the Fortran_STANDARD from the build instructions
 # and it must be specified via the command-line argument.
-target_compile_options(${PROJECT_NAME}.x PRIVATE -Wall -Wextra -std=f2018 -pedantic)
-target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<CONFIG:Debug>:-O0;-g;-fbacktrace;-ffpe-trap=invalid,overflow,zero;-fcheck=all>)
+target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-Wall;-Wextra;-std=f2018;-pedantic>)
+target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall;-Wextra;-ansi;-pedantic>)
+target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<CONFIG:Debug>>:-fbacktrace;-ffpe-trap=invalid,overflow,zero;-fcheck=all>)
+target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<CONFIG:Debug>:-O0;-g>)
 target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<CONFIG:Release>:-O3>)
 target_compile_options(${PROJECT_NAME}.x PRIVATE $<$<CONFIG:>:-O3>) # include default/empty option
