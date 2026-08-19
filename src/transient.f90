@@ -3,8 +3,10 @@ use kind, only : rk, ik
 implicit none
 
 interface
-  real(c_double) function transient_albedo() bind(C, name='transient_albedo')
+  real(c_double) function transient_albedo(time, albedo_coeff, pboundary) &
+      bind(C, name='transient_albedo')
     use, intrinsic :: iso_c_binding, only : c_double
+    real(c_double), value, intent(in) :: time, albedo_coeff, pboundary
   endfunction transient_albedo
 endinterface
 
@@ -737,8 +739,7 @@ contains
     c_albedo_coeff = real(albedo_coeff, c_double)
     c_pboundary = real(pboundary, c_double)
 
-    ! c_alb = transient_albedo(c_time, c_albedo_coeff, c_pboundary)
-    c_alb = transient_albedo()
+    c_alb = transient_albedo(c_time, c_albedo_coeff, c_pboundary)
 
     transient_albedo_capi = real(c_alb, rk)
   endfunction transient_albedo_capi

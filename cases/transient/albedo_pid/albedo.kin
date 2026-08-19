@@ -7,5 +7,5 @@ vel 1e6
 
 deltat 1e-3
 tend 4.0
-reference 'albedo-pid'
+reference 'albedo-pid-capi'
 tedit 5 0.0 1.0 2.0 3.0 4.0

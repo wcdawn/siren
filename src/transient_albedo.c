@@ -1,9 +1,9 @@
 #include "transient_albedo.h"
 
-extern double p0;
-extern double prev_error;
-extern double prev_time;
-extern double interror;
+double p0;
+double prev_error;
+double prev_time;
+double interror;
 
 const double kp = 0.004;
 const double ki = 0.0;
@@ -14,7 +14,6 @@ int first = 1;
 double max(const double a, const double b){ return (a > b) ? a : b; }
 double min(const double a, const double b){ return (a < b) ? a : b; }
 
-#if 0
 double transient_albedo(double time, double albedo_coeff, double pboundary)
 {
   double alb;
@@ -47,6 +46,3 @@ double transient_albedo(double time, double albedo_coeff, double pboundary)
 
   return alb;
 }
-#endif
-
-double transient_albedo(void){return 0.5;}
