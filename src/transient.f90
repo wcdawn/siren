@@ -12,25 +12,6 @@ endinterface
 
 private
 
-type DelayedNeutronData
-
-  integer(ik) :: nd ! number of delayed neutron precursor families
-  real(rk), allocatable :: beta(:) ! (nd) [-] Delayed neutron fractions
-  real(rk), allocatable :: lamd(:) ! (nd) [1/s] Delayed neutron decay constants
-
-  integer(ik) :: ng ! number of energy groups (for velocities)
-  real(rk), allocatable :: vel(:) ! (ng) [cm/s] Neutron velocity
-
-  real(rk) :: deltat ! [s] time-step size
-  real(rk) :: tend ! [s] final time
-
-  character(16) :: reference ! reference case (used to specify absorption xs)
-
-  integer(ik) :: ntime = 0
-  real(rk), allocatable :: tedit(:)
-endtype
-
-public :: DelayedNeutronData
 public :: transient_read, transient_summary, transient_solve, transient_cleanup
 
 contains
@@ -38,6 +19,7 @@ contains
   subroutine transient_read(fname, dnd)
     use fileio, only : fileio_open_read
     use exception_handler, only : exception_fatal
+    use delayed_neutron_data, only : DelayedNeutronData
     character(*), intent(in) :: fname
     type(DelayedNeutronData), intent(out) :: dnd
 
@@ -107,6 +89,7 @@ contains
 
   subroutine transient_summary(dnd)
     use output, only : output_write
+    use delayed_neutron_data, only : DelayedNeutronData
     type(DelayedNeutronData), intent(in) :: dnd
 
     character(2**16) :: line, tmp
@@ -164,6 +147,7 @@ contains
 
   subroutine transient_init_precursors(nx, mat_map, xslib, dnd, kcrit, flux, prec)
     use xs, only : XSLibrary
+    use delayed_neutron_data, only : DelayedNeutronData
     integer(ik), intent(in) :: nx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
@@ -189,6 +173,7 @@ contains
   subroutine transient_update_precursors(nx, mat_map, xslib, dnd, kcrit, flux, &
     prec_old, prec)
     use xs, only : XSLibrary
+    use delayed_neutron_data, only : DelayedNeutronData
     integer(ik), intent(in) :: nx
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
@@ -215,6 +200,7 @@ contains
 
   subroutine transient_build_kinsrc(nx, dx, mat_map, xslib, dnd, flux, prec, kinsrc)
     use xs, only : XSLibrary
+    use delayed_neutron_data, only : DelayedNeutronData
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -240,6 +226,7 @@ contains
 
   subroutine transient_build_fsource(nx, dx, mat_map, xslib, dnd, flux, fsrc)
     use xs, only : XSLibrary
+    use delayed_neutron_data, only : DelayedNeutronData
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -274,9 +261,11 @@ contains
   endsubroutine transient_build_fsource
 
   subroutine transient_build_diagonal(nx, dx, mat_map, xslib, dnd, &
-      boundary_left, boundary_right, albedo_alpha, dia)
+      boundary_left, boundary_right, albedo_alpha, time, dia)
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal
+    use delayed_neutron_data, only : DelayedNeutronData
+    use transient_mms, only : transient_mms_sigma_a
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
@@ -284,11 +273,13 @@ contains
     type(DelayedNeutronData), intent(in) :: dnd
     character(*), intent(in) :: boundary_left, boundary_right
     real(rk), intent(in) :: albedo_alpha
+    real(rk), intent(in) :: time
     real(rk), intent(out) :: dia(:,:) ! (nx,ngroup)
 
     integer(ik) :: i, g
     integer(ik) :: mprev, mthis, mnext
     real(rk) :: dprev, dnext
+    real(rk) :: xt, xleft
 
     ! BC at x=0, i=1
     mthis = mat_map(1)
@@ -297,19 +288,25 @@ contains
       dnext = 2 &
         * (xslib%mat(mthis)%diffusion(g) / dx(1) * xslib%mat(mnext)%diffusion(g) / dx(2)) &
         / (xslib%mat(mthis)%diffusion(g) / dx(1) + xslib%mat(mnext)%diffusion(g) / dx(2))
+      if (dnd%reference == 'mms') then
+        xt = transient_mms_sigma_a(0.5_rk * dx(1), time) &
+          + xslib%mat(mthis)%scatter(g,g,1)
+      else
+        xt = xslib%mat(mthis)%sigma_t(g)
+      endif
       select case (boundary_left)
         case ('zero')
           dia(1,g) = dnext &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (xt - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1) &
             + 2 * xslib%mat(mthis)%diffusion(g) / dx(1)
         case ('mirror')
           dia(1,g) = dnext &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (xt - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1)
         case ('albedo')
           dia(1,g) = dnext &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
+            + (xt - xslib%mat(mthis)%scatter(g,g,1)) * dx(1) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(1) &
             + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(1) / xslib%mat(mthis)%diffusion(g))
         case default
@@ -320,6 +317,7 @@ contains
     enddo ! g = 1,xslib%ngroup
 
     do g = 1,xslib%ngroup
+      xleft = dx(1)
       do i = 2,nx-1
 
         mprev = mat_map(i-1)
@@ -333,8 +331,16 @@ contains
           * (xslib%mat(mthis)%diffusion(g) / dx(i) * xslib%mat(mnext)%diffusion(g) / dx(i+1)) &
           / (xslib%mat(mthis)%diffusion(g) / dx(i) + xslib%mat(mnext)%diffusion(g) / dx(i+1))
 
+        if (dnd%reference == 'mms') then
+          xt = transient_mms_sigma_a(xleft + 0.5_rk * dx(i), time) &
+            + xslib%mat(mthis)%scatter(g,g,1)
+          xleft = xleft + dx(i)
+        else
+          xt = xslib%mat(mthis)%sigma_t(g)
+        endif
+
         dia(i,g) = dprev + dnext &
-          + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(i) &
+          + (xt - xslib%mat(mthis)%scatter(g,g,1)) * dx(i) &
           + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(i)
 
       enddo ! i = 2,nx-1
@@ -347,19 +353,25 @@ contains
       dprev = 2 &
         * (xslib%mat(mthis)%diffusion(g) / dx(nx) * xslib%mat(mprev)%diffusion(g) / dx(nx-1)) &
         / (xslib%mat(mthis)%diffusion(g) / dx(nx) + xslib%mat(mprev)%diffusion(g) / dx(nx-1))
+      if (dnd%reference == 'mms') then
+        xt = transient_mms_sigma_a(sum(dx(1:nx-1)) + 0.5_rk*dx(nx), time) &
+          + xslib%mat(mthis)%scatter(g,g,1)
+      else
+        xt = xslib%mat(mthis)%sigma_t(g)
+      endif
       select case (boundary_right)
         case ('zero')
           dia(nx,g) = dprev &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (xt - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx) &
             + 2 * xslib%mat(mthis)%diffusion(g) / dx(nx)
         case ('mirror')
           dia(nx,g) = dprev &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (xt - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx)
         case ('albedo')
           dia(nx,g) = dprev &
-            + (xslib%mat(mthis)%sigma_t(g) - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
+            + (xt - xslib%mat(mthis)%scatter(g,g,1)) * dx(nx) &
             + (1.0_rk / (dnd%vel(g) * dnd%deltat)) * dx(nx) &
             + 1.0_rk / (1.0_rk / albedo_alpha + 0.5_rk * dx(nx) / xslib%mat(mthis)%diffusion(g))
         case default
@@ -382,6 +394,8 @@ contains
     use fileio, only : fileio_open_write
     use output, only : output_power_csv, output_flux_csv
     use albedo, only : albedo_calculate_alpha
+    use delayed_neutron_data, only : DelayedNeutronData
+    use exception_handler, only : exception_fatal
     character(*), intent(in) :: fname_stub
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
@@ -527,7 +541,7 @@ contains
       call transient_update_xs(dnd%reference, tfinal, xslib)
       call transient_build_diagonal(&
         nx, dx, mat_map, xslib, dnd, &
-        boundary_left, boundary_right, albedo_alpha, dia)
+        boundary_left, boundary_right, albedo_alpha, tfinal, dia)
 
       ! iterative scheme is necesary for one-group at-a-time problem
       do iter = 1,max_iter
@@ -558,6 +572,10 @@ contains
           exit
         endif
       enddo ! iter = 1,max_iter
+
+      if (iter > max_iter) then
+        call exception_fatal('Maximum iterations exceeded.')
+      endif
 
       call power_calculate(nx, mat_map, xslib, flux, power)
       write(line, '(es13.6, " , ", es13.6, " , ", es13.6)') &
@@ -598,6 +616,7 @@ contains
   endsubroutine transient_solve
 
   subroutine transient_cleanup(dnd)
+    use delayed_neutron_data, only : DelayedNeutronData
     type(DelayedNeutronData), intent(out) :: dnd
     if (allocated(dnd%beta)) then
       deallocate(dnd%beta)
@@ -650,6 +669,9 @@ contains
           xs%mat(1)%sigma_t(1) = 0.99_rk * xs%mat(1)%sigma_t(1)
           first = .false.
         endif
+      case ('mms')
+        ! do nothing here
+        ! this is handled in transient_build_diagonal
       case ('null', 'albedo')
         ! do nothing
       case default
@@ -665,7 +687,9 @@ contains
     real(rk), intent(in) :: albedo_coeff
     real(rk), intent(in) :: pboundary
     select case (name)
-      case ('null', 'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4')
+      case ('null', &
+          'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4', &
+          'mms')
         ! do nothing
         ! transparent pass-through
         transient_update_albedo = albedo_coeff

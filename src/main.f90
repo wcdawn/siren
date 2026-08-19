@@ -21,8 +21,9 @@ use exception_handler, only : exception_fatal, exception_summary
 use timer, only : timer_init, timer_start, timer_stop, timer_summary
 use fileio, only : fileio_open_read
 use material, only : material_idx_from_name
-use transient, only : DelayedNeutronData, &
-  transient_read, transient_summary, transient_solve, transient_cleanup
+use transient, only : transient_read, transient_summary, transient_solve, transient_cleanup
+use delayed_neutron_data, only : DelayedNeutronData
+use transient_mms, only : transient_mms_init, transient_mms_cleanup
 implicit none
 
 integer, parameter :: input_file_unit = 15
@@ -99,6 +100,10 @@ if (is_transient) then
 
   call transient_read(transient_fname, kindat)
   call transient_summary(kindat)
+
+  if (kindat%reference == 'mms') then
+    call transient_mms_init(xs, kindat)
+  endif
 
   if (kindat%ng /= xs%ngroup) then
     call exception_fatal('Inconsistent number of energy groups in ' &
@@ -235,6 +240,9 @@ call xs_cleanup(xs)
 call input_cleanup()
 if (is_transient) then
   call transient_cleanup(kindat)
+  if (kindat%reference == 'mms') then
+    call transient_mms_cleanup()
+  endif
 endif
 
 call output_write('Normal Termination :)')

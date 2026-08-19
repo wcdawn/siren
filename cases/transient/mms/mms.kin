@@ -7,5 +7,6 @@ vel 1e7
 
 deltat 10e-3
 tend 1.0
-# TODO
-reference 'null'
+reference 'mms'
+
+tedit 5 0.0 0.25 0.50 0.75 1.00
