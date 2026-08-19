@@ -8,6 +8,7 @@ target_sources(${PROJECT_NAME}.x
     src/albedo.f90
     src/analytic.f90
     src/constant.f90
+    src/delayed_neutron_data.f90
     src/diffusion_block.f90
     src/diffusion.f90
     src/exception_handler.f90
@@ -23,6 +24,7 @@ target_sources(${PROJECT_NAME}.x
     src/power.f90
     src/timer.f90
     src/transient.f90
+    src/transient_mms.f90
     src/transport_block.f90
     src/transport.f90
     src/xs.f90
