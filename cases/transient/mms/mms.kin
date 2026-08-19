@@ -1,0 +1,11 @@
+nd 1
+beta 0.0075
+lambda 0.08
+
+ng 1
+vel 1e7
+
+deltat 10e-3
+tend 1.0
+# TODO
+reference 'null'

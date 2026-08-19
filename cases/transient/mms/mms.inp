@@ -1,0 +1,14 @@
+xslib_fname mms.xs
+transient_fname mms.kin
+
+nx 10
+dx 10. 10. 10. 10. 10. 10. 10. 10. 10. 10.
+mat_map FUEL FUEL FUEL FUEL FUEL FUEL FUEL FUEL FUEL FUEL
+refine 7
+boundary_left zero
+boundary_right zero
+k_tol 1e-10
+phi_tol 1e-10
+max_iter 10000
+pnorder 0
+analytic_reference onegroup
