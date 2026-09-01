@@ -669,6 +669,11 @@ contains
           xs%mat(1)%sigma_t(1) = 0.99_rk * xs%mat(1)%sigma_t(1)
           first = .false.
         endif
+      case ('bc-disc')
+        if (first) then
+          xs%mat(1)%sigma_t(1) = 0.995_rk * xs%mat(1)%sigma_t(1)
+          first = .false.
+        endif
       case ('mms')
         ! do nothing here
         ! this is handled in transient_build_diagonal
@@ -689,7 +694,7 @@ contains
     select case (name)
       case ('null', &
           'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4', &
-          'mms')
+          'mms', 'bc-disc')
         ! do nothing
         ! transparent pass-through
         transient_update_albedo = albedo_coeff
