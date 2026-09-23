@@ -291,6 +291,8 @@ contains
       if (dnd%reference == 'mms') then
         xt = transient_mms_sigma_a(0.5_rk * dx(1), time) &
           + xslib%mat(mthis)%scatter(g,g,1)
+      elseif (dnd%reference == 'bc-cont') then
+        xt = transient_boundary_control_continuous_sigma_t(xslib, 0.5_rk * dx(1), time)
       else
         xt = xslib%mat(mthis)%sigma_t(g)
       endif
@@ -335,6 +337,10 @@ contains
           xt = transient_mms_sigma_a(xleft + 0.5_rk * dx(i), time) &
             + xslib%mat(mthis)%scatter(g,g,1)
           xleft = xleft + dx(i)
+        elseif (dnd%reference == 'bc-cont') then
+          xt = transient_boundary_control_continuous_sigma_t(xslib, &
+            xleft + 0.5_rk * dx(i), time)
+          xleft = xleft + dx(i)
         else
           xt = xslib%mat(mthis)%sigma_t(g)
         endif
@@ -356,6 +362,9 @@ contains
       if (dnd%reference == 'mms') then
         xt = transient_mms_sigma_a(sum(dx(1:nx-1)) + 0.5_rk*dx(nx), time) &
           + xslib%mat(mthis)%scatter(g,g,1)
+      elseif (dnd%reference == 'bc-cont') then
+        xt = transient_boundary_control_continuous_sigma_t(xslib, &
+          sum(dx(1:nx-1)) + 0.5_rk*dx(nx), time)
       else
         xt = xslib%mat(mthis)%sigma_t(g)
       endif
@@ -669,6 +678,14 @@ contains
           xs%mat(1)%sigma_t(1) = 0.99_rk * xs%mat(1)%sigma_t(1)
           first = .false.
         endif
+      case ('bc-disc')
+        if (first) then
+          xs%mat(1)%sigma_t(1) = 0.99_rk * xs%mat(1)%sigma_t(1)
+          first = .false.
+        endif
+      case ('bc-cont')
+        ! do nothing here
+        ! this is handeled in transient_build_diagonal
       case ('mms')
         ! do nothing here
         ! this is handled in transient_build_diagonal
@@ -689,7 +706,7 @@ contains
     select case (name)
       case ('null', &
           'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4', &
-          'mms')
+          'mms', 'bc-disc', 'bc-cont')
         ! do nothing
         ! transparent pass-through
         transient_update_albedo = albedo_coeff
@@ -767,5 +784,24 @@ contains
 
     transient_albedo_capi = real(c_alb, rk)
   endfunction transient_albedo_capi
+
+  real(rk) function transient_boundary_control_continuous_sigma_t(xslib, x, t)
+    use xs, only : XSLibrary
+    type(XSLibrary), intent(in) :: xslib
+    real(rk), intent(in) :: x ! [cm]
+    real(rk), intent(in) :: t ! [t]
+
+    logical, save :: first = .true.
+    real(rk), save :: xs0
+    real(rk), parameter :: alpha = 2e-8_rk
+
+    if (first) then
+      xs0 = xslib%mat(1)%sigma_t(1)
+      first = .false.
+    endif
+
+    transient_boundary_control_continuous_sigma_t = &
+      xs0 - alpha * (50._rk - x)**2 * t**2
+  endfunction transient_boundary_control_continuous_sigma_t
 
 endmodule transient
