@@ -3,10 +3,10 @@ use kind, only : rk, ik
 implicit none
 
 interface
-  real(c_double) function transient_albedo(time, albedo_coeff, pboundary) &
+  real(c_double) function transient_albedo(time, albedo_coeff, pow_lhs, pow_rhs) &
       bind(C, name='transient_albedo')
     use, intrinsic :: iso_c_binding, only : c_double
-    real(c_double), value, intent(in) :: time, albedo_coeff, pboundary
+    real(c_double), value, intent(in) :: time, albedo_coeff, pow_lhs, pow_rhs
   endfunction transient_albedo
 endinterface
 
@@ -437,7 +437,7 @@ contains
 
     real(rk) :: albedo_alpha ! \alpha \in [0,\infty]
     real(rk) :: albedo_coeff
-    real(rk) :: pboundary
+    real(rk) :: pow_lhs, pow_rhs
 
     character(1024) :: line
 
@@ -539,10 +539,12 @@ contains
 
       ! recompute an albedo coefficient
       ! this is a bit verbose to support boundary control
-      ! the boundary controller may need the power at the boundary
-      pboundary = (power(nx)-power(nx-1))/(dx(nx-1)+dx(nx))*dx(nx) + power(nx)
+      ! the boundary controller may need the power at the boundaries
+      pow_lhs = -(power(2)-power(1))/(dx(2)+dx(1))*dx(1) + power(1)
+      pow_rhs = (power(nx)-power(nx-1))/(dx(nx-1)+dx(nx))*dx(nx) + power(nx)
       albedo_coeff = &
-        transient_update_albedo(dnd%reference, tfinal, albedo_coeff, pboundary)
+        transient_update_albedo(dnd%reference, tfinal, albedo_coeff, &
+        pow_lhs, pow_rhs)
       albedo_alpha = albedo_calculate_alpha(albedo_coeff)
 
       ! update xs and re-build the diagonal
@@ -697,12 +699,13 @@ contains
     endselect
   endsubroutine transient_update_xs
 
-  real(rk) function transient_update_albedo(name, time, albedo_coeff, pboundary)
+  real(rk) function transient_update_albedo(name, time, albedo_coeff, &
+      pow_lhs, pow_rhs)
     use exception_handler, only : exception_fatal
     character(*), intent(in) :: name
     real(rk), intent(in) :: time
     real(rk), intent(in) :: albedo_coeff
-    real(rk), intent(in) :: pboundary
+    real(rk), intent(in) :: pow_lhs, pow_rhs
     select case (name)
       case ('null', &
           'anl-slab-6-a1', 'anl-slab-6-a2', 'anl-slab-6-a3', 'anl-slab-6-a4', &
@@ -714,10 +717,10 @@ contains
         transient_update_albedo = max(1.0_rk - (time/64.0_rk), 0.0_rk)
       case ('albedo-pid')
         transient_update_albedo = &
-          transient_albedo_pid(time, albedo_coeff, pboundary)
+          transient_albedo_pid(time, albedo_coeff, pow_rhs)
       case ('albedo-pid-capi')
         transient_update_albedo = &
-          transient_albedo_capi(time, albedo_coeff, pboundary)
+          transient_albedo_capi(time, albedo_coeff, pow_lhs, pow_rhs)
       case default
         transient_update_albedo = 0.0_rk
         call exception_fatal('Unknown transient albedo reference name: ' &
@@ -765,22 +768,24 @@ contains
     prev_time = time
   endfunction transient_albedo_pid
 
-  real(rk) function transient_albedo_capi(time, albedo_coeff, pboundary)
+  real(rk) function transient_albedo_capi(time, albedo_coeff, pow_lhs, pow_rhs)
     use, intrinsic :: iso_c_binding, only : c_double
     real(rk), intent(in) :: time
     real(rk), intent(in) :: albedo_coeff
-    real(rk), intent(in) :: pboundary
+    real(rk), intent(in) :: pow_lhs, pow_rhs
 
     real(c_double) :: c_time
     real(c_double) :: c_albedo_coeff
-    real(c_double) :: c_pboundary
+    real(c_double) :: c_pow_lhs ! power at x=0 (left-hand-side)
+    real(c_double) :: c_pow_rhs ! power at x=L (right-hand-side)
     real(c_double) :: c_alb
 
     c_time = real(time, c_double)
     c_albedo_coeff = real(albedo_coeff, c_double)
-    c_pboundary = real(pboundary, c_double)
+    c_pow_lhs = real(pow_lhs, c_double)
+    c_pow_rhs = real(pow_rhs, c_double)
 
-    c_alb = transient_albedo(c_time, c_albedo_coeff, c_pboundary)
+    c_alb = transient_albedo(c_time, c_albedo_coeff, c_pow_lhs, c_pow_rhs)
 
     transient_albedo_capi = real(c_alb, rk)
   endfunction transient_albedo_capi
