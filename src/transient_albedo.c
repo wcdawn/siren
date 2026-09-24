@@ -14,7 +14,8 @@ int first = 1;
 double max(const double a, const double b){ return (a > b) ? a : b; }
 double min(const double a, const double b){ return (a < b) ? a : b; }
 
-double transient_albedo(double time, double albedo_coeff, double pboundary)
+double transient_albedo(const double time, const double albedo_coeff, 
+    const double pow_lhs, const double pow_rhs)
 {
   double alb;
   double dt;
@@ -25,14 +26,14 @@ double transient_albedo(double time, double albedo_coeff, double pboundary)
 
   if (first)
   {
-    p0 = pboundary;
+    p0 = pow_rhs;
     interror = 0.0;
     error = 0.0;
     first = 0;
   }
   else
   {
-    error = p0 - pboundary;
+    error = p0 - pow_rhs;
     dt = time - prev_time;
     derror_dt = (error - prev_error) / dt;
     interror += error * dt;
