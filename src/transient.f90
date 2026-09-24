@@ -542,8 +542,6 @@ contains
       ! the boundary controller may need the power at the boundaries
       pow_lhs = -(power(2)-power(1))/(dx(2)+dx(1))*dx(1) + power(1)
       pow_rhs = (power(nx)-power(nx-1))/(dx(nx-1)+dx(nx))*dx(nx) + power(nx)
-      write(*,'(a,1x,3(es13.6,1x))') 'LHS', pow_lhs, power(1), power(2)
-      write(*,'(a,1x,3(es13.6,1x))') 'RHS', power(nx-1), power(nx), pow_rhs
       albedo_coeff = &
         transient_update_albedo(dnd%reference, tfinal, albedo_coeff, &
         pow_lhs, pow_rhs)
