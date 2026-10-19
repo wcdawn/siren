@@ -16,6 +16,7 @@ target_sources(${PROJECT_NAME}.x
     src/geometry.f90
     src/input.f90
     src/kind.f90
+    src/legendre.f90
     src/linalg.f90
     src/main.f90
     src/material.f90
