@@ -180,7 +180,7 @@ contains
       dhat_prev(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
       dhat_this(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
       ! XPREV
-      if (idxn > 1) then
+      if (idxn > 0) then
         dhat_prev(:,:,myid) = dhat_prev(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
         dhat_this(:,:,myid) = dhat_this(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
       endif
@@ -188,12 +188,11 @@ contains
       call inv(xslib%ngroup, aprev(:,:,myid), matinv(:,:,myid))
       aprev(:,:,myid) = 2.0_rk/dx(nx)/dx(nx-1) &
         * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_prev(:,:,myid))
+      sub(:,:,nx-1,n) = -aprev(:,:,myid)
       select case (boundary_right)
         case ('mirror')
-          sub(:,:,nx-1,n) = -aprev(:,:,myid)
           dia (:,:,nx,n) = aprev(:,:,myid)
         case ('zero')
-          sub(:,:,nx-1,n) = -aprev(:,:,myid)
           dia(:,:,nx,n) = aprev(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(nx)
         case default
           call exception_fatal(&
@@ -490,7 +489,7 @@ contains
         pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
           - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2))
       case ('zero')
-        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,n-1)) &
+        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
           - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
           - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2))
       case default
