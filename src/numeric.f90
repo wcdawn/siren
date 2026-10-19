@@ -39,7 +39,7 @@ contains
 
   real(rk) pure function factorial(n)
     integer(ik), intent(in) :: n
-    factorial = gamma(real(n, rk))
+    factorial = gamma(real(n + 1_ik, rk))
   endfunction factorial
 
   real(rk) pure function binomial(n, k)
