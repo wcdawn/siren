@@ -698,6 +698,13 @@ contains
         'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
       call output_write(line)
 
+      if ((boundary_left == 'vacuum_mark') .or. (boundary_right == 'vacuum_mark')) then
+        call timer_start('calc_odd')
+        call transport_block_calc_odd(nx, dx, mat_map, xslib, &
+          boundary_left, boundary_right, pnorder, phi_block)
+        call timer_stop('calc_odd')
+      endif
+
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
         call output_write('CONVERGENCE!')
         call output_write('')
@@ -819,7 +826,7 @@ contains
         case ('mirror')
           phi_block(:,1,idxn+1) = phi_block(:,2,idxn+1) &
             * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-        case ('zero')
+        case ('zero', 'vacuum_mark')
           ! nothing fancy, forward difference
           dphi_prev = -phi_block(:,2,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
           if (n < pnorder + 1) then
@@ -839,7 +846,7 @@ contains
         case ('mirror')
           phi_block(:,nx,idxn+1) = phi_block(:,nx-1,idxn+1) &
             * 0.5_rk * dx(nx) / (dx(nx) + 0.5_rk*dx(nx-1))
-        case ('zero')
+        case ('zero', 'vacuum_mark')
           ! nothing fancy, backward difference
           dphi_prev = -phi_block(:,nx-1,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
           if (n < pnorder + 1) then
