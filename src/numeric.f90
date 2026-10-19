@@ -37,4 +37,14 @@ contains
     deriv = a * f1 + b * f2 + c * f3
   endfunction deriv
 
+  real(rk) pure function factorial(n)
+    integer(ik), intent(in) :: n
+    factorial = gamma(real(n, rk))
+  endfunction factorial
+
+  real(rk) pure function binomial(n, k)
+    integer(ik), intent(in) :: n, k
+    binomial = factorial(n) / (factorial(k) * factorial(n-k))
+  endfunction binomial
+
 endmodule numeric
