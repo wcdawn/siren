@@ -4,9 +4,38 @@ implicit none
 
 private
 
-public :: legendre_get_quadrature
+public :: legendre_get_quadrature, legendre_eval, legendre_eval_deriv
 
 contains
+
+  recursive function legendre_eval(n, x) result(pn)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: x
+    real(rk) :: pn
+    select case (n)
+      case (0)
+        pn = 1.0_rk
+      case (1)
+        pn = x
+      case default
+        pn = (2*n-1) * x * legendre_eval(n-1, x) &
+          - (n-1) * legendre_eval(n-2, x) / n
+    endselect
+  endfunction legendre_eval
+
+  recursive function legendre_eval_deriv(n, x) result(dpn)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: x
+    real(rk) :: dpn
+    select case (n)
+      case (0)
+        dpn = 0.0_rk
+      case (1)
+        dpn = 1.0_rk
+      case default
+        dpn = n * legendre_eval(n - 1, x) + x * legendre_eval_deriv(n-1, x)
+    endselect
+  endfunction legendre_eval_deriv
 
   subroutine legendre_get_quadrature(n, xi, wi)
     use exception_handler, only : exception_fatal
