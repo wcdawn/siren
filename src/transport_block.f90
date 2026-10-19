@@ -798,6 +798,7 @@ contains
               (phi_block(:,i,idxn+1+1) - phi_block(:,i-1,idxn+1+1))/(0.5_rk*(dx(i)+dx(i-1)))
           endif
         else
+          ! all three are different materials
           ! take a guess at central difference
           do g = 1,xslib%ngroup
             dphi_prev(g) = deriv(x1, x2, x3, &
@@ -819,6 +820,7 @@ contains
           phi_block(:,1,idxn+1) = phi_block(:,2,idxn+1) &
             * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
         case ('zero')
+          ! nothing fancy, forward difference
           dphi_prev = -phi_block(:,2,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
           if (n < pnorder + 1) then
             dphi_next = -phi_block(:,2,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
@@ -838,6 +840,7 @@ contains
           phi_block(:,nx,idxn+1) = phi_block(:,nx-1,idxn+1) &
             * 0.5_rk * dx(nx) / (dx(nx) + 0.5_rk*dx(nx-1))
         case ('zero')
+          ! nothing fancy, backward difference
           dphi_prev = -phi_block(:,nx-1,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
           if (n < pnorder + 1) then
             dphi_next = -phi_block(:,nx-1,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
