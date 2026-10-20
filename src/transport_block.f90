@@ -102,13 +102,12 @@ contains
       call inv(xslib%ngroup, anext(:,:,myid), matinv(:,:,myid))
       anext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
         * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_next(:,:,myid))
+      sup(:,:,1,n) = -anext(:,:,myid)
       select case (boundary_left)
         case ('mirror')
           dia(:,:,1,n) = anext(:,:,myid)
-          sup(:,:,1,n) = -anext(:,:,myid)
-        case ('zero')
+        case ('zero', 'vacuum_mark')
           dia(:,:,1,n) = anext(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(1)
-          sup(:,:,1,n) = -anext(:,:,myid)
         case default
           call exception_fatal(&
             'unknown boundary_left in transport_block_build_matrix: ' &
@@ -192,7 +191,7 @@ contains
       select case (boundary_right)
         case ('mirror')
           dia (:,:,nx,n) = aprev(:,:,myid)
-        case ('zero')
+        case ('zero', 'vacuum_mark')
           dia(:,:,nx,n) = aprev(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(nx)
         case default
           call exception_fatal(&
@@ -580,6 +579,7 @@ contains
     real(rk), allocatable :: fsource(:,:) ! (ngroup,nx)
     real(rk), allocatable :: pn_prev_source(:,:) ! (ngroup,nx) -- for this moment
     real(rk), allocatable :: pn_next_source(:,:,:) ! (ngroup,nx,neven) -- for all moments
+    real(rk), allocatable :: vacuum_source(:,:) ! (ngroup,nx) -- for this moment
     real(rk), allocatable :: q(:,:) ! (ngroup,nx)
 
     real(rk), allocatable :: phi_block(:,:,:), phi_old(:,:,:) ! (ngroup,nx,pnorder+1)
@@ -598,6 +598,7 @@ contains
     allocate(fsource(xslib%ngroup,nx))
     allocate(pn_prev_source(xslib%ngroup,nx))
     allocate(pn_next_source(xslib%ngroup,nx,neven))
+    allocate(vacuum_source(xslib%ngroup,nx))
     allocate(q(xslib%ngroup,nx))
 
     allocate(phi_block(xslib%ngroup,nx,pnorder+1))
@@ -651,6 +652,12 @@ contains
         idxn = 2*(n-1)
 
         q = pn_next_source(:,:,n)
+
+        vacuum_source = 0.0_rk
+        if ((boundary_left == 'vacuum_mark') .or. (boundary_right == 'vacuum_mark')) then
+          ! TODO compute
+          q = q + vacuum_source
+        endif
 
         if (n == 1) then
           if (calc_type == 'eigenvalue') then
@@ -735,7 +742,7 @@ contains
 
     deallocate(invtransmat)
 
-    deallocate(fsource, pn_prev_source, pn_next_source, q)
+    deallocate(fsource, pn_prev_source, pn_next_source, vacuum_source, q)
     deallocate(phi_block, phi_old)
     deallocate(sub, dia, sup)
   endsubroutine transport_block_power_iteration

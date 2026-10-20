@@ -4,13 +4,14 @@ mat_map FUEL FUEL FUEL FUEL FUEL
 
 xslib_fname benchmark_new.xs
 
-refine 5
+refine 12
 pnorder 7
 
-k_tol 1d-10
-phi_tol 1e-9
+k_tol 1d-12
+phi_tol 1e-12
 max_iter 1000
 
 boundary_right zero
 
+energy_solver_opt block
 analytic_reference analytic_pn
