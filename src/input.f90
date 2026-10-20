@@ -178,6 +178,8 @@ contains
     call output_write(line)
     write(line, '(a,es9.2)') 'phi_tol = ', phi_tol
     call output_write(line)
+    write(line, '(a,i0)') 'pnorder = ', pnorder
+    call output_write(line)
     call output_write('boundary_left = *' // trim(adjustl(boundary_left)) // '*')
     call output_write('boundary_right = *' // trim(adjustl(boundary_right)) // '*')
     write(line, '(a,es9.2,a,es9.2,a)') 'albedo = ', albedo_coeff, &
