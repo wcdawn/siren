@@ -641,11 +641,12 @@ contains
       phi_old = phi_block
       fsum_old = fsum
 
-      call timer_start('transport_pn_source')
-      call transport_block_build_next_source( &
-        nx, dx, mat_map, xslib, boundary_left, boundary_right, &
-        neven, phi_block, pn_next_source)
-      call timer_stop('transport_pn_source')
+      !TODO
+      !call timer_start('transport_pn_source')
+      !call transport_block_build_next_source( &
+      !  nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+      !  neven, phi_block, pn_next_source)
+      !call timer_stop('transport_pn_source')
 
       do n = 1,neven
 
@@ -655,8 +656,18 @@ contains
 
         vacuum_source = 0.0_rk
         if ((boundary_left == 'vacuum_mark') .or. (boundary_right == 'vacuum_mark')) then
-          ! TODO compute
+
+          call timer_start('calc_odd')
+          call transport_block_calc_odd(nx, dx, mat_map, xslib, &
+            boundary_left, boundary_right, pnorder, phi_block)
+          call timer_stop('calc_odd')
+
+          call transport_block_calc_vacuum_mark(nx, dx, mat_map, xslib, &
+            pnorder, phi_block)
+
           q = q + vacuum_source
+
+          stop 'quitting early'
         endif
 
         if (n == 1) then
@@ -704,13 +715,6 @@ contains
       write(line, '(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
         'it=', iter, ' dk=', delta_k, ' dphi=', delta_phi, ' keff=', keff
       call output_write(line)
-
-      if ((boundary_left == 'vacuum_mark') .or. (boundary_right == 'vacuum_mark')) then
-        call timer_start('calc_odd')
-        call transport_block_calc_odd(nx, dx, mat_map, xslib, &
-          boundary_left, boundary_right, pnorder, phi_block)
-        call timer_stop('calc_odd')
-      endif
 
       if ((delta_k < k_tol) .and. (delta_phi < phi_tol)) then
         call output_write('CONVERGENCE!')
@@ -931,5 +935,90 @@ contains
       endif
     enddo ! i = 1,nx
   endsubroutine transport_block_build_fixed_source
+
+  subroutine transport_block_calc_vacuum_mark(nx, dx, mat_map, xslib, &
+      pnorder, phi_block)
+    use xs, only : XSLibrary
+    use legendre, only : legendre_get_quadrature, legendre_eval
+    use linalg, only : solve
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+
+    integer(ik) :: i, j, g, n, idxn
+    real(rk), allocatable :: phi_edg(:,:) ! (ngroup,pnorder+1)
+    real(rk), allocatable :: xi(:), wi(:)
+
+    integer(ik) :: neven
+    real(rk), allocatable :: amat(:,:), bmat(:,:) ! (neven,neven)
+    real(rk), allocatable :: phi_even(:) ! (neven)
+    real(rk), allocatable :: phi_odd(:) ! (neven)
+
+    real(rk) :: xx
+
+    allocate(phi_edg(xslib%ngroup,pnorder+1))
+    allocate(xi(pnorder+1), wi(pnorder+1))
+
+    neven = (pnorder+1)/2
+    allocate(amat(neven,neven), bmat(neven,neven))
+    allocate(phi_even(neven), phi_odd(neven))
+
+    ! TODO all at "right" boundary at x=L for now
+
+    ! (1) get the flux at the *edge*
+    do n = 1,pnorder+1
+      idxn = n-1
+      phi_edg(:,idxn+1) = (phi_block(:,nx,idxn+1)-phi_block(:,nx-1,idxn+1)) &
+        * dx(nx) / (dx(nx) + dx(nx-1)) + phi_block(:,nx,idxn+1)
+    enddo ! n = 1,pnorder+1
+
+    ! (2) build a linear system of equations
+    call legendre_get_quadrature(pnorder+1, xi, wi)
+
+    ! NOTE indexed for xi < 0 (incoming at the left)
+
+    ! LHS even
+    do i = 1,(pnorder+1)/2
+      xx = xi(i)
+      do j = 1,(pnorder+1)/2
+        idxn = 2*(j-1) ! even index
+        amat(j,i) = (2*idxn+1)*legendre_eval(idxn, xx)
+      enddo ! j = 1,(pnorder+1)/2
+    enddo ! i = 1,(pnorder+1)/2
+
+    ! RHS odd
+    do i = 1,(pnorder+1)/2
+      xx = xi(i)
+      do j = 1,(pnorder+1)/2
+        idxn = 2*(j-1)+1 ! odd index
+        bmat(j,i) = (2*idxn+1) * legendre_eval(idxn, xx) 
+      enddo ! j = 1,(pnorder+1)/2
+    enddo ! i = 1,(pnorder+1)/2
+
+    ! (3) return the estimate for the value of the even moments at the boundary
+    do g = 1,xslib%ngroup
+      ! re-index
+      do i = 1,(pnorder+1)/2
+        idxn = 2*(i-1)+1
+        phi_odd(i) = phi_edg(g,idxn+1)
+      enddo ! i = 1,(pnorder+1)/2
+      ! compute RHS
+      phi_odd = matmul(bmat, phi_odd)
+      ! solve
+      call solve(neven, amat, phi_odd, phi_even)
+      ! project back to original data structure
+      do i = 1,(pnorder+1)/2
+        idxn = 2*(i-1)
+        phi_edg(g,idxn+1) = phi_even(i)
+      enddo ! i = 1,(pnorder+1)/2
+    enddo ! g = 1,xslib%ngroup
+
+    deallocate(phi_edg)
+    deallocate(xi, wi)
+    deallocate(amat, bmat, phi_even, phi_odd)
+  endsubroutine transport_block_calc_vacuum_mark
 
 endmodule transport_block
