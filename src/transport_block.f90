@@ -221,7 +221,7 @@ contains
 
   subroutine transport_block_build_next_source(&
     nx, dx, mat_map, xslib, boundary_left, boundary_right, &
-    neven, phi_block, pn_next_source)
+    neven, phi_block, phi_bc_right, pn_next_source)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
@@ -233,6 +233,7 @@ contains
     character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: neven
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+    real(rk), intent(in) :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
     real(rk), intent(out) :: pn_next_source(:,:,:) ! (ngroup,nx,neven)
 
     integer(ik) :: i, n
@@ -353,6 +354,11 @@ contains
           pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
             - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
             - 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_block(:,nx,idxn+1+2))
+        case ('vacuum_mark')
+          pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
+            - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
+            - 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_block(:,nx,idxn+1+2)) &
+            + 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_bc_right(:,idxn+1+2))
         case default
           call exception_fatal(&
             'unknown boundary_right in transport_block_build_next_source: ' &
@@ -367,7 +373,7 @@ contains
 
   subroutine transport_block_build_prev_source( &
     nx, dx, mat_map, xslib, boundary_left, boundary_right, &
-    idxn, phi_block, pn_prev_source)
+    idxn, phi_block, phi_bc_right, pn_prev_source)
     use xs, only : XSLibrary
     use linalg, only : inv
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
@@ -379,6 +385,7 @@ contains
     character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: idxn
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+    real(rk), intent(in) :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
     real(rk), intent(out) :: pn_prev_source(:,:) ! (ngroup,nx)
 
     integer(ik) :: i, n
@@ -491,6 +498,11 @@ contains
         pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
           - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
           - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2))
+      case ('vacuum_mark')
+        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
+          - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
+          - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2)) &
+          + 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_bc_right(:,idxn+1-2))
       case default
         call exception_fatal( &
           'unknown boundary_right in transport_block_build_prev_source: ' &
@@ -582,6 +594,8 @@ contains
     real(rk), allocatable :: vacuum_source(:,:) ! (ngroup,nx) -- for this moment
     real(rk), allocatable :: q(:,:) ! (ngroup,nx)
 
+    real(rk), allocatable :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
+
     real(rk), allocatable :: phi_block(:,:,:), phi_old(:,:,:) ! (ngroup,nx,pnorder+1)
 
     character(1024) :: line
@@ -603,6 +617,9 @@ contains
 
     allocate(phi_block(xslib%ngroup,nx,pnorder+1))
     allocate(phi_old(xslib%ngroup,nx,pnorder+1))
+
+    allocate(phi_bc_right(xslib%ngroup,pnorder+1))
+    phi_bc_right = 0.0_rk
 
     phi_block(:,:,1) = 1d0
     phi_block(:,:,2:pnorder+1) = 0d0
@@ -641,12 +658,11 @@ contains
       phi_old = phi_block
       fsum_old = fsum
 
-      !TODO
-      !call timer_start('transport_pn_source')
-      !call transport_block_build_next_source( &
-      !  nx, dx, mat_map, xslib, boundary_left, boundary_right, &
-      !  neven, phi_block, pn_next_source)
-      !call timer_stop('transport_pn_source')
+      call timer_start('transport_pn_source')
+      call transport_block_build_next_source( &
+        nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+        neven, phi_block, phi_bc_right, pn_next_source)
+      call timer_stop('transport_pn_source')
 
       do n = 1,neven
 
@@ -662,12 +678,17 @@ contains
             boundary_left, boundary_right, pnorder, phi_block)
           call timer_stop('calc_odd')
 
-          call transport_block_calc_vacuum_mark(nx, dx, mat_map, xslib, &
-            pnorder, phi_block)
+          call transport_block_calc_vacuum_mark(nx, dx, xslib, &
+            pnorder, phi_block, phi_bc_right)
+          ! TODO
+          phi_bc_right = 0.0_rk
+
+          call transport_block_build_vacuum_source(nx, dx, mat_map, xslib, &
+            idxn, phi_bc_right, vacuum_source)
 
           q = q + vacuum_source
 
-          stop 'quitting early'
+          ! stop 'quitting early'
         endif
 
         if (n == 1) then
@@ -685,7 +706,7 @@ contains
           call timer_start('transport_pn_source')
           call transport_block_build_prev_source( &
             nx, dx, mat_map, xslib, boundary_left, boundary_right, &
-            idxn, phi_block, pn_prev_source)
+            idxn, phi_block, phi_bc_right, pn_prev_source)
           q = q + pn_prev_source
           call timer_stop('transport_pn_source')
         endif
@@ -749,6 +770,7 @@ contains
     deallocate(fsource, pn_prev_source, pn_next_source, vacuum_source, q)
     deallocate(phi_block, phi_old)
     deallocate(sub, dia, sup)
+    deallocate(phi_bc_right)
   endsubroutine transport_block_power_iteration
 
   subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, &
@@ -936,20 +958,19 @@ contains
     enddo ! i = 1,nx
   endsubroutine transport_block_build_fixed_source
 
-  subroutine transport_block_calc_vacuum_mark(nx, dx, mat_map, xslib, &
-      pnorder, phi_block)
+  subroutine transport_block_calc_vacuum_mark(nx, dx, xslib, &
+      pnorder, phi_block, phi_bc_right)
     use xs, only : XSLibrary
     use legendre, only : legendre_get_quadrature, legendre_eval
     use linalg, only : solve
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
-    integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     integer(ik), intent(in) :: pnorder
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+    real(rk), intent(out) :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
 
     integer(ik) :: i, j, g, n, idxn
-    real(rk), allocatable :: phi_edg(:,:) ! (ngroup,pnorder+1)
     real(rk), allocatable :: xi(:), wi(:)
 
     integer(ik) :: neven
@@ -959,7 +980,6 @@ contains
 
     real(rk) :: xx
 
-    allocate(phi_edg(xslib%ngroup,pnorder+1))
     allocate(xi(pnorder+1), wi(pnorder+1))
 
     neven = (pnorder+1)/2
@@ -971,7 +991,8 @@ contains
     ! (1) get the flux at the *edge*
     do n = 1,pnorder+1
       idxn = n-1
-      phi_edg(:,idxn+1) = (phi_block(:,nx,idxn+1)-phi_block(:,nx-1,idxn+1)) &
+      phi_bc_right(:,idxn+1) = &
+        (phi_block(:,nx,idxn+1)-phi_block(:,nx-1,idxn+1)) &
         * dx(nx) / (dx(nx) + dx(nx-1)) + phi_block(:,nx,idxn+1)
     enddo ! n = 1,pnorder+1
 
@@ -1003,7 +1024,7 @@ contains
       ! re-index
       do i = 1,(pnorder+1)/2
         idxn = 2*(i-1)+1
-        phi_odd(i) = phi_edg(g,idxn+1)
+        phi_odd(i) = phi_bc_right(g,idxn+1)
       enddo ! i = 1,(pnorder+1)/2
       ! compute RHS
       phi_odd = matmul(bmat, phi_odd)
@@ -1012,13 +1033,56 @@ contains
       ! project back to original data structure
       do i = 1,(pnorder+1)/2
         idxn = 2*(i-1)
-        phi_edg(g,idxn+1) = phi_even(i)
+        phi_bc_right(g,idxn+1) = phi_even(i)
       enddo ! i = 1,(pnorder+1)/2
     enddo ! g = 1,xslib%ngroup
 
-    deallocate(phi_edg)
     deallocate(xi, wi)
     deallocate(amat, bmat, phi_even, phi_odd)
   endsubroutine transport_block_calc_vacuum_mark
+
+  subroutine transport_block_build_vacuum_source(nx, dx, mat_map, xslib, &
+      idxn, phi_bc_right, vacsrc)
+    use xs, only : XSLibrary
+    use linalg, only : inv
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    integer(ik), intent(in) :: idxn
+    real(rk), intent(in) :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
+    real(rk), intent(out) :: vacsrc(:,:) ! (ngroup,nx)
+
+    real(rk), allocatable :: dhat_this(:,:) ! (ngroup,ngroup)
+    real(rk), allocatable :: aprev(:,:) ! (ngroup,ngroup)
+    real(rk), allocatable :: matinv(:,:) ! (ngroup,ngroup)
+
+    real(rk) :: xn, xmul_next, xmul_prev
+    integer(ik) :: mprev, mthis
+
+    allocate(dhat_this(xslib%ngroup,xslib%ngroup))
+    allocate(aprev(xslib%ngroup,xslib%ngroup))
+    allocate(matinv(xslib%ngroup,xslib%ngroup))
+
+    vacsrc = 0.0_rk
+
+    mprev = mat_map(nx-1)
+    mthis = mat_map(nx)
+
+    xn = real(idxn, rk)
+    xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+    xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
+
+    dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
+    if (idxn > 0) then
+      dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
+    endif
+
+    vacsrc(:,nx) = 2.0_rk/dx(nx) * matmul(dhat_this, phi_bc_right(:,idxn+1))
+
+    deallocate(dhat_this)
+    deallocate(aprev)
+    deallocate(matinv)
+  endsubroutine transport_block_build_vacuum_source
 
 endmodule transport_block
