@@ -4,7 +4,7 @@ mat_map FUEL FUEL FUEL FUEL FUEL
 
 xslib_fname benchmark_new.xs
 
-refine 12
+refine 5
 pnorder 7
 
 k_tol 1d-12

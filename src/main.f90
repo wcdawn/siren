@@ -24,10 +24,12 @@ use material, only : material_idx_from_name
 use transient, only : transient_read, transient_summary, transient_solve, transient_cleanup
 use delayed_neutron_data, only : DelayedNeutronData
 use transient_mms, only : transient_mms_init, transient_mms_cleanup
+use omp_lib, only : omp_get_num_threads
 implicit none
 
 integer, parameter :: input_file_unit = 15
 integer :: ios
+integer :: nthread
 
 integer(ik) :: i
 character(1024) :: input_fname
@@ -69,8 +71,14 @@ fname_matmap = trim(adjustl(fname_stub)) // '_matmap.csv'
 
 call output_open_file(trim(adjustl(fname_out)))
 
+!$omp parallel
+nthread = omp_get_num_threads()
+!$omp end parallel
+
 call output_write('begin SIREN')
 call output_write('input file: ' // trim(adjustl(input_fname)))
+write(line, '(a,i0,a)') 'Using ', nthread, ' thread(s).'
+call output_write(line)
 call output_write('')
 
 write(output_file_unit, '(a)') '=== INPUT ECHO (BEGIN) ==='
