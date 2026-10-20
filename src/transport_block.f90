@@ -595,6 +595,7 @@ contains
     real(rk), allocatable :: q(:,:) ! (ngroup,nx)
 
     real(rk), allocatable :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
+    real(rk), allocatable :: phi_bc_right_old(:,:) ! (ngroup,pnorder+1)
 
     real(rk), allocatable :: phi_block(:,:,:), phi_old(:,:,:) ! (ngroup,nx,pnorder+1)
 
@@ -619,7 +620,9 @@ contains
     allocate(phi_old(xslib%ngroup,nx,pnorder+1))
 
     allocate(phi_bc_right(xslib%ngroup,pnorder+1))
+    allocate(phi_bc_right_old(xslib%ngroup,pnorder+1))
     phi_bc_right = 0.0_rk
+    phi_bc_right_old = 0.0_rk
 
     phi_block(:,:,1) = 1d0
     phi_block(:,:,2:pnorder+1) = 0d0
@@ -673,8 +676,10 @@ contains
         call timer_stop('calc_odd')
 
         if (iter > 10) then ! TODO
+          phi_bc_right_old = phi_bc_right
           call transport_block_calc_vacuum_mark(nx, dx, xslib, &
             pnorder, phi_block, phi_bc_right)
+          phi_bc_right = phi_bc_right_old + 1e-3 * (phi_bc_right - phi_bc_right_old)
         else
           phi_bc_right = 0.0_rk
         endif
@@ -770,7 +775,7 @@ contains
     deallocate(fsource, pn_prev_source, pn_next_source, vacuum_source, q)
     deallocate(phi_block, phi_old)
     deallocate(sub, dia, sup)
-    deallocate(phi_bc_right)
+    deallocate(phi_bc_right, phi_bc_right_old)
   endsubroutine transport_block_power_iteration
 
   subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, &
