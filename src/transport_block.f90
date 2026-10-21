@@ -679,7 +679,7 @@ contains
           phi_bc_right_old = phi_bc_right
           call transport_block_calc_vacuum_mark(nx, dx, xslib, &
             pnorder, phi_block, phi_bc_right)
-          phi_bc_right = phi_bc_right_old + 1e-3 * (phi_bc_right - phi_bc_right_old)
+          phi_bc_right = phi_bc_right_old + 0.5_rk * (phi_bc_right - phi_bc_right_old)
         else
           phi_bc_right = 0.0_rk
         endif
@@ -1010,7 +1010,7 @@ contains
     real(rk), allocatable :: phi_odd(:) ! (neven)
 
     real(rk) :: xx
-    real(rk) :: lhs, rhs
+    real(rk) :: lhs, rhs, norm
 
     allocate(xi(pnorder+1), wi(pnorder+1))
 
@@ -1044,15 +1044,28 @@ contains
 
     ! (3) return the estimate for the value of the even moments at the boundary
     do g = 1,xslib%ngroup
+
       ! re-index
       do i = 1,(pnorder+1)/2
         idxn_odd = 2*(i-1)+1
         phi_odd(i) = phi_bc_right(g,idxn_odd+1)
       enddo ! i = 1,(pnorder+1)/2
+
+      ! just doing all of this to normalize
+      do i = 1,(pnorder+1)/2
+        idxn_even = 2*(i-1)
+        phi_even(i) = phi_bc_right(g,idxn_even+1)
+      enddo
+      norm = sum(phi_even)
+
       ! compute RHS
       phi_odd = -matmul(transpose(bmat), phi_odd)
+
       ! solve
       call solve(neven, transpose(amat), phi_odd, phi_even)
+
+      phi_even = phi_even * norm / sum(phi_even)
+
       ! project back to original data structure
       do i = 1,(pnorder+1)/2
         idxn_even = 2*(i-1)
