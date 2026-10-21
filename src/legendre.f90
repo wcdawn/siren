@@ -4,7 +4,8 @@ implicit none
 
 private
 
-public :: legendre_get_quadrature, legendre_eval, legendre_eval_deriv
+public :: legendre_get_quadrature, legendre_eval, legendre_eval_deriv, &
+  legendre_plot
 
 contains
 
@@ -18,8 +19,8 @@ contains
       case (1)
         pn = x
       case default
-        pn = (2*n-1) * x * legendre_eval(n-1, x) &
-          - (n-1) * legendre_eval(n-2, x) / n
+        pn = ((2*n-1) * x * legendre_eval(n-1, x) &
+          - (n-1) * legendre_eval(n-2, x)) / n
     endselect
   endfunction legendre_eval
 
@@ -36,6 +37,21 @@ contains
         dpn = n * legendre_eval(n - 1, x) + x * legendre_eval_deriv(n-1, x)
     endselect
   endfunction legendre_eval_deriv
+
+  subroutine legendre_plot(n)
+    integer(ik), intent(in) :: n
+
+    integer(ik) :: i
+    real(rk) :: xi
+
+    integer(ik), parameter :: nx = 1000
+    real(rk), parameter :: dx = 2.0_rk/nx
+
+    do i = 1,nx
+      xi = -1.0_rk + (i-0.5_rk)*dx
+      write(100, '(es13.6,",",es13.6)') xi, legendre_eval(n, xi)
+    enddo
+  endsubroutine legendre_plot
 
   subroutine legendre_get_quadrature(n, xi, wi)
     use exception_handler, only : exception_fatal
