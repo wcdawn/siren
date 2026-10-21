@@ -963,6 +963,32 @@ contains
     enddo ! i = 1,nx
   endsubroutine transport_block_build_fixed_source
 
+  subroutine transport_block_phi_right(nx, dx, pnorder, phi_block, phi_right)
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup, nx, pnorder+1)
+    real(rk), intent(out) :: phi_right(:,:) ! (ngroup, pnorder+1)
+
+    logical, parameter :: verbose = .true.
+
+    integer(ik) :: n, idxn
+
+    do n = 1,pnorder+1
+      idxn = n-1
+      phi_right(:,idxn+1) = &
+        (phi_block(:,nx,idxn+1)-phi_block(:,nx-1,idxn+1)) &
+        * dx(nx) / (dx(nx) + dx(nx-1)) + phi_block(:,nx,idxn+1)
+    enddo ! n = 1,pnorder+1
+
+    if (verbose) then
+      do n = 1,pnorder+1
+        idxn = n-1
+        write(*,'(a,i0,1x,es13.6)') 'phi_', n-1, phi_right(1,idxn+1)
+      enddo
+    endif
+  endsubroutine transport_block_phi_right
+
   subroutine transport_block_calc_vacuum_mark(nx, dx, xslib, &
       pnorder, phi_block, phi_bc_right)
     use xs, only : XSLibrary
@@ -975,7 +1001,7 @@ contains
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
 
-    integer(ik) :: i, j, g, n, idxn
+    integer(ik) :: i, j, n, g, idxn_even, idxn_odd, idxn
     real(rk), allocatable :: xi(:), wi(:)
 
     integer(ik) :: neven
@@ -984,6 +1010,7 @@ contains
     real(rk), allocatable :: phi_odd(:) ! (neven)
 
     real(rk) :: xx
+    real(rk) :: lhs, rhs
 
     allocate(xi(pnorder+1), wi(pnorder+1))
 
@@ -994,39 +1021,24 @@ contains
     ! TODO all at "right" boundary at x=L for now
 
     ! (1) get the flux at the *edge*
-    do n = 1,pnorder+1
-      idxn = n-1
-      phi_bc_right(:,idxn+1) = &
-        (phi_block(:,nx,idxn+1)-phi_block(:,nx-1,idxn+1)) &
-        * dx(nx) / (dx(nx) + dx(nx-1)) + phi_block(:,nx,idxn+1)
-    enddo ! n = 1,pnorder+1
-
     write(*,*) 'BEFORE'
-    do n = 1,pnorder+1
-      idxn = n-1
-      write(*,'(a,i0,1x,es13.6)') 'phi_', n-1, phi_bc_right(1,idxn+1)
-    enddo
+    call transport_block_phi_right(nx, dx, pnorder, phi_block, phi_bc_right)
 
     ! (2) build a linear system of equations
+    ! NOTE: this selection of angular points is arbitrary.
+    ! I could instead use uniformly spaced angular points, especially if I want
+    ! to use higher-order PN approximations.
     call legendre_get_quadrature(pnorder+1, xi, wi)
 
     ! NOTE indexed for xi < 0 (incoming at the left)
 
-    ! LHS even
     do i = 1,(pnorder+1)/2
       xx = xi(i)
       do j = 1,(pnorder+1)/2
-        idxn = 2*(j-1) ! even index
-        amat(j,i) = (2*idxn+1) * legendre_eval(idxn, xx)
-      enddo ! j = 1,(pnorder+1)/2
-    enddo ! i = 1,(pnorder+1)/2
-
-    ! RHS odd
-    do i = 1,(pnorder+1)/2
-      xx = xi(i)
-      do j = 1,(pnorder+1)/2
-        idxn = 2*(j-1)+1 ! odd index
-        bmat(j,i) = (2*idxn+1) * legendre_eval(idxn, xx) 
+        idxn_even = 2*(j-1)
+        idxn_odd = 2*(j-1)+1
+        amat(j,i) = (2*idxn_even+1) * legendre_eval(idxn_even, xx)
+        bmat(j,i) = (2*idxn_odd+1) * legendre_eval(idxn_odd, xx)
       enddo ! j = 1,(pnorder+1)/2
     enddo ! i = 1,(pnorder+1)/2
 
@@ -1034,18 +1046,37 @@ contains
     do g = 1,xslib%ngroup
       ! re-index
       do i = 1,(pnorder+1)/2
-        idxn = 2*(i-1)+1
-        phi_odd(i) = phi_bc_right(g,idxn+1)
+        idxn_odd = 2*(i-1)+1
+        phi_odd(i) = phi_bc_right(g,idxn_odd+1)
       enddo ! i = 1,(pnorder+1)/2
       ! compute RHS
-      phi_odd = -matmul(bmat, phi_odd)
+      phi_odd = -matmul(transpose(bmat), phi_odd)
       ! solve
-      call solve(neven, amat, phi_odd, phi_even)
+      call solve(neven, transpose(amat), phi_odd, phi_even)
       ! project back to original data structure
       do i = 1,(pnorder+1)/2
-        idxn = 2*(i-1)
-        phi_bc_right(g,idxn+1) = phi_even(i)
+        idxn_even = 2*(i-1)
+        phi_bc_right(g,idxn_even+1) = phi_even(i)
       enddo ! i = 1,(pnorder+1)/2
+
+      write(*,*) 'CHECK'
+      do i = 1,(pnorder+1)/2
+        xx = xi(i)
+        lhs = 0.0_rk
+        do j = 1,(pnorder+1)/2
+          idxn_even = 2*(j-1)
+          lhs = lhs &
+            + (2*idxn_even+1) * legendre_eval(idxn_even, xx) * phi_bc_right(g,idxn_even+1)
+        enddo
+        rhs = 0.0_rk
+        do j = 1,(pnorder+1)/2
+          idxn_odd = 2*(j-1)+1
+          rhs = rhs &
+            + (2*idxn_odd+1) * legendre_eval(idxn_odd, xx) * phi_bc_right(g,idxn_odd+1)
+        enddo
+        write(*,*) 'i=', i, lhs, rhs
+      enddo
+
     enddo ! g = 1,xslib%ngroup
 
     write(*,*) 'AFTER'
