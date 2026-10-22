@@ -172,8 +172,8 @@ else
   select case (energy_solver_opt)
     case ('block')
       call transport_block_power_iteration( &
-        nx, dx, mat_map, xs, boundary_left, boundary_right, calc_type, &
-        k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
+        nx, dx, mat_map, xs, boundary_left, boundary_right, albedo_coeff, &
+        calc_type, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
       if (high_low) then
         call diffusion_power_iteration( &
           nx, dx, mat_map, xs, boundary_left, boundary_right, albedo_coeff, &
