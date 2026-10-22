@@ -708,7 +708,7 @@ contains
 
       if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
         write(*,*) 'invalid keff', keff
-        !stop
+        ! NOTE: this may be expected for the first few iterates
       endif
 
       write(line, '(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
