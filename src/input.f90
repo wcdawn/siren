@@ -41,7 +41,7 @@ character(16) :: calc_type = 'eigenvalue'
 ! Optional albedo factor.
 ! Only a single albedo can be specified for the whole problem.
 ! One value overall, not specified per-group or per-edge at the moment.
-! This is specified as a "big-A" albedo factor (rathern than an alpha as used in
+! This is specified as a "big-A" albedo factor (rather than an alpha as used in
 ! LUPINE and DIF3D).
 !             |  A  |  alpha  |
 ! ------------|-----|---------|
