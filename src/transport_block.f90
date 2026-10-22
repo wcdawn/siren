@@ -115,6 +115,13 @@ contains
           dia(:,:,1,n) = anext(:,:,myid)
         case ('zero')
           dia(:,:,1,n) = anext(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(1)
+        case ('albedo')
+          call eye(xslib%ngroup, albedo_mat)
+          albedo_mat = albedo_alpha * albedo_mat
+          albedo_inv = albedo_mat + 2.0_rk * dhat_this(:,:,myid)/dx(1)
+          call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+          dia(:,:,1,n) = anext(:,:,myid) + 2.0_rk / dx(1) &
+            * matmul(matmul(albedo_mat, matinv(:,:,myid)), dhat_this(:,:,myid))
         case default
           call exception_fatal(&
             'unknown boundary_left in transport_block_build_matrix: ' &
@@ -307,6 +314,15 @@ contains
           pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
             + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2)) &
             - 2.0_rk/dx(1) * matmul(fhat_this(:,:,myid), phi_block(:,1,idxn+1+2))
+        case ('albedo')
+          call eye(xslib%ngroup, albedo_mat)
+          albedo_mat = albedo_alpha * albedo_mat
+          albedo_inv = albedo_mat + 2.0_rk * fhat_this(:,:,myid)/dx(1)
+          call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+          pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
+            + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2)) &
+            - 2.0_rk/dx(1) &
+            * matmul(matmul(matmul(albedo_mat, matinv(:,:,myid)), fhat_this(:,:,myid)), phi_block(:,1,idxn+1+2))
         case default
           call exception_fatal(&
             'unknown boundary_left in transport_block_build_next_source: ' &
@@ -471,6 +487,15 @@ contains
         pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
           + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2)) &
           - 2.0_rk/dx(1) * matmul(ghat_this(:,:,myid), phi_block(:,1,idxn+1-2))
+      case ('albedo')
+        call eye(xslib%ngroup, albedo_mat)
+        albedo_mat = albedo_alpha * albedo_mat
+        albedo_inv = albedo_mat + 2.0_rk * ghat_this(:,:,myid)/dx(1)
+        call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+        pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
+          + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2)) &
+          - 2.0_rk/dx(1) &
+          * matmul(matmul(matmul(albedo_mat, matinv(:,:,myid)), ghat_this(:,:,myid)), phi_block(:,1,idxn+1-2))
       case default
         call exception_fatal(&
           'unknown boundary_left in transport_block_build_prev_source: ' &
@@ -869,7 +894,7 @@ contains
         case ('mirror')
           phi_block(:,1,idxn+1) = phi_block(:,2,idxn+1) &
             * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-        case ('zero', 'vacuum_mark')
+        case ('zero', 'albedo', 'vacuum_mark')
           ! nothing fancy, forward difference
           dphi_prev = -phi_block(:,2,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
           if (n < pnorder + 1) then
