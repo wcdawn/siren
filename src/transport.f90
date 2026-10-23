@@ -52,6 +52,10 @@ contains
               + 2 * cthis / dx(1)
           case ('mirror')
             dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
+          case ('albedo')
+            dia(1,g,n) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
+              + 2.0_rk/dx(1)*albedo_alpha &
+              / (albedo_alpha + 2.0_rk/dx(1)*cthis) * cthis
           case default
             call exception_fatal( &
               'unknown boundary_left in transport_build_matrix: ' &
@@ -389,6 +393,12 @@ contains
               -phi(1,g,idxn+1+2)*danext &
               + danext*phi(2,g,idxn+1+2) &
               - 2 * kathis / dx(1) * phi(1,g,idxn+1+2)
+          case ('albedo')
+            qnext(1,g,n) = &
+              -phi(1,g,idxn+1+2)*danext &
+              + danext*phi(2,g,idxn+1+2) &
+              - 2.0_rk/dx(1)*albedo_alpha &
+              / (albedo_alpha + 2.0_rk/dx(1)*kathis) * kathis * phi(1,g,idxn+1+2)
           case default
             call exception_fatal('unknown boundary_left in next_source: ' &
               // trim(adjustl(boundary_left)))
@@ -468,11 +478,15 @@ contains
       kbnext = xmul/sigma_tr(2,g,idxn+1-1)
       dbnext = 2 * kbthis / dx(1) * kbnext / dx(2) / (kbthis / dx(1) + kbnext / dx(2))
       select case (boundary_left)
+        case ('mirror')
+          qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
         case ('zero')
           qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2) &
             - 2 * kbthis / dx(1) * phi(1,g,idxn+1-2)
-        case ('mirror')
-          qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2)
+        case ('albedo')
+          qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2) &
+            - 2.0_rk/dx(1)*albedo_alpha &
+            / (albedo_alpha + 2.0_rk/dx(1)*kbthis) * kbthis * phi(1,g,idxn+1-2)
         case default
           call exception_fatal('unknown boundary_left in prev_source: ' &
             // trim(adjustl(boundary_left)))
