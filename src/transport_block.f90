@@ -40,9 +40,10 @@ contains
   endsubroutine transport_invtransmat
 
   subroutine transport_block_build_matrix( &
-    nx, dx, mat_map, xslib, boundary_left, boundary_right, neven, sub, dia, sup)
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, neven, &
+    sub, dia, sup)
     use xs, only : XSLibrary
-    use linalg, only : inv
+    use linalg, only : inv, eye
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -50,6 +51,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
     integer(ik), intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:,:) ! (ngroup,ngroup,nx-1,neven)
     real(rk), intent(out) :: dia(:,:,:,:) ! (ngroup,ngroup,nx,neven)
@@ -64,6 +66,7 @@ contains
     real(rk), allocatable :: dhat_prev(:,:,:), dhat_this(:,:,:), dhat_next(:,:,:)
     real(rk), allocatable :: anext(:,:,:), aprev(:,:,:)
     real(rk), allocatable :: matinv(:,:,:)
+    real(rk), allocatable :: albedo_mat(:,:), albedo_inv(:,:)
 
     integer :: nthread, myid
 
@@ -80,6 +83,10 @@ contains
       anext(xslib%ngroup,xslib%ngroup,nthread), &
       aprev(xslib%ngroup,xslib%ngroup,nthread))
     allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
+    allocate(&
+      albedo_mat(xslib%ngroup,xslib%ngroup), &
+      albedo_inv(xslib%ngroup,xslib%ngroup)&
+    )
 
     myid = 1
     ! BC at x=0, i=1
@@ -102,13 +109,19 @@ contains
       call inv(xslib%ngroup, anext(:,:,myid), matinv(:,:,myid))
       anext(:,:,myid) = 2.0_rk/dx(1)/dx(2) &
         * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_next(:,:,myid))
+      sup(:,:,1,n) = -anext(:,:,myid)
       select case (boundary_left)
         case ('mirror')
           dia(:,:,1,n) = anext(:,:,myid)
-          sup(:,:,1,n) = -anext(:,:,myid)
         case ('zero')
           dia(:,:,1,n) = anext(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(1)
-          sup(:,:,1,n) = -anext(:,:,myid)
+        case ('albedo')
+          call eye(xslib%ngroup, albedo_mat)
+          albedo_mat = albedo_alpha * albedo_mat
+          albedo_inv = albedo_mat + 2.0_rk * dhat_this(:,:,myid)/dx(1)
+          call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+          dia(:,:,1,n) = anext(:,:,myid) + 2.0_rk / dx(1) &
+            * matmul(matmul(albedo_mat, matinv(:,:,myid)), dhat_this(:,:,myid))
         case default
           call exception_fatal(&
             'unknown boundary_left in transport_block_build_matrix: ' &
@@ -180,7 +193,7 @@ contains
       dhat_prev(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
       dhat_this(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
       ! XPREV
-      if (idxn > 1) then
+      if (idxn > 0) then
         dhat_prev(:,:,myid) = dhat_prev(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
         dhat_this(:,:,myid) = dhat_this(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
       endif
@@ -188,13 +201,19 @@ contains
       call inv(xslib%ngroup, aprev(:,:,myid), matinv(:,:,myid))
       aprev(:,:,myid) = 2.0_rk/dx(nx)/dx(nx-1) &
         * matmul(matmul(dhat_this(:,:,myid), matinv(:,:,myid)), dhat_prev(:,:,myid))
+      sub(:,:,nx-1,n) = -aprev(:,:,myid)
       select case (boundary_right)
         case ('mirror')
-          sub(:,:,nx-1,n) = -aprev(:,:,myid)
           dia (:,:,nx,n) = aprev(:,:,myid)
         case ('zero')
-          sub(:,:,nx-1,n) = -aprev(:,:,myid)
           dia(:,:,nx,n) = aprev(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(nx)
+        case ('albedo')
+          call eye(xslib%ngroup, albedo_mat)
+          albedo_mat = albedo_alpha * albedo_mat
+          albedo_inv = albedo_mat + 2.0_rk * dhat_this(:,:,myid)/dx(nx)
+          call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+          dia(:,:,nx,n) = aprev(:,:,myid) + 2.0_rk / dx(nx) &
+            * matmul(matmul(albedo_mat, matinv(:,:,myid)), dhat_this(:,:,myid))
         case default
           call exception_fatal(&
             'unknown boundary_right in transport_block_build_matrix: ' &
@@ -219,13 +238,14 @@ contains
     deallocate(matinv)
     deallocate(anext, aprev)
     deallocate(dhat_prev, dhat_this, dhat_next)
+    deallocate(albedo_mat, albedo_inv)
   endsubroutine transport_block_build_matrix
 
   subroutine transport_block_build_next_source(&
-    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, &
     neven, phi_block, pn_next_source)
     use xs, only : XSLibrary
-    use linalg, only : inv
+    use linalg, only : inv, eye
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -233,6 +253,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
     integer(ik), intent(in) :: neven
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_next_source(:,:,:) ! (ngroup,nx,neven)
@@ -245,6 +266,7 @@ contains
     real(rk), allocatable :: fhat_prev(:,:,:), fhat_this(:,:,:), fhat_next(:,:,:)
     real(rk), allocatable :: bnext(:,:,:), bprev(:,:,:)
     real(rk), allocatable :: matinv(:,:,:)
+    real(rk), allocatable :: albedo_mat(:,:), albedo_inv(:,:)
 
     integer :: nthread, myid
 
@@ -262,6 +284,10 @@ contains
       bprev(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
+    allocate(&
+      albedo_mat(xslib%ngroup,xslib%ngroup), &
+      albedo_inv(xslib%ngroup,xslib%ngroup)&
+    )
 
     ! NOTE: there is no "next" source after the last moment
     pn_next_source(1:xslib%ngroup,1:nx,neven) = 0d0
@@ -288,6 +314,15 @@ contains
           pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
             + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2)) &
             - 2.0_rk/dx(1) * matmul(fhat_this(:,:,myid), phi_block(:,1,idxn+1+2))
+        case ('albedo')
+          call eye(xslib%ngroup, albedo_mat)
+          albedo_mat = albedo_alpha * albedo_mat
+          albedo_inv = albedo_mat + 2.0_rk * fhat_this(:,:,myid)/dx(1)
+          call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+          pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
+            + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2)) &
+            - 2.0_rk/dx(1) &
+            * matmul(matmul(matmul(albedo_mat, matinv(:,:,myid)), fhat_this(:,:,myid)), phi_block(:,1,idxn+1+2))
         case default
           call exception_fatal(&
             'unknown boundary_left in transport_block_build_next_source: ' &
@@ -355,6 +390,15 @@ contains
           pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
             - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
             - 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_block(:,nx,idxn+1+2))
+        case ('albedo')
+          call eye(xslib%ngroup, albedo_mat)
+          albedo_mat = albedo_alpha * albedo_mat
+          albedo_inv = albedo_mat + 2.0_rk * fhat_this(:,:,myid)/dx(nx)
+          call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+          pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
+            - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
+            - 2.0_rk/dx(nx) &
+            * matmul(matmul(matmul(albedo_mat, matinv(:,:,myid)), fhat_this(:,:,myid)), phi_block(:,nx,idxn+1+2))
         case default
           call exception_fatal(&
             'unknown boundary_right in transport_block_build_next_source: ' &
@@ -365,13 +409,14 @@ contains
     deallocate(matinv)
     deallocate(bnext, bprev)
     deallocate(fhat_prev, fhat_this, fhat_next)
+    deallocate(albedo_mat, albedo_inv)
   endsubroutine transport_block_build_next_source
 
   subroutine transport_block_build_prev_source( &
-    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, &
     idxn, phi_block, pn_prev_source)
     use xs, only : XSLibrary
-    use linalg, only : inv
+    use linalg, only : inv, eye
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -379,6 +424,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
     integer(ik), intent(in) :: idxn
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_prev_source(:,:) ! (ngroup,nx)
@@ -391,6 +437,7 @@ contains
     real(rk), allocatable :: ghat_prev(:,:,:), ghat_this(:,:,:), ghat_next(:,:,:)
     real(rk), allocatable :: cnext(:,:,:), cprev(:,:,:)
     real(rk), allocatable :: matinv(:,:,:)
+    real(rk), allocatable :: albedo_mat(:,:), albedo_inv(:,:)
 
     integer :: nthread, myid
 
@@ -408,6 +455,10 @@ contains
       cprev(xslib%ngroup,xslib%ngroup,nthread)&
     )
     allocate(matinv(xslib%ngroup,xslib%ngroup,nthread))
+    allocate(&
+      albedo_mat(xslib%ngroup,xslib%ngroup), &
+      albedo_inv(xslib%ngroup,xslib%ngroup)&
+    )
 
     pn_prev_source(1:xslib%ngroup,1:nx) = 0d0
     if (idxn < 2) then
@@ -436,6 +487,15 @@ contains
         pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
           + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2)) &
           - 2.0_rk/dx(1) * matmul(ghat_this(:,:,myid), phi_block(:,1,idxn+1-2))
+      case ('albedo')
+        call eye(xslib%ngroup, albedo_mat)
+        albedo_mat = albedo_alpha * albedo_mat
+        albedo_inv = albedo_mat + 2.0_rk * ghat_this(:,:,myid)/dx(1)
+        call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+        pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
+          + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2)) &
+          - 2.0_rk/dx(1) &
+          * matmul(matmul(matmul(albedo_mat, matinv(:,:,myid)), ghat_this(:,:,myid)), phi_block(:,1,idxn+1-2))
       case default
         call exception_fatal(&
           'unknown boundary_left in transport_block_build_prev_source: ' &
@@ -490,9 +550,18 @@ contains
         pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
           - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2))
       case ('zero')
-        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,n-1)) &
+        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
           - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
           - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2))
+      case ('albedo')
+        call eye(xslib%ngroup, albedo_mat)
+        albedo_mat = albedo_alpha * albedo_mat
+        albedo_inv = albedo_mat + 2.0_rk * ghat_this(:,:,myid)/dx(nx)
+        call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
+        pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
+          - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
+          - 2.0_rk/dx(nx) &
+          * matmul(matmul(matmul(albedo_mat, matinv(:,:,myid)), ghat_this(:,:,myid)), phi_block(:,nx,idxn+1-2))
       case default
         call exception_fatal( &
           'unknown boundary_right in transport_block_build_prev_source: ' &
@@ -502,6 +571,7 @@ contains
     deallocate(matinv)
     deallocate(cnext, cprev)
     deallocate(ghat_prev, ghat_this, ghat_next)
+    deallocate(albedo_mat, albedo_inv)
   endsubroutine transport_block_build_prev_source
 
   subroutine transport_block_build_fsource(nx, dx, mat_map, xslib, phi_block, fsource)
@@ -548,18 +618,20 @@ contains
   endfunction transport_block_fission_summation
 
   subroutine transport_block_power_iteration(&
-    nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+    nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_coeff, &
     calc_type, k_tol, phi_tol, max_iter, pnorder, keff, sigma_tr, phi)
     use xs, only : XSLibrary
     use linalg, only : trid_block
     use output, only : output_write
     use timer, only : timer_start, timer_stop
     use exception_handler, only : exception_fatal, exception_warning
+    use albedo, only : albedo_calculate_alpha
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
+    real(rk), intent(in) :: albedo_coeff ! A \in [-1,1]
     character(*), intent(in) :: calc_type
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
@@ -574,6 +646,7 @@ contains
 
     real(rk) :: delta_k, delta_phi
     real(rk) :: fsum, fsum_old, k_old
+    real(rk) :: albedo_alpha ! \alpha \in [0,\infty)
 
     ! (ngroup,ngroup,nx-1,neven) , (ngroup,ngroup,nx,neven) , (ngroup,ngroup,nx-1,neven)
     real(rk), allocatable :: sub(:,:,:,:), dia(:,:,:,:), sup(:,:,:,:)
@@ -620,10 +693,11 @@ contains
     enddo ! i = 1,xslib%niso
     call timer_stop('transport_invtransmat')
 
+    albedo_alpha = albedo_calculate_alpha(albedo_coeff)
     call output_write('  building transport matrix')
     call timer_start('transport_build_matrix')
     call transport_block_build_matrix(nx, dx, mat_map, xslib, &
-      boundary_left, boundary_right, neven, sub, dia, sup)
+      boundary_left, boundary_right, albedo_alpha, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
     if (calc_type == 'fixed_source') then
@@ -643,7 +717,7 @@ contains
 
       call timer_start('transport_pn_source')
       call transport_block_build_next_source( &
-        nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+        nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, &
         neven, phi_block, pn_next_source)
       call timer_stop('transport_pn_source')
 
@@ -667,7 +741,7 @@ contains
         else
           call timer_start('transport_pn_source')
           call transport_block_build_prev_source( &
-            nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+            nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, &
             idxn, phi_block, pn_prev_source)
           q = q + pn_prev_source
           call timer_stop('transport_pn_source')
@@ -799,6 +873,7 @@ contains
               (phi_block(:,i,idxn+1+1) - phi_block(:,i-1,idxn+1+1))/(0.5_rk*(dx(i)+dx(i-1)))
           endif
         else
+          ! all three are different materials
           ! take a guess at central difference
           do g = 1,xslib%ngroup
             dphi_prev(g) = deriv(x1, x2, x3, &
@@ -819,7 +894,8 @@ contains
         case ('mirror')
           phi_block(:,1,idxn+1) = phi_block(:,2,idxn+1) &
             * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-        case ('zero')
+        case ('zero', 'albedo', 'vacuum_mark')
+          ! nothing fancy, forward difference
           dphi_prev = -phi_block(:,2,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
           if (n < pnorder + 1) then
             dphi_next = -phi_block(:,2,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
@@ -838,7 +914,8 @@ contains
         case ('mirror')
           phi_block(:,nx,idxn+1) = phi_block(:,nx-1,idxn+1) &
             * 0.5_rk * dx(nx) / (dx(nx) + 0.5_rk*dx(nx-1))
-        case ('zero')
+        case ('zero', 'albedo', 'vacuum_mark')
+          ! nothing fancy, backward difference
           dphi_prev = -phi_block(:,nx-1,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
           if (n < pnorder + 1) then
             dphi_next = -phi_block(:,nx-1,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
@@ -915,5 +992,144 @@ contains
       endif
     enddo ! i = 1,nx
   endsubroutine transport_block_build_fixed_source
+
+  subroutine transport_block_phi_right(nx, dx, pnorder, phi_block, phi_right)
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup, nx, pnorder+1)
+    real(rk), intent(out) :: phi_right(:,:) ! (ngroup, pnorder+1)
+
+    logical, parameter :: verbose = .true.
+
+    integer(ik) :: n, idxn
+
+    do n = 1,pnorder+1
+      idxn = n-1
+      phi_right(:,idxn+1) = &
+        (phi_block(:,nx,idxn+1)-phi_block(:,nx-1,idxn+1)) &
+        * dx(nx) / (dx(nx) + dx(nx-1)) + phi_block(:,nx,idxn+1)
+    enddo ! n = 1,pnorder+1
+
+    if (verbose) then
+      do n = 1,pnorder+1
+        idxn = n-1
+        write(*,'(a,i0,1x,es13.6)') 'phi_', n-1, phi_right(1,idxn+1)
+      enddo
+    endif
+  endsubroutine transport_block_phi_right
+
+  subroutine transport_block_calc_vacuum_mark(nx, dx, xslib, &
+      pnorder, phi_block, phi_bc_right)
+    use xs, only : XSLibrary
+    use legendre, only : legendre_get_quadrature, legendre_eval
+    use linalg, only : solve
+    integer(ik), intent(in) :: nx
+    real(rk), intent(in) :: dx(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
+    real(rk), intent(out) :: phi_bc_right(:,:) ! (ngroup,pnorder+1)
+
+    integer(ik) :: i, j, n, g, idxn_even, idxn_odd, idxn
+    real(rk), allocatable :: xi(:), wi(:)
+
+    integer(ik) :: neven
+    real(rk), allocatable :: amat(:,:), bmat(:,:) ! (neven,neven)
+    real(rk), allocatable :: phi_even(:) ! (neven)
+    real(rk), allocatable :: phi_odd(:) ! (neven)
+
+    real(rk) :: xx
+    real(rk) :: lhs, rhs, norm
+
+    allocate(xi(pnorder+1), wi(pnorder+1))
+
+    neven = (pnorder+1)/2
+    allocate(amat(neven,neven), bmat(neven,neven))
+    allocate(phi_even(neven), phi_odd(neven))
+
+    ! TODO all at "right" boundary at x=L for now
+
+    ! (1) get the flux at the *edge*
+    write(*,*) 'BEFORE'
+    call transport_block_phi_right(nx, dx, pnorder, phi_block, phi_bc_right)
+
+    ! (2) build a linear system of equations
+    ! NOTE: this selection of angular points is arbitrary.
+    ! I could instead use uniformly spaced angular points, especially if I want
+    ! to use higher-order PN approximations.
+    call legendre_get_quadrature(pnorder+1, xi, wi)
+
+    ! NOTE indexed for xi < 0 (incoming at the left)
+
+    do i = 1,(pnorder+1)/2
+      xx = xi(i)
+      do j = 1,(pnorder+1)/2
+        idxn_even = 2*(j-1)
+        idxn_odd = 2*(j-1)+1
+        amat(j,i) = (2*idxn_even+1) * legendre_eval(idxn_even, xx)
+        bmat(j,i) = (2*idxn_odd+1) * legendre_eval(idxn_odd, xx)
+      enddo ! j = 1,(pnorder+1)/2
+    enddo ! i = 1,(pnorder+1)/2
+
+    ! (3) return the estimate for the value of the even moments at the boundary
+    do g = 1,xslib%ngroup
+
+      ! re-index
+      do i = 1,(pnorder+1)/2
+        idxn_odd = 2*(i-1)+1
+        phi_odd(i) = phi_bc_right(g,idxn_odd+1)
+      enddo ! i = 1,(pnorder+1)/2
+
+      ! just doing all of this to normalize
+      do i = 1,(pnorder+1)/2
+        idxn_even = 2*(i-1)
+        phi_even(i) = phi_bc_right(g,idxn_even+1)
+      enddo
+      norm = sum(phi_even)
+
+      ! compute RHS
+      phi_odd = -matmul(transpose(bmat), phi_odd)
+
+      ! solve
+      call solve(neven, transpose(amat), phi_odd, phi_even)
+
+      phi_even = phi_even * norm / sum(phi_even)
+
+      ! project back to original data structure
+      do i = 1,(pnorder+1)/2
+        idxn_even = 2*(i-1)
+        phi_bc_right(g,idxn_even+1) = phi_even(i)
+      enddo ! i = 1,(pnorder+1)/2
+
+      write(*,*) 'CHECK'
+      do i = 1,(pnorder+1)/2
+        xx = xi(i)
+        lhs = 0.0_rk
+        do j = 1,(pnorder+1)/2
+          idxn_even = 2*(j-1)
+          lhs = lhs &
+            + (2*idxn_even+1) * legendre_eval(idxn_even, xx) * phi_bc_right(g,idxn_even+1)
+        enddo
+        rhs = 0.0_rk
+        do j = 1,(pnorder+1)/2
+          idxn_odd = 2*(j-1)+1
+          rhs = rhs &
+            + (2*idxn_odd+1) * legendre_eval(idxn_odd, xx) * phi_bc_right(g,idxn_odd+1)
+        enddo
+        write(*,*) 'i=', i, lhs, rhs
+      enddo
+
+    enddo ! g = 1,xslib%ngroup
+
+    write(*,*) 'AFTER'
+    do n = 1,pnorder+1
+      idxn = n-1
+      write(*,'(a,i0,1x,es13.6)') 'phi_', n-1, phi_bc_right(1,idxn+1)
+    enddo
+
+    deallocate(xi, wi)
+    deallocate(amat, bmat, phi_even, phi_odd)
+  endsubroutine transport_block_calc_vacuum_mark
 
 endmodule transport_block
