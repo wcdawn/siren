@@ -19,7 +19,7 @@ contains
     type(XSLibrary), intent(in) :: xslib
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), intent(in) :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
     integer, intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
 
@@ -54,8 +54,8 @@ contains
             dia(1,g,n) = + dnext + xslib%mat(mthis)%sigma_t(g) * dx(1)
           case ('albedo')
             dia(1,g,n) = dnext + xslib%mat(mthis)%sigma_t(g) * dx(1) &
-              + 2.0_rk/dx(1)*albedo_alpha &
-              / (albedo_alpha + 2.0_rk/dx(1)*cthis) * cthis
+              + 2.0_rk/dx(1)*albedo_alpha(g) &
+              / (albedo_alpha(g) + 2.0_rk/dx(1)*cthis) * cthis
           case default
             call exception_fatal( &
               'unknown boundary_left in transport_build_matrix: ' &
@@ -128,8 +128,8 @@ contains
               + 2 * cthis / dx(nx)
           case ('albedo')
             dia(nx,g,n) = dprev + xslib%mat(mthis)%sigma_t(g) * dx(nx) &
-              + 2.0_rk/dx(nx)*albedo_alpha &
-              / (albedo_alpha + 2.0_rk/dx(nx)*cthis) * cthis
+              + 2.0_rk/dx(nx)*albedo_alpha(g) &
+              / (albedo_alpha(g) + 2.0_rk/dx(nx)*cthis) * cthis
           case default
             call exception_fatal( &
               'unknown boundary_right in transport_build_matrix: ' // &
@@ -362,7 +362,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), intent(in) :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
     integer(ik), intent(in) :: neven
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
@@ -397,8 +397,8 @@ contains
             qnext(1,g,n) = &
               -phi(1,g,idxn+1+2)*danext &
               + danext*phi(2,g,idxn+1+2) &
-              - 2.0_rk/dx(1)*albedo_alpha &
-              / (albedo_alpha + 2.0_rk/dx(1)*kathis) * kathis * phi(1,g,idxn+1+2)
+              - 2.0_rk/dx(1)*albedo_alpha(g) &
+              / (albedo_alpha(g) + 2.0_rk/dx(1)*kathis) * kathis * phi(1,g,idxn+1+2)
           case default
             call exception_fatal('unknown boundary_left in next_source: ' &
               // trim(adjustl(boundary_left)))
@@ -438,8 +438,8 @@ contains
             qnext(nx,g,n) = &
               phi(nx-1,g,idxn+1+2)*daprev &
               - phi(nx,g,idxn+1+2)*daprev &
-              - 2.0_rk/dx(nx)*albedo_alpha &
-              / (albedo_alpha + 2.0_rk/dx(nx)*kathis) * kathis * phi(nx,g,idxn+1+2)
+              - 2.0_rk/dx(nx)*albedo_alpha(g) &
+              / (albedo_alpha(g) + 2.0_rk/dx(nx)*kathis) * kathis * phi(nx,g,idxn+1+2)
           case default
             call exception_fatal(&
               'unknown boundary in next_source: ' // trim(adjustl(boundary_right)))
@@ -457,7 +457,7 @@ contains
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: ngroup
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), intent(in) :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
     real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
     real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
     integer(ik), intent(in) :: idxn
@@ -485,8 +485,8 @@ contains
             - 2 * kbthis / dx(1) * phi(1,g,idxn+1-2)
         case ('albedo')
           qprev(1,g) = -phi(1,g,idxn+1-2)*dbnext + dbnext*phi(2,g,idxn+1-2) &
-            - 2.0_rk/dx(1)*albedo_alpha &
-            / (albedo_alpha + 2.0_rk/dx(1)*kbthis) * kbthis * phi(1,g,idxn+1-2)
+            - 2.0_rk/dx(1)*albedo_alpha(g) &
+            / (albedo_alpha(g) + 2.0_rk/dx(1)*kbthis) * kbthis * phi(1,g,idxn+1-2)
         case default
           call exception_fatal('unknown boundary_left in prev_source: ' &
             // trim(adjustl(boundary_left)))
@@ -526,8 +526,8 @@ contains
           qprev(nx,g) = &
             phi(nx-1,g,idxn+1-2)*dbprev &
             - phi(nx,g,idxn+1-2)*dbprev &
-            - 2.0_rk/dx(nx)*albedo_alpha &
-            / (albedo_alpha + 2.0_rk/dx(nx)*kbthis) * kbthis * phi(nx,g,idxn+1-2)
+            - 2.0_rk/dx(nx)*albedo_alpha(g) &
+            / (albedo_alpha(g) + 2.0_rk/dx(nx)*kbthis) * kbthis * phi(nx,g,idxn+1-2)
         case default
           call exception_fatal('unknown boundary_right in prev_source: ' &
             // trim(adjustl(boundary_right)))
@@ -600,7 +600,7 @@ contains
     real(rk) :: k_old, fsum, fsum_old
     real(rk), allocatable :: phi_old(:,:,:)
     real(rk) :: delta_k, delta_phi
-    real(rk) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), allocatable :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
 
     integer(ik) :: neven, idxn
     integer(ik) :: n, g
@@ -622,6 +622,7 @@ contains
     allocate(pn_next_source(nx,xslib%ngroup,neven))
     allocate(pn_prev_source(nx,xslib%ngroup))
     allocate(q(nx))
+    allocate(albedo_alpha(xslib%ngroup))
 
     allocate(phi_old(nx,xslib%ngroup,pnorder+1))
 
@@ -746,6 +747,7 @@ contains
     deallocate(fsource, upsource, downsource, q)
     deallocate(pn_next_source, pn_prev_source)
     deallocate(phi_old)
+    deallocate(albedo_alpha)
   endsubroutine transport_power_iteration
 
 endmodule transport
