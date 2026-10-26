@@ -3,7 +3,7 @@ use kind, only : rk, ik
 implicit none
 
 private
-public :: deriv
+public :: deriv, factorial, binomial, clip
 
 contains
 
@@ -36,5 +36,27 @@ contains
 
     deriv = a * f1 + b * f2 + c * f3
   endfunction deriv
+
+  real(rk) pure function factorial(n)
+    integer(ik), intent(in) :: n
+    factorial = gamma(real(n + 1_ik, rk))
+  endfunction factorial
+
+  real(rk) pure function binomial(n, k)
+    integer(ik), intent(in) :: n, k
+    binomial = factorial(n) / (factorial(k) * factorial(n-k))
+  endfunction binomial
+
+  real(rk) pure function clip(x, lo, hi)
+    real(rk), intent(in) :: x
+    real(rk), intent(in) :: lo, hi
+    if (x < lo) then
+      clip = lo
+    elseif (x > hi) then
+      clip = hi
+    else
+      clip = x
+    endif
+  endfunction clip
 
 endmodule numeric
