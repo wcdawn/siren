@@ -627,7 +627,8 @@ contains
     allocate(phi_old(nx,xslib%ngroup,pnorder+1))
 
     keff = 1.0_rk
-    phi = 1.0_rk
+    phi = 0.0_rk
+    phi(:,:,1) = 1.0_rk
     fsum = 1.0_rk
 
     call transport_init_transportxs(nx, mat_map, xslib, pnorder, sigma_tr)
@@ -723,7 +724,7 @@ contains
 
       if ((keff < 0.0_rk) .or. (keff > 2.0_rk)) then
         write(*,*) 'invalid keff', keff
-        ! NOTE: this may be expected for the first few iterates
+        stop
       endif
 
       write(line, '(a,i4,a,es8.1,a,es8.1,a,f8.6)') &
