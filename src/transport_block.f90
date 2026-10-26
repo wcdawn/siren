@@ -43,7 +43,7 @@ contains
     nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, neven, &
     sub, dia, sup)
     use xs, only : XSLibrary
-    use linalg, only : inv, eye
+    use linalg, only : inv, diag
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -51,7 +51,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), intent(in) :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
     integer(ik), intent(in) :: neven
     real(rk), intent(out) :: sub(:,:,:,:) ! (ngroup,ngroup,nx-1,neven)
     real(rk), intent(out) :: dia(:,:,:,:) ! (ngroup,ngroup,nx,neven)
@@ -116,8 +116,7 @@ contains
         case ('zero')
           dia(:,:,1,n) = anext(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(1)
         case ('albedo')
-          call eye(xslib%ngroup, albedo_mat)
-          albedo_mat = albedo_alpha * albedo_mat
+          call diag(xslib%ngroup, albedo_alpha, albedo_mat)
           albedo_inv = albedo_mat + 2.0_rk * dhat_this(:,:,myid)/dx(1)
           call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
           dia(:,:,1,n) = anext(:,:,myid) + 2.0_rk / dx(1) &
@@ -208,8 +207,7 @@ contains
         case ('zero')
           dia(:,:,nx,n) = aprev(:,:,myid) + 2 * dhat_this(:,:,myid)/dx(nx)
         case ('albedo')
-          call eye(xslib%ngroup, albedo_mat)
-          albedo_mat = albedo_alpha * albedo_mat
+          call diag(xslib%ngroup, albedo_alpha, albedo_mat)
           albedo_inv = albedo_mat + 2.0_rk * dhat_this(:,:,myid)/dx(nx)
           call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
           dia(:,:,nx,n) = aprev(:,:,myid) + 2.0_rk / dx(nx) &
@@ -245,7 +243,7 @@ contains
     nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, &
     neven, phi_block, pn_next_source)
     use xs, only : XSLibrary
-    use linalg, only : inv, eye
+    use linalg, only : inv, diag
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -253,7 +251,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), intent(in) :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
     integer(ik), intent(in) :: neven
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_next_source(:,:,:) ! (ngroup,nx,neven)
@@ -315,8 +313,7 @@ contains
             + matmul(bnext(:,:,myid), phi_block(:,2,idxn+1+2)) &
             - 2.0_rk/dx(1) * matmul(fhat_this(:,:,myid), phi_block(:,1,idxn+1+2))
         case ('albedo')
-          call eye(xslib%ngroup, albedo_mat)
-          albedo_mat = albedo_alpha * albedo_mat
+          call diag(xslib%ngroup, albedo_alpha, albedo_mat)
           albedo_inv = albedo_mat + 2.0_rk * fhat_this(:,:,myid)/dx(1)
           call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
           pn_next_source(:,1,n) = -matmul(bnext(:,:,myid), phi_block(:,1,idxn+1+2)) &
@@ -391,8 +388,7 @@ contains
             - matmul(bprev(:,:,myid), phi_block(:,nx,idxn+1+2)) &
             - 2.0_rk/dx(nx) * matmul(fhat_this(:,:,myid), phi_block(:,nx,idxn+1+2))
         case ('albedo')
-          call eye(xslib%ngroup, albedo_mat)
-          albedo_mat = albedo_alpha * albedo_mat
+          call diag(xslib%ngroup, albedo_alpha, albedo_mat)
           albedo_inv = albedo_mat + 2.0_rk * fhat_this(:,:,myid)/dx(nx)
           call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
           pn_next_source(:,nx,n) = matmul(bprev(:,:,myid), phi_block(:,nx-1,idxn+1+2)) &
@@ -416,7 +412,7 @@ contains
     nx, dx, mat_map, xslib, boundary_left, boundary_right, albedo_alpha, &
     idxn, phi_block, pn_prev_source)
     use xs, only : XSLibrary
-    use linalg, only : inv, eye
+    use linalg, only : inv, diag
     use omp_lib, only : omp_get_num_threads, omp_get_thread_num
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
@@ -424,7 +420,7 @@ contains
     integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
-    real(rk), intent(in) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), intent(in) :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
     integer(ik), intent(in) :: idxn
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
     real(rk), intent(out) :: pn_prev_source(:,:) ! (ngroup,nx)
@@ -488,8 +484,7 @@ contains
           + matmul(cnext(:,:,myid), phi_block(:,2,idxn+1-2)) &
           - 2.0_rk/dx(1) * matmul(ghat_this(:,:,myid), phi_block(:,1,idxn+1-2))
       case ('albedo')
-        call eye(xslib%ngroup, albedo_mat)
-        albedo_mat = albedo_alpha * albedo_mat
+        call diag(xslib%ngroup, albedo_alpha, albedo_mat)
         albedo_inv = albedo_mat + 2.0_rk * ghat_this(:,:,myid)/dx(1)
         call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
         pn_prev_source(:,1) = -matmul(cnext(:,:,myid), phi_block(:,1,idxn+1-2)) &
@@ -554,8 +549,7 @@ contains
           - matmul(cprev(:,:,myid), phi_block(:,nx,idxn+1-2)) &
           - 2.0_rk/dx(nx) * matmul(ghat_this(:,:,myid), phi_block(:,nx,idxn+1-2))
       case ('albedo')
-        call eye(xslib%ngroup, albedo_mat)
-        albedo_mat = albedo_alpha * albedo_mat
+        call diag(xslib%ngroup, albedo_alpha, albedo_mat)
         albedo_inv = albedo_mat + 2.0_rk * ghat_this(:,:,myid)/dx(nx)
         call inv(xslib%ngroup, albedo_inv, matinv(:,:,myid))
         pn_prev_source(:,nx) = matmul(cprev(:,:,myid), phi_block(:,nx-1,idxn+1-2)) &
@@ -646,7 +640,7 @@ contains
 
     real(rk) :: delta_k, delta_phi
     real(rk) :: fsum, fsum_old, k_old
-    real(rk) :: albedo_alpha ! \alpha \in [0,\infty)
+    real(rk), allocatable :: albedo_alpha(:) ! (ngroup) \alpha \in [0,\infty)
 
     ! (ngroup,ngroup,nx-1,neven) , (ngroup,ngroup,nx,neven) , (ngroup,ngroup,nx-1,neven)
     real(rk), allocatable :: sub(:,:,:,:), dia(:,:,:,:), sup(:,:,:,:)
@@ -676,6 +670,8 @@ contains
 
     allocate(phi_block(xslib%ngroup,nx,pnorder+1))
     allocate(phi_old(xslib%ngroup,nx,pnorder+1))
+
+    allocate(albedo_alpha(xslib%ngroup))
 
     phi_block(:,:,1) = 1d0
     phi_block(:,:,2:pnorder+1) = 0d0
@@ -806,6 +802,7 @@ contains
     deallocate(fsource, pn_prev_source, pn_next_source, q)
     deallocate(phi_block, phi_old)
     deallocate(sub, dia, sup)
+    deallocate(albedo_alpha)
   endsubroutine transport_block_power_iteration
 
   subroutine transport_block_calc_odd(nx, dx, mat_map, xslib, &
