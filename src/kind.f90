@@ -6,7 +6,7 @@ private
 
 public :: rk, ik
 
-integer, parameter :: rk = real64
+integer, parameter :: rk = real128
 integer, parameter :: ik = int32
 
 endmodule kind
