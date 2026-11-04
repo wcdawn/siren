@@ -1052,7 +1052,7 @@ contains
     real(rk), allocatable :: phi_bc_right(:,:), phi_bc_right_old(:,:) ! (ngroup,pnorder+1)
 
     real(rk) :: xx
-    real(rk) :: lhs, rhs, norm
+    real(rk) :: lhs, rhs
 
     allocate(xi(pnorder+1), wi(pnorder+1))
 
@@ -1095,20 +1095,11 @@ contains
         phi_odd(i) = phi_bc_right(g,idxn_odd+1)
       enddo ! i = 1,(pnorder+1)/2
 
-      ! just doing all of this to normalize
-      do i = 1,(pnorder+1)/2
-        idxn_even = 2*(i-1)
-        phi_even(i) = phi_bc_right(g,idxn_even+1)
-      enddo
-      norm = sum(phi_even)
-
       ! compute RHS
       phi_odd = -matmul(transpose(bmat), phi_odd)
 
       ! solve
       call solve(neven, transpose(amat), phi_odd, phi_even)
-
-      phi_even = phi_even * norm / sum(phi_even)
 
       ! project back to original data structure
       do i = 1,(pnorder+1)/2
