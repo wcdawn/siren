@@ -72,8 +72,6 @@ contains
     )
     allocate(matinv(xslib%ngroup,xslib%ngroup))
 
-    ! TODO "prev" and "next" moments
-
     ! BC at x=0, i=1
     mthis = mat_map(1)
     mnext = mat_map(2)
