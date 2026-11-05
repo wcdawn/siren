@@ -718,7 +718,7 @@ contains
       if ((iter > 10) .and. (boundary_right == 'vacuum_mark')) then
         call transport_block_calc_odd(nx, dx, mat_map, xslib, &
           boundary_left, boundary_right, pnorder, phi_block)
-        call transport_block_calc_vacuum_mark(nx, dx, xslib, &
+        call transport_block_calc_vacuum_mark(nx, dx, mat_map, xslib, &
           pnorder, phi_block, albedo_alpha)
         call transport_block_build_matrix(nx, dx, mat_map, xslib, &
           boundary_left, boundary_right, albedo_alpha, neven, sub, dia, sup)
@@ -1029,7 +1029,7 @@ contains
     endif
   endsubroutine transport_block_phi_right
 
-  subroutine transport_block_calc_vacuum_mark(nx, dx, xslib, &
+  subroutine transport_block_calc_vacuum_mark(nx, dx, mat_map, xslib, &
       pnorder, phi_block, albedo_alpha)
     use xs, only : XSLibrary
     use legendre, only : legendre_get_quadrature, legendre_eval
@@ -1037,6 +1037,7 @@ contains
     use numeric, only : clip
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
     type(XSLibrary), intent(in) :: xslib
     integer(ik), intent(in) :: pnorder
     real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup,nx,pnorder+1)
@@ -1054,6 +1055,10 @@ contains
     real(rk) :: xx
     real(rk) :: lhs, rhs
 
+    real(rk) :: xmul_next, xmul_prev, xn
+    real(rk), allocatable :: dphi(:), vec(:)
+    real(rk), allocatable :: dhat(:,:)
+
     allocate(xi(pnorder+1), wi(pnorder+1))
 
     neven = (pnorder+1)/2
@@ -1061,6 +1066,9 @@ contains
     allocate(phi_even(neven), phi_odd(neven))
     allocate(phi_bc_right(xslib%ngroup,pnorder+1), &
       phi_bc_right_old(xslib%ngroup,pnorder+1))
+
+    allocate(dhat(xslib%ngroup,xslib%ngroup))
+    allocate(dphi(xslib%ngroup), vec(xslib%ngroup))
 
     ! TODO all at "right" boundary at x=L for now
 
@@ -1133,18 +1141,51 @@ contains
       write(*,'(a,i0,1x,es13.6)') 'phi_', n-1, phi_bc_right(1,idxn+1)
     enddo
 
+    ! Trying some sort of iterative method.
+    ! do n = 1,neven
+    !   idxn = 2*(n-1)
+    !   do g = 1,xslib%ngroup
+    !     albedo_alpha(g,n) = albedo_alpha(g,n) &
+    !       * phi_bc_right(g,idxn+1)/phi_bc_right_old(g,idxn+1)
+    !     albedo_alpha(g,n) = clip(albedo_alpha(g,n), 0.0_rk, 1e3_rk)
+    !   enddo ! g = 1,xslib%ngroup
+    ! enddo ! n = 1,neven
+
+    ! Trying to estimate albedo with a linear contruction.
     do n = 1,neven
-      idxn = 2*(n-1)
+      idxn_even = 2*(n-1)
+
+      xn = real(idxn_even, rk)
+      xmul_next = (xn+1.0_rk)**2 / ((2.0_rk*xn+1.0_rk)*(2.0_rk*xn+3.0_rk))
+      xmul_prev = xn**2 / (4.0_rk*xn**2 - 1.0_rk)
+
+      ! approximate the derivative at the x=L edge as constant
+      ! this is actually the derivative at NX-1/2
+      dphi = 2.0_rk * (phi_block(:,nx,idxn_even+1) - phi_block(:,nx-1,idxn_even+1)) &
+        / (dx(nx) + dx(nx-1))
+
+      dhat = xmul_next * invtransmat(:,:,idxn_even+1+1,mat_map(nx))
+      if (idxn > 0) then
+        dhat = dhat + xmul_prev * invtransmat(:,:,idxn_even+1-1,mat_map(nx))
+      endif
+
+      vec = matmul(dhat, dphi)
+
       do g = 1,xslib%ngroup
-        albedo_alpha(g,n) = albedo_alpha(g,n) &
-          * phi_bc_right(g,idxn+1)/phi_bc_right_old(g,idxn+1)
-        albedo_alpha(g,n) = clip(albedo_alpha(g,n), 0.0_rk, 1e3_rk)
+        albedo_alpha(g,n) = -vec(g)/phi_bc_right(g,idxn_even+1)
       enddo ! g = 1,xslib%ngroup
     enddo ! n = 1,neven
+
+    write(*,*) 'AFTER'
+    do n = 1,neven
+      idxn_even = 2*(n-1)
+      write(*,'(a,i0,1x,es13.6)') 'alpha_', idxn_even, albedo_alpha(1,n)
+    enddo
 
     deallocate(xi, wi)
     deallocate(amat, bmat, phi_even, phi_odd)
     deallocate(phi_bc_right,phi_bc_right_old)
+    deallocate(dhat, dphi, vec)
   endsubroutine transport_block_calc_vacuum_mark
 
 endmodule transport_block
