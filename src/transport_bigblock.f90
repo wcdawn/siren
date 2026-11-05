@@ -43,6 +43,10 @@ contains
 
     real(rk), allocatable :: matinv(:,:)
 
+    sub = 0.0_rk
+    dia = 0.0_rk
+    sup = 0.0_rk
+
     allocate( &
       dhat_prev(xslib%ngroup,xslib%ngroup), &
       dhat_this(xslib%ngroup,xslib%ngroup), &
@@ -505,7 +509,9 @@ contains
     endif
     
     ! TODO calculate odd
+    phi = 0.0_rk
     ! TODO calculate sigma_tr
+    sigma_tr = 0.0_rk
 
     ! copy before exit to reorder
     do i = 1,nx
