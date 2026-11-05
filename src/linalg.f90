@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: trid, norm, trid_block, inv, solve, geneig, eye
+public :: trid, norm, trid_block, inv, solve, geneig, eye, diag
 
 integer, parameter, private :: double_kind = kind(1d0)
 
@@ -229,7 +229,18 @@ contains
     mat = 0.0_rk
     do i = 1,n
       mat(i,i) = 1.0_rk
-    enddo
+    enddo ! i = 1,n
   endsubroutine eye
+
+  subroutine diag(n, vec, mat)
+    integer(ik), intent(in) :: n
+    real(rk), intent(in) :: vec(:) ! (n)
+    real(rk), intent(out) :: mat(:,:) ! (n,n)
+    integer(ik) :: i
+    mat = 0.0_rk
+    do i = 1,n
+      mat(i,i) = vec(i)
+    enddo ! i = 1,n
+  endsubroutine diag
 
 endmodule linalg

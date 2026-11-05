@@ -16,6 +16,7 @@ target_sources(${PROJECT_NAME}.x
     src/geometry.f90
     src/input.f90
     src/kind.f90
+    src/legendre.f90
     src/linalg.f90
     src/main.f90
     src/material.f90
@@ -25,6 +26,7 @@ target_sources(${PROJECT_NAME}.x
     src/timer.f90
     src/transient.f90
     src/transient_mms.f90
+    src/transport_bigblock.f90
     src/transport_block.f90
     src/transport.f90
     src/xs.f90
