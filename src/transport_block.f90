@@ -804,30 +804,4 @@ contains
     enddo ! i = 1,nx
   endsubroutine transport_block_build_fixed_source
 
-  subroutine transport_block_phi_right(nx, dx, pnorder, phi_block, phi_right)
-    integer(ik), intent(in) :: nx
-    real(rk), intent(in) :: dx(:) ! (nx)
-    integer(ik), intent(in) :: pnorder
-    real(rk), intent(in) :: phi_block(:,:,:) ! (ngroup, nx, pnorder+1)
-    real(rk), intent(out) :: phi_right(:,:) ! (ngroup, pnorder+1)
-
-    logical, parameter :: verbose = .true.
-
-    integer(ik) :: n, idxn
-
-    do n = 1,pnorder+1
-      idxn = n-1
-      phi_right(:,idxn+1) = &
-        (phi_block(:,nx,idxn+1)-phi_block(:,nx-1,idxn+1)) &
-        * dx(nx) / (dx(nx) + dx(nx-1)) + phi_block(:,nx,idxn+1)
-    enddo ! n = 1,pnorder+1
-
-    if (verbose) then
-      do n = 1,pnorder+1
-        idxn = n-1
-        write(*,'(a,i0,1x,es13.6)') 'phi_', n-1, phi_right(1,idxn+1)
-      enddo
-    endif
-  endsubroutine transport_block_phi_right
-
 endmodule transport_block
