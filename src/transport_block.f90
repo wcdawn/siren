@@ -3,7 +3,7 @@ use kind, only : rk, ik
 implicit none
 
 private
-public :: transport_block_power_iteration
+public :: transport_block_power_iteration, transport_invtransmat
 
 real(rk), allocatable :: invtransmat(:,:,:,:) ! (ngroup,ngroup,pnorder+1,xslib%niso)
 

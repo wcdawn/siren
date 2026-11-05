@@ -579,9 +579,9 @@ contains
     real(rk), intent(in) :: k_tol, phi_tol
     integer(ik), intent(in) :: max_iter
     integer(ik), intent(in) :: pnorder
-    real(rk), intent(inout) :: keff
-    real(rk), intent(inout) :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
-    real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, nmoment)
+    real(rk), intent(out) :: keff
+    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx, ngroup, nmoment)
+    real(rk), intent(out) :: phi(:,:,:) ! (nx, ngroup, nmoment)
 
     ! matrix
     real(rk), allocatable :: sub(:,:,:), dia(:,:,:), sup(:,:,:) ! (nx, ngroup, neven)
