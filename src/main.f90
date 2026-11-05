@@ -12,6 +12,7 @@ use diffusion, only : diffusion_power_iteration
 use diffusion_block, only : diffusion_block_power_iteration
 use transport, only : transport_power_iteration
 use transport_block, only : transport_block_power_iteration
+use transport_bigblock, only : transport_bigblock_power_iteration
 use output, only : output_open_file, output_close_file, output_write, &
   output_flux_csv, output_power_csv, output_phi_csv, output_transportxs_csv, &
   output_matmap_csv, output_file_unit
