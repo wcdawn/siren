@@ -377,8 +377,8 @@ contains
     use xs, only : XSLibrary
     use exception_handler, only : exception_fatal, exception_warning
     use output, only : output_write
-    use transport_block, only : transport_invtransmat
-    use transport, only : transport_calc_transportxs
+    use transport, only : transport_invtransmat, &
+      transport_calc_transportxs, transport_calc_odd
     use timer, only : timer_start, timer_stop
     use albedo, only : albedo_calculate_alpha
     use linalg, only : trid_block
@@ -509,10 +509,7 @@ contains
       call exception_warning('failed to converge')
     endif
     
-    ! TODO calculate odd
-    phi = 0.0_rk
-
-    ! copy before exit to reorder
+    ! copy to reorder
     do i = 1,nx
       do n = 1,neven
         idxn = 2*(n-1)
@@ -522,6 +519,11 @@ contains
         enddo ! 1,xslib%ngroup
       enddo ! n = 1,neven
     enddo ! i = 1,nx
+
+    call timer_start('calc_odd')
+    call transport_calc_odd(nx, dx, mat_map, xslib, &
+      boundary_left, boundary_right, pnorder, phi)
+    call timer_start('calc_odd')
 
     call timer_start('calc_transportxs')
     call transport_calc_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)

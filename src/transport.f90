@@ -4,9 +4,40 @@ implicit none
 
 private
 
-public :: transport_power_iteration, transport_calc_transportxs
+public :: transport_power_iteration, &
+  transport_invtransmat, transport_calc_transportxs, transport_calc_odd
 
 contains
+
+  subroutine transport_invtransmat(xsmat, idxn, mat)
+    use xs, only : XSMaterial
+    use linalg, only : inv
+    type(XSMaterial), intent(in) :: xsmat
+    integer(ik), intent(in) :: idxn
+    real(rk), intent(out) :: mat(:,:) ! (ngroup,ngroup)
+
+    integer(ik) :: g
+    real(rk), allocatable :: matinv(:,:) ! (ngroup,ngroup)
+
+    mat = 0d0
+
+    do g = 1,xsmat%ngroup
+      mat(g,g) = xsmat%sigma_t(g)
+    enddo ! g = 1,xsmat%ngroup
+
+    if (idxn+1 <= xsmat%nmoment) then
+      ! we have a scattering moment
+      mat = mat - transpose(xsmat%scatter(:,:,idxn+1))
+      allocate(matinv(xsmat%ngroup,xsmat%ngroup))
+      call inv(xsmat%ngroup, mat, matinv)
+      mat = matinv
+      deallocate(matinv)
+    else
+      do g = 1,xsmat%ngroup
+        mat(g,g) = 1.0_rk / mat(g,g)
+      enddo ! g = 1,xsmat%ngroup
+    endif
+  endsubroutine transport_invtransmat
 
   subroutine transport_build_matrix( &
     nx, dx, mat_map, xslib, sigma_tr, &
@@ -178,105 +209,132 @@ contains
 
   endsubroutine transport_init_transportxs
 
-  subroutine transport_odd_update(nx, dx, mat_map, ng, &
-      boundary_left, boundary_right, pnorder, sigma_tr, phi)
+  subroutine transport_calc_odd(nx, dx, mat_map, xslib, &
+      boundary_left, boundary_right, pnorder, phi)
+    use xs, only : XSLibrary
     use numeric, only : deriv
     use exception_handler, only : exception_fatal
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
     integer(ik), intent(in) :: mat_map(:) ! (nx)
-    integer(ik), intent(in) :: ng
+    type(XSLibrary), intent(in) :: xslib
     character(*), intent(in) :: boundary_left, boundary_right
     integer(ik), intent(in) :: pnorder
-    real(rk), intent(in) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
-    real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
+    real(rk), intent(inout) :: phi(:,:,:) ! (nx, ngroup, nmoment)
 
-    integer(ik) :: n, g, i
+    integer(ik) :: i, g, n
     integer(ik) :: idxn
-    real(rk) :: xn, xmul_prev, xmul_next
-    real(rk) :: dphi_prev, dphi_next
+    integer(ik) :: mthis
+
+    real(rk) :: xn
+    real(rk) :: xmul_next, xmul_prev
+    real(rk) :: x1, x2, x3
+
+    real(rk), allocatable :: dphi_prev(:), dphi_next(:) ! (ngroup)
+    real(rk), allocatable :: trans(:,:) ! (ngroup,ngroup)
+
+    allocate(dphi_prev(xslib%ngroup), dphi_next(xslib%ngroup))
+    allocate(trans(xslib%ngroup,xslib%ngroup))
 
     do n = 2,pnorder+1,2
       idxn = n-1
       xn = real(idxn, rk)
       xmul_prev = xn/(2.0_rk*xn+1.0_rk)
       xmul_next = (xn+1.0_rk)/(2.0_rk*xn+1.0_rk)
-      dphi_next = 0.0_rk
-      do g = 1,ng
-        do i = 2,nx-1
-          if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
-            ! central difference for interior (second order)
-            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+      do i = 2,nx-1
+        mthis = mat_map(i)
+        x1 = -0.5_rk * (dx(i-1) + dx(i))
+        x2 = 0.0_rk
+        x3 = 0.5_rk * (dx(i+1) + dx(i))
+        dphi_next = 0.0_rk
+        if ((mat_map(i) == mat_map(i+1)) .and. (mat_map(i) == mat_map(i-1))) then
+          ! central difference for interior
+          do g = 1,xslib%ngroup
+            dphi_prev(g) = deriv(x1, x2, x3, &
               phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
             if (n < pnorder + 1) then
-              dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
+              dphi_next(g) = deriv(x1, x2, x3, &
                 phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
             endif
-          elseif (mat_map(i) == mat_map(i+1)) then
-            ! forward difference (first order)
-            dphi_prev = (phi(i+1,g,idxn+1-1) - phi(i,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i+1)))
-            if (n < pnorder + 1) then
-              dphi_next = (phi(i+1,g,idxn+1+1) - phi(i,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i+1)))
-            endif
-          elseif (mat_map(i) == mat_map(i-1)) then
-            ! backward difference (first order)
-            dphi_prev = (phi(i,g,idxn+1-1) - phi(i-1,g,idxn+1-1))/(0.5d0*(dx(i)+dx(i-1)))
-            if (n < pnorder + 1) then
-              dphi_next = (phi(i,g,idxn+1+1) - phi(i-1,g,idxn+1+1))/(0.5d0*(dx(i)+dx(i-1)))
-            endif
-          else
-            ! this means that there is a material region with width of a single cell
-            ! what a terrible idea...
-            ! try central difference because why not
-            ! TODO raise warning probably in the input processing
-            dphi_prev = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
-            if (n  < pnorder + 1) then
-              dphi_next = deriv(-0.5_rk*(dx(i-1)+dx(i)), 0.0_rk, +0.5_rk*(dx(i)+dx(i+1)), &
-                phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
-            endif
+          enddo ! g = 1,xslib%ngroup
+        elseif (mat_map(i) ==  mat_map(i+1)) then
+          ! forward difference (first-order)
+          dphi_prev = &
+            (phi(i+1,:,idxn+1-1) - phi(i,:,idxn+1-1))/(0.5_rk*(dx(i)+dx(i+1)))
+          if (n < pnorder + 1) then
+            dphi_next = &
+              (phi(i+1,:,idxn+1+1) - phi(i,:,idxn+1+1))/(0.5_rk*(dx(i)+dx(i+1)))
           endif
-          phi(i,g,idxn+1) = &
-            - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-            / sigma_tr(i,g,idxn+1)
-        enddo ! i = 2,nx-1
-        ! BC at x=0, i=1
-        ! use the fact that odd moments must equal zero for mirror bc
-        ! this stencil kind of extends to x3 because phi(2) was computed earlier
-        select case (boundary_left)
-          case ('mirror')
-            phi(1,g,idxn+1) = phi(2,g,idxn+1) * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
-          case ('zero', 'albedo')
-            dphi_prev = -phi(2,g,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+        elseif (mat_map(i) == mat_map(i-1)) then
+          ! backward difference (first-order)
+          dphi_prev = &
+            (phi(i,:,idxn+1-1) - phi(i-1,:,idxn+1-1))/(0.5_rk*(dx(i)+dx(i-1)))
+          if (n < pnorder + 1) then
+            dphi_next = &
+              (phi(i,:,idxn+1+1) - phi(i-1,:,idxn+1+1))/(0.5_rk*(dx(i)+dx(i-1)))
+          endif
+        else
+          ! all three are different materials
+          ! take a guess at central difference
+          do g = 1,xslib%ngroup
+            dphi_prev(g) = deriv(x1, x2, x3, &
+              phi(i-1,g,idxn+1-1), phi(i,g,idxn+1-1), phi(i+1,g,idxn+1-1))
             if (n < pnorder + 1) then
-              dphi_next = -phi(2,g,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
+              dphi_next(g) = deriv(x1, x2, x3, &
+                phi(i-1,g,idxn+1+1), phi(i,g,idxn+1+1), phi(i+1,g,idxn+1+1))
             endif
-            phi(1,g,idxn+1) = &
-              (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-              / sigma_tr(1,g,idxn+1)
-          case default
-            call exception_fatal('unknown boundary_left in odd_update: ' &
-              // trim(adjustl(boundary_left)))
-        endselect
-        ! BC at x=L, i=N
-        select case (boundary_right)
-          case ('mirror')
-            phi(nx,g,idxn+1) = phi(nx-1,g,idxn+1) * 0.5_rk*dx(nx) / (dx(nx)+0.5_rk*dx(nx-1))
-          case ('zero', 'albedo')
-            dphi_prev = -phi(nx-1,g,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
-            if (n < pnorder + 1) then
-              dphi_next = -phi(nx-1,g,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
-            endif
-            phi(nx,g,idxn+1) = &
-              - (xmul_prev * dphi_prev + xmul_next * dphi_next) &
-              / sigma_tr(nx,g,idxn+1)
-          case default
-            call exception_fatal('unknown boundary_right in odd_update: ' &
-              // trim(adjustl(boundary_right)))
-        endselect
-      enddo ! g = 1,ng
-    enddo ! n = 2,pnorder+1,2
-  endsubroutine transport_odd_update
+          enddo ! g = 1,xslib%ngroup
+        endif
+        call transport_invtransmat(xslib%mat(mthis), idxn, trans)
+        phi(i,:,idxn+1) = -matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
+      enddo ! i = 2,nx-1
+      ! BC at x=0, i=1
+      ! use the fact that odd moments must equal zero for mirror bc
+      ! this stencil kind of extends to x3 because phi(2) was computed earlier
+      select case (boundary_left)
+        case ('mirror')
+          phi(1,:,idxn+1) = phi(2,:,idxn+1) &
+            * 0.5_rk * dx(1) / (dx(1) + 0.5_rk*dx(2))
+        case ('zero', 'albedo', 'vacuum_mark')
+          ! nothing fancy, forward difference
+          dphi_prev = -phi(2,:,idxn+1-1)/(dx(1) + 0.5_rk*dx(2))
+          if (n < pnorder + 1) then
+            dphi_next = -phi(2,:,idxn+1+1)/(dx(1) + 0.5_rk*dx(2))
+          else
+            dphi_next = 0.0_rk
+          endif
+          call transport_invtransmat(xslib%mat(mat_map(1)), idxn, trans)
+          phi(1,:,idxn+1) = matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
+        case default
+          call exception_fatal(&
+            'unknown boundary_left in transport_calc_odd: ' &
+            // trim(adjustl(boundary_left)))
+      endselect
+      ! BC at x=L, i=N
+      select case (boundary_right)
+        case ('mirror')
+          phi(nx,:,idxn+1) = phi(nx-1,:,idxn+1) &
+            * 0.5_rk * dx(nx) / (dx(nx) + 0.5_rk*dx(nx-1))
+        case ('zero', 'albedo', 'vacuum_mark')
+          ! nothing fancy, backward difference
+          dphi_prev = -phi(nx-1,:,idxn+1-1)/(dx(nx) + 0.5_rk*dx(nx-1))
+          if (n < pnorder + 1) then
+            dphi_next = -phi(nx-1,:,idxn+1+1)/(dx(nx) + 0.5_rk*dx(nx-1))
+          else
+            dphi_next = 0.0_rk
+          endif
+          call transport_invtransmat(xslib%mat(mat_map(nx)), idxn, trans)
+          phi(nx,:,idxn+1) = -matmul(trans, xmul_next * dphi_next + xmul_prev * dphi_prev)
+        case default
+          call exception_fatal(&
+            'unknown boundary_right in transport_calc_odd: ' &
+            // trim(adjustl(boundary_right)))
+      endselect
+    enddo
+
+    deallocate(trans)
+    deallocate(dphi_prev, dphi_next)
+  endsubroutine transport_calc_odd
 
   subroutine transport_build_upscatter(nx, dx, mat_map, xslib, phi, idxn, qup)
     use xs, only : XSLibrary
@@ -705,11 +763,11 @@ contains
       enddo ! n = 1,neven
 
       ! always do this update so that we can use it in the convergence criteria
-      call timer_start('transport_odd_update')
-      call transport_odd_update( &
-        nx, dx, mat_map, xslib%ngroup, boundary_left, boundary_right, &
-        pnorder, sigma_tr, phi)
-      call timer_stop('transport_odd_update')
+      call timer_start('transport_calc_odd')
+      call transport_calc_odd( &
+        nx, dx, mat_map, xslib, boundary_left, boundary_right, &
+        pnorder, phi)
+      call timer_stop('transport_calc_odd')
 
       call timer_start('transport_convergence')
       ! eigenvalue update
