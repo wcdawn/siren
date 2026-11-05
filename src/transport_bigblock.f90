@@ -378,6 +378,7 @@ contains
     use exception_handler, only : exception_fatal, exception_warning
     use output, only : output_write
     use transport_block, only : transport_invtransmat
+    use transport, only : transport_calc_transportxs
     use timer, only : timer_start, timer_stop
     use albedo, only : albedo_calculate_alpha
     use linalg, only : trid_block
@@ -510,8 +511,6 @@ contains
     
     ! TODO calculate odd
     phi = 0.0_rk
-    ! TODO calculate sigma_tr
-    sigma_tr = 0.0_rk
 
     ! copy before exit to reorder
     do i = 1,nx
@@ -523,6 +522,10 @@ contains
         enddo ! 1,xslib%ngroup
       enddo ! n = 1,neven
     enddo ! i = 1,nx
+
+    call timer_start('calc_transportxs')
+    call transport_calc_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+    call timer_stop('calc_transportxs')
 
     deallocate(sub, dia, sup)
     deallocate(q)

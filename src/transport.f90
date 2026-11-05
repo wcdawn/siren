@@ -4,7 +4,7 @@ implicit none
 
 private
 
-public :: transport_power_iteration
+public :: transport_power_iteration, transport_calc_transportxs
 
 contains
 
@@ -750,5 +750,35 @@ contains
     deallocate(phi_old)
     deallocate(albedo_alpha)
   endsubroutine transport_power_iteration
+
+  subroutine transport_calc_transportxs(nx, mat_map, xslib, pnorder, phi, sigma_tr)
+    use xs, only : XSLibrary
+    integer(ik), intent(in) :: nx
+    integer(ik), intent(in) :: mat_map(:) ! (nx)
+    type(XSLibrary), intent(in) :: xslib
+    integer(ik), intent(in) :: pnorder
+    real(rk), intent(in) :: phi(:,:,:) ! (nx, ngroup, pnorder+1)
+    real(rk), intent(out) :: sigma_tr(:,:,:) ! (nx, ngroup, pnorder+1)
+
+    integer(ik) :: i, g, n
+    integer(ik) :: mthis
+
+    do n = 1,pnorder+1
+      if (n <= xslib%nmoment) then
+        do i = 1,nx
+          mthis = mat_map(i)
+          do g = 1,xslib%ngroup
+            sigma_tr(i,g,n) = xslib%mat(mthis)%sigma_t(g) &
+              - sum(xslib%mat(mthis)%scatter(:,g,n) * phi(i,:,n))/phi(i,g,n)
+          enddo ! g = 1,xslib%ngroup
+        enddo ! i = 1,nx
+      else
+        do i = 1,nx
+          mthis = mat_map(i)
+          sigma_tr(i,:,n) = xslib%mat(mthis)%sigma_t
+        enddo ! i = 1,nx
+      endif
+    enddo ! n = 1,pnorder+1
+  endsubroutine transport_calc_transportxs
 
 endmodule transport
