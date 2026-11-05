@@ -237,14 +237,14 @@ contains
       ! XNEXT
       dhat_prev = xmul_next * invtransmat(:,:,idxn+1+1,mprev)
       dhat_this = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
+      fhat_prev = xcup_next * invtransmat(:,:,idxn+1+1,mprev)
       fhat_this = xcup_next * invtransmat(:,:,idxn+1+1,mthis)
-      fhat_next = xcup_next * invtransmat(:,:,idxn+1+1,mnext)
       ! XPREV
       if (idxn > 0) then
         dhat_prev = dhat_prev + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
         dhat_this = dhat_this + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
+        ghat_prev = xcup_prev * invtransmat(:,:,idxn+1-1,mprev)
         ghat_this = xcup_prev * invtransmat(:,:,idxn+1-1,mthis)
-        ghat_next = xcup_prev * invtransmat(:,:,idxn+1-1,mnext)
       endif
 
       aprev = dhat_prev/dx(nx-1) + dhat_this/dx(nx)
