@@ -101,7 +101,7 @@ contains
       dhat_this(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mthis)
       dhat_next(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
       ! XPREV
-      if (idxn > 1) then
+      if (idxn > 0) then
         dhat_this(:,:,myid) = dhat_this(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
         dhat_next(:,:,myid) = dhat_next(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
       endif
@@ -155,7 +155,7 @@ contains
         dhat_next(:,:,myid) = xmul_next * invtransmat(:,:,idxn+1+1,mnext)
 
         ! XPREV
-        if (idxn > 1) then
+        if (idxn > 0) then
           dhat_prev(:,:,myid) = dhat_prev(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mprev)
           dhat_this(:,:,myid) = dhat_this(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mthis)
           dhat_next(:,:,myid) = dhat_next(:,:,myid) + xmul_prev * invtransmat(:,:,idxn+1-1,mnext)
@@ -694,21 +694,21 @@ contains
     else
       albedo_alpha = albedo_calculate_alpha(albedo_coeff)
     endif
-    call output_write('  building transport matrix')
+    call output_write('building transport matrix')
     call timer_start('transport_build_matrix')
     call transport_block_build_matrix(nx, dx, mat_map, xslib, &
       boundary_left, boundary_right, albedo_alpha, neven, sub, dia, sup)
     call timer_stop('transport_build_matrix')
 
     if (calc_type == 'fixed_source') then
-      call output_write('  building fixed source')
-      call output_write('  using fission spectrum for fixed source specturm: ' // trim(adjustl(xslib%mat(1)%name)))
+      call output_write('building fixed source')
+      call output_write('using fission spectrum for fixed source specturm: ' // trim(adjustl(xslib%mat(1)%name)))
       call timer_start('transport_fixed_source')
       call transport_block_build_fixed_source(nx, dx, xslib%mat(1)%chi, fsource)
       call timer_stop('transport_fixed_source')
     endif
 
-    call output_write('  beginning iterations')
+    call output_write('beginning iterations')
     do iter = 1,max_iter
 
       k_old = keff
