@@ -217,11 +217,18 @@ contains
 
       fsource = fsource / keff
 
+      write(*,*) 'SOURCE'
+      write(*,'(es13.6)') fsource
+
       call timer_start('diffusion_block_tridiagonal')
       call trid_block(nx, xslib%ngroup, sub, dia, sup, fsource, flux_block)
       call timer_stop('diffusion_block_tridiagonal')
 
+      write(*,*) 'SOLUTION'
+      write(*,'(es13.6)') flux_block
+
       fsum = diffusion_block_fission_summation(nx, dx, mat_map, xslib, flux_block)
+      write(*,*)fsum
       if (iter > 1) then
         keff = keff * fsum / fsum_old
       endif

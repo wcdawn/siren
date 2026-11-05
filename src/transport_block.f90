@@ -590,7 +590,7 @@ contains
     enddo ! i = 1,nx
   endsubroutine transport_block_build_fsource
 
-  real(rk) function transport_block_fission_summation(nx, dx, mat_map, xslib, phi_block)
+  real(rk) pure function transport_block_fission_summation(nx, dx, mat_map, xslib, phi_block)
     use xs, only : XSLibrary
     integer(ik), intent(in) :: nx
     real(rk), intent(in) :: dx(:) ! (nx)
